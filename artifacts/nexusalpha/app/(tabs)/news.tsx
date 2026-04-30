@@ -20,6 +20,14 @@ import { NewsFeedItem } from "@/lib/types";
 const TRUMP_COLOR = "#DC2626";
 const ELON_COLOR = "#1D9BF0";
 const BLACKROCK_COLOR = "#F59E0B";
+const SAYLOR_COLOR = "#F97316";
+const CZ_COLOR = "#EAB308";
+const VITALIK_COLOR = "#8B5CF6";
+const CATHIE_COLOR = "#10B981";
+const ARMSTRONG_COLOR = "#0EA5E9";
+const KIYOSAKI_COLOR = "#F43F5E";
+const DORSEY_COLOR = "#6366F1";
+const HAYES_COLOR = "#EC4899";
 
 const NEWS_LINK_HOSTS: Record<"X" | "NEWS", ReadonlySet<string>> = {
   X: new Set(["x.com", "twitter.com", "t.co", "www.x.com", "www.twitter.com"]),
@@ -49,28 +57,19 @@ function influencerMeta(
   inf: NewsFeedItem["influencer"],
   colors: any,
 ): { color: string; letter: string; name: string; borderInner: string } {
-  if (inf === "ELON") {
-    return {
-      color: ELON_COLOR,
-      letter: "X",
-      name: "Elon Musk",
-      borderInner: "#fff",
-    };
+  switch (inf) {
+    case "ELON": return { color: ELON_COLOR, letter: "X", name: "Elon Musk", borderInner: "#fff" };
+    case "BLACKROCK": return { color: BLACKROCK_COLOR, letter: "B", name: "BlackRock", borderInner: "#000" };
+    case "SAYLOR": return { color: SAYLOR_COLOR, letter: "S", name: "Michael Saylor", borderInner: "#fff" };
+    case "CZ": return { color: CZ_COLOR, letter: "CZ", name: "CZ Binance", borderInner: "#000" };
+    case "VITALIK": return { color: VITALIK_COLOR, letter: "V", name: "Vitalik Buterin", borderInner: "#fff" };
+    case "CATHIE": return { color: CATHIE_COLOR, letter: "C", name: "Cathie Wood", borderInner: "#fff" };
+    case "ARMSTRONG": return { color: ARMSTRONG_COLOR, letter: "A", name: "Brian Armstrong", borderInner: "#fff" };
+    case "KIYOSAKI": return { color: KIYOSAKI_COLOR, letter: "K", name: "Robert Kiyosaki", borderInner: "#fff" };
+    case "DORSEY": return { color: DORSEY_COLOR, letter: "J", name: "Jack Dorsey", borderInner: "#fff" };
+    case "HAYES": return { color: HAYES_COLOR, letter: "H", name: "Arthur Hayes", borderInner: "#fff" };
+    default: return { color: TRUMP_COLOR, letter: "T", name: "Donald Trump", borderInner: colors.primary };
   }
-  if (inf === "BLACKROCK") {
-    return {
-      color: BLACKROCK_COLOR,
-      letter: "B",
-      name: "BlackRock",
-      borderInner: "#000",
-    };
-  }
-  return {
-    color: TRUMP_COLOR,
-    letter: "T",
-    name: "Donald Trump",
-    borderInner: colors.primary,
-  };
 }
 
 export default function NewsScreen() {
