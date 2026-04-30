@@ -1,0 +1,61 @@
+# Workspace
+
+## Overview
+
+pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+
+## Stack
+
+- **Monorepo tool**: pnpm workspaces
+- **Node.js version**: 24
+- **Package manager**: pnpm
+- **TypeScript version**: 5.9
+- **API framework**: Express 5
+- **Database**: PostgreSQL + Drizzle ORM
+- **Validation**: Zod (`zod/v4`), `drizzle-zod`
+- **API codegen**: Orval (from OpenAPI spec)
+- **Build**: esbuild (CJS bundle)
+
+## Key Commands
+
+- `pnpm run typecheck` — full typecheck across all packages
+- `pnpm run build` — typecheck + build all packages
+- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
+- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- `pnpm --filter @workspace/api-server run dev` — run API server locally
+
+See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+
+## NEXUSALPHA Mobile App
+
+Expo mobile app at `artifacts/nexusalpha` (preview path `/`). Professional crypto trading dashboard with 5 tabs:
+- **Market** — Live prices (BTC, ETH, BNB, SUI, SOL) via CoinGecko, hero stats, spot strategies
+- **Signals** — AI-generated futures trading signals (BUY/SELL with entry/TP/SL/leverage/confidence)
+- **Nexus** — AI whale alert monitor (transfers, accumulation, liquidations)
+- **Memes** — Smart-money screener that hunts EARLY-STAGE memecoins (next-DOGE candidates), NOT established blue chips. Source: GeckoTerminal `trending_pools` + `new_pools` across 7 chains (solana, eth, bsc, base, arbitrum, polygon_pos, avax) fetched sequentially with 350ms inter-chain spacing to respect free-tier rate-limits. Pipeline: blue-chip/stable blacklist → mcap cap ≤ $200M → group-by-token best-pool dedup (highest liquidity, max age across venues) → liq≥50k / vol≥5k / age≥3d pre-filter → top 50 by volume → GoPlus on-chain verification. **GoPlus rate-limit handling (critical):** the public free tier signals throttling via HTTP 200 with body `{code: 4029, "too many requests"}` (NOT HTTP 429) and silently truncates multi-address `contract_addresses=a,b,c` lists to only the first address (so batching is not viable on free tier). `gpFetchWithRetry` parses the response body, normalizes `code` via `Number()` (GoPlus has been observed returning both numeric `4029` and string `"4029"`), and treats `code:4029` AND HTTP 429/5xx as retryable with exponential backoff (1.2s/2.4s/4.8s, 4 attempts). Per-token calls run at concurrency 2; tokens still empty after the first pass get a sequential second-pass retry with 400ms spacing — **budgeted to ≤10 tokens AND ≤20s wall-clock** so persistent rate limits cannot push response time past 100s and trigger client aborts. This raised topHolders coverage from ~13% (2/15) to ~87% (13/15) in production with cold-start refresh ~50s; subsequent requests hit the 15-min cache (~1ms).
+  - **2-tier classification** in `evaluateQuality`:
+    - **HARD-REJECT** (always dropped): LP_UNLOCKED, LIQUIDITY_TOO_THIN, TOO_NEW, NO_REAL_VOLUME, EXTREME_VOLATILITY, MCAP_LIQ_MISMATCH, SINGLE_HOLDER_EXTREME (>50%), WHALE_CONCENTRATION_EXTREME (≥95%).
+    - **SOFT (downgrade-to-WATCHLIST)** with amber warnings shown in UI: SECURITY_UNVERIFIABLE, LP_UNVERIFIED, LP_LOCK_INSUFFICIENT, WHALE_CONCENTRATION (80–95%), SINGLE_HOLDER_DOMINANT (35–50%).
+    - Returns `tier: "VERIFIED" | "WATCHLIST" | "REJECTED"` plus `warnings: string[]`. WATCHLIST tokens get a 15-pt + 3-pt-per-warning quality penalty.
+  - `extractSmartMoney` classifies surviving non-contract holders into LOCKED_ACCUMULATOR / EARLY_WHALE / CONVICTION_HOLDER / SMART_MONEY with reason text.
+  - Output: VERIFIED first (sorted by quality), then WATCHLIST (sorted by quality), capped at 15 total. Mobile UI shows tier badge (green=VERIFIED, amber=WATCHLIST) plus a "WATCHLIST WARNINGS" section above the SMART MONEY TRACKER for soft-flagged tokens. UI defaults to WATCHLIST styling when `tier` is missing/unknown so safety is never overstated. Cache TTL 15 min.
+  - **Lazy-loaded "pro chart" with technical indicators** (collapsed by default). Tap "SHOW PRICE CHART" → opens an inline SVG chart with 3 timeframes (1H / 24H / 7D). Candlestick-only (no line/candle toggle — removed by user request to maximise indicator real estate). Each chart panel stacks: (1) **Bottom-detection signal banner** with icon + colored label (OVERSOLD / CAPITULATION / NEAR_SUPPORT / OVERBOUGHT / NEUTRAL) + RSI value badge; (2) **Price area** with bull-green/bear-red candles, EMA9 (gold), EMA21 (light-blue), and dashed Support (green, "S") / Resistance (red, "R") horizontals at the visible low/high; (3) **Volume bars** panel (color-matched to candle direction); (4) **RSI 14** mini-panel with green dashed 30 (oversold) and red dashed 70 (overbought) lines; (5) X-axis time labels; (6) Indicator legend row. Stats row shows current/high/low + change %. Footer shows "Source: GeckoTerminal". Each card has independent state. UI uses a requestId ref to drop stale responses when timeframes are tapped quickly. On 503 from backend, frontend auto-retries once after 3s before showing red error+retry button.
+  - Indicator math (frontend, pure): `calcEma(values, period)` standard k=2/(p+1); `calcRsi(values, period=14)` Wilder smoothing with `rsiFromAvg` helper that returns 50 (neutral) when both avgGain & avgLoss are zero (flat market) instead of 100; `computeBottomSignal` heuristic precedence OVERBOUGHT (RSI≥70) > OVERSOLD (RSI≤30) > CAPITULATION (last bar bear AND volume ≥ 2× prior avg) > NEAR_SUPPORT (close in bottom 15% of visible range) > NEUTRAL. Closes are forward-filled (not filtered) so EMA/RSI overlay indices align with candle/time-axis indices via `xFor(i + closeOffset)`. When `validCloseCount === 0`, signal is forced to NEUTRAL and RSI badge is suppressed.
+  - Backend: `GET /api/ai/memes/chart?network=<gt-slug>&pool=<address>&tf=1h|24h|7d` — direct fetch (preserves upstream status semantics), 4-attempt retry on 429/5xx (backoff 1.5s/3s/6s/12s), in-flight dedupe Map (concurrent requests for same key share one upstream call), 15-min positive cache for successful responses, 30-min negative cache for 404s (avoids hammering GT for known-not-indexed pools). 404 surfaces as graceful empty state in UI; 503 surfaces as red error + retry button (after one auto-retry). Each chart point exposes full OHLC + volume (`{t, o, h, l, c, v}`) so candles, volume bars, and indicator overlays all use one payload.
+- **News** — Curated crypto news feed with deep links
+
+Backend at `artifacts/api-server`:
+- `GET /api/binance/tickers?symbols=...` — CoinGecko price proxy with 45s in-memory cache (CoinGecko free tier rate-limited)
+- `GET /api/binance/ticker?symbol=...` — single ticker
+- `POST /api/ai/signal` — Gemini-generated futures signal (responseSchema-validated JSON). Response now includes a `scalpingPlan` block (LONG/SHORT/NO_SCALP, entryPrice, entryTrigger, stopLoss, takeProfit[], takeProfitRR[], leverage capped at 25x, timeframe, holdTime, sessionWindow, notes) — added to BOTH the live handler and the prewarm Gemini schemas (with the field in `required[]`) so the chart-driven prompt always returns a short-term scalping plan in addition to the existing swing/longer-term plan. Schema is defined once at the top of `ai.ts` as `SCALPING_PLAN_SCHEMA` and reused. Backend cache TTL stays 5 min.
+  - **OHLC source — switched from CoinGecko `market_chart` to OKX public candles** (`/api/v5/market/candles?instId=<BASE>-USDT&bar=1H|1D&limit=300`). CoinGecko free-tier 429-throttled non-major coins (only BTC reliably returned 90d data); OKX returns ~280-300ms responses for all 9 pairs (BTC, ETH, BNB, SUI, SOL, HYPE, ASTER, ZEC, LINK) without rate-limit issues. Binance is HTTP 451 geo-blocked, Bybit is HTTP 403 (CloudFront). `getOHLC` in `binance.ts` now returns an `OHLCBundle { hourly, daily }` (300×1H + 300×1D fetched in parallel) with inflight coalescing and 15-min cache; falls back to CoinGecko 7d on OKX failure. `ai.ts` consumes `bundle.hourly` for 4H aggregation (intraday RSI/MACD/Stochastic) and `bundle.daily` directly for daily/weekly indicators (EMA20/50/200, RSI Daily/Weekly, BB, swing levels via `aggregateCandles(daily.closes, daily.volumes, 7)` for weekly). Result: all 9 tokens now produce real, distinct, well-reasoned signals (model gets real EMA/RSI/MACD/volume data instead of "Insufficient data").
+  - **Latency tuning — `thinkingConfig: { thinkingBudget: 2048 }`** in both live handler and prewarm. Default dynamic thinking burns 15-25s extra (~37s total); budget 0 drops to ~6s but model defaults to NO_TRADE+N/A because it skips analysis; budget 6144 adds latency without changing verdicts. 2048 is the sweet spot: full analysis with rich market data in 15-18s per cold call.
+  - **Determinism — `temperature: 0.2, topP: 0.8, topK: 40`** in both call sites. Trading signals MUST be reproducible (same data → same verdict). Default Gemini temperature (~1.0) caused the same input data to produce DIFFERENT analyses across separate language calls. Low temperature collapses the distribution to the highest-probability reading of the indicators.
+  - **Cross-language number parity — canonical-English + translation pass**. To guarantee that switching language NEVER changes the trading numbers (entry, SL, TP, confidence, scoreBreakdown, prices), the analysis is generated EXACTLY ONCE per pair in canonical English. The live `/ai/signal` handler always calls Gemini with `buildLanguageDirective("en")` regardless of the requested language, then caches the English payload under `${pair}:en`. For Indonesian requests, `translateSignalToIndonesian()` runs a second focused Gemini call (temp=0, thinkingBudget=0, ~3-5s) that receives ONLY the descriptive text fields (reasoning, expertMindset, noTradeReason, invalidation, traderStyle, spotEntry, longTermTarget, riskReward, timeframe, validUntil, confluences[], priceScenarios.{bearish/bullishTimeframe,bearish/bullishCondition,baseCase}, scalpingPlan.{entryTrigger,holdTime,sessionWindow,notes}) and returns Indonesian translations. The translated text is then merged back into the English payload via `{ ...en, reasoning: t.reasoning || en.reasoning, ... }` — every numeric field, enum, price, ratio, leverage value, and scoreBreakdown total is preserved literally because they are NEVER passed to the translation prompt. ID payload cached under `${pair}:id`. The prewarm path also generates English-only and caches under `${pair}:en` so the first ID user request only pays for the cheap translation pass. Verified across BTC/ETH/SOL/HYPE: side, confidence, entryPrice, stopLoss, takeProfit, leverage, keySupport, keyResistance, scoreBreakdown.total, priceScenarios.bearish/bullishTarget all character-for-character identical across `lang=en` vs `lang=id`.
+- `POST /api/ai/whales` — Gemini-generated whale alerts
+- `POST /api/ai/memes` — Gemini-generated meme coin list. Boot-time prewarm via `schedulePrewarmMemes()` kicks off `refreshMemes()` 5s after server start so the FIRST user request finds a hot cache. Prewarm errors are logged via `logger` but the rejecting promise is preserved on `memesInflight` (we explicitly do NOT swallow into `[]`) so an awaiting request still falls back to the cache or 503 instead of returning HTTP 200 with empty data.
+
+Mobile-side perceived-speed cache: `artifacts/nexusalpha/lib/persistentCache.ts` provides `memGet/memSet` (in-memory snapshot) + `cacheGet/cacheSet` (AsyncStorage with TTL envelope). Memes screen hydrates instantly from cache (TTL 30 min) and silently background-refreshes; failures during background refresh are intentionally not surfaced. Signals screen hydrates per `pair:lang` (TTL 5 min — matches backend) and shows the previous signal immediately while regenerating. The "Scalping Plan" UI on the Signals card lives between Take-Profit targets and Confluences (cyan accent, distinct from BUY/SELL ribbon); NO_SCALP renders gracefully with a localized fallback note. i18n keys live under `signals.scalp.*` for ID + EN.
+
+AI uses Replit's Gemini AI integration via `@workspace/integrations-gemini-ai`, model `gemini-2.5-flash`.
+Indonesian (`id-ID`) number formatting throughout. Dark Binance-style theme: `#0B0E11` bg, `#F0B90B` brand yellow.
