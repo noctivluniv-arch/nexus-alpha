@@ -496,6 +496,124 @@ Output the SAME JSON structure with every value translated to Indonesian (keepin
   };
 }
 
+function buildFallbackSignal(params: {
+  pair: string;
+  livePrice: number;
+  ema20: number | null;
+  ema50: number | null;
+  ema200: number | null;
+  rsi1d: number | null;
+  rsi4h: number | null;
+  macd4h: { histogram: number } | null;
+  sup1: number; sup2: number; sup3: number;
+  res1: number; res2: number; res3: number;
+  trend4h: string;
+  lang: "id" | "en";
+}): Record<string, any> {
+  const { livePrice: p, ema200, ema20, ema50, rsi1d, rsi4h, macd4h, sup1, sup2, sup3, res1, res2, res3, trend4h, lang } = params;
+  const id = lang === "id";
+
+  const aboveEma200 = ema200 != null && p > ema200;
+  const ema20AboveEma50 = ema20 != null && ema50 != null && ema20 > ema50;
+  const rsiNeutral = rsi1d != null && rsi1d > 40 && rsi1d < 70;
+  const macdBull = macd4h != null && macd4h.histogram > 0;
+
+  let score = 50;
+  if (aboveEma200) score += 15;
+  if (ema20AboveEma50) score += 10;
+  if (rsiNeutral) score += 10;
+  if (macdBull) score += 10;
+
+  let side: "BUY" | "SELL" | "NO_TRADE" = "NO_TRADE";
+  if (score >= 70 && trend4h !== "BEARISH") side = "BUY";
+  else if (score < 40 || trend4h === "BEARISH") side = "SELL";
+
+  const sl = side === "BUY" ? sup1 : res1;
+  const riskAmt = Math.abs(p - sl) || p * 0.02;
+  const tp1 = side === "BUY" ? p + riskAmt * 1.5 : p - riskAmt * 1.5;
+  const tp2 = side === "BUY" ? p + riskAmt * 2.5 : p - riskAmt * 2.5;
+  const tp3 = side === "BUY" ? p + riskAmt * 4.0 : p - riskAmt * 4.0;
+  const riskPct = ((Math.abs(p - sl) / p) * 100).toFixed(2);
+
+  const validUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
+  return {
+    pair: params.pair,
+    side,
+    noTrade: side === "NO_TRADE",
+    noTradeReason: side === "NO_TRADE"
+      ? (id ? "Konfluensi teknikal tidak cukup untuk trade saat ini." : "Insufficient technical confluence for a trade right now.")
+      : "",
+    entryRange: `$${(p * 0.995).toFixed(2)} - $${(p * 1.005).toFixed(2)}`,
+    entryPrice: `$${p.toFixed(2)}`,
+    takeProfit: [`$${tp1.toFixed(2)}`, `$${tp2.toFixed(2)}`, `$${tp3.toFixed(2)}`],
+    takeProfitRR: ["1:1.5", "1:2.5", "1:4"],
+    stopLoss: `$${sl.toFixed(2)}`,
+    stopLossRiskPct: `${riskPct}%`,
+    confidence: Math.min(score, 88),
+    timestamp: Date.now(),
+    reasoning: id
+      ? `Sinyal teknikal otomatis. EMA200: harga ${aboveEma200 ? "di atas" : "di bawah"} EMA200. RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"}. MACD 4H: ${macdBull ? "bullish" : "bearish"}. Tren 4H: ${trend4h}.`
+      : `Automated technical signal. EMA200: price is ${aboveEma200 ? "above" : "below"} EMA200. RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"}. MACD 4H: ${macdBull ? "bullish" : "bearish"}. 4H Trend: ${trend4h}.`,
+    traderStyle: "Technical Analysis — EMA + RSI + MACD Confluence",
+    leverage: side === "NO_TRADE" ? "1x (spot)" : "3-5x",
+    expertMindset: id
+      ? "Disiplin teknikal: tunggu konfirmasi sebelum entry. Jaga risiko maksimal 1-2% per trade."
+      : "Technical discipline: wait for confirmation before entry. Keep risk at 1-2% per trade.",
+    spotEntry: `$${sup2.toFixed(2)} - $${sup1.toFixed(2)}`,
+    longTermTarget: `$${res3.toFixed(2)}`,
+    keySupport: `$${sup1.toFixed(2)}`,
+    keyResistance: `$${res1.toFixed(2)}`,
+    marketStructure: trend4h === "BULLISH" ? "BULLISH" : trend4h === "BEARISH" ? "BEARISH" : "RANGING",
+    riskReward: "1:2.5",
+    timeframe: id ? "4H konfirmasi, 1D tren" : "4H confirmation, 1D trend",
+    validUntil,
+    invalidation: id
+      ? `Setup batal jika harga close di bawah $${sl.toFixed(2)}`
+      : `Setup invalidated on a close below $${sl.toFixed(2)}`,
+    confluences: [
+      id ? `EMA stack: harga ${aboveEma200 ? "di atas" : "di bawah"} EMA200` : `EMA stack: price ${aboveEma200 ? "above" : "below"} EMA200`,
+      id ? `RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"} — ${rsiNeutral ? "zona netral" : "perlu perhatian"}` : `RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"} — ${rsiNeutral ? "neutral zone" : "watch closely"}`,
+      id ? `MACD 4H histogram: ${macdBull ? "positif (bullish)" : "negatif (bearish)"}` : `MACD 4H histogram: ${macdBull ? "positive (bullish)" : "negative (bearish)"}`,
+      id ? `EMA 20/50: ${ema20AboveEma50 ? "bullish crossover" : "belum crossover"}` : `EMA 20/50: ${ema20AboveEma50 ? "bullish alignment" : "not aligned yet"}`,
+    ],
+    scoreBreakdown: {
+      trend: aboveEma200 ? 75 : 30,
+      volume: 50,
+      sentiment: 50,
+      momentum: macdBull ? 70 : 30,
+      structure: ema20AboveEma50 ? 70 : 30,
+    },
+    priceScenarios: {
+      bearishTarget: `$${sup3.toFixed(2)}`,
+      bearishTimeframe: id ? "2-4 minggu" : "2-4 weeks",
+      bearishCondition: id ? `Jika harga tembus support $${sup1.toFixed(2)}` : `If price breaks support at $${sup1.toFixed(2)}`,
+      bullishTarget: `$${res3.toFixed(2)}`,
+      bullishTimeframe: id ? "2-6 minggu" : "2-6 weeks",
+      bullishCondition: id ? `Jika harga tembus resistance $${res1.toFixed(2)}` : `If price breaks resistance at $${res1.toFixed(2)}`,
+      baseCase: id
+        ? `Konsolidasi di range $${sup1.toFixed(2)} - $${res1.toFixed(2)} dalam jangka pendek`
+        : `Consolidation in $${sup1.toFixed(2)} - $${res1.toFixed(2)} range near-term`,
+    },
+    scalpingPlan: {
+      side: "NO_SCALP",
+      entryPrice: `$${p.toFixed(2)}`,
+      entryTrigger: id ? "Tunggu konfirmasi candle pada level kunci" : "Wait for candle confirmation at key level",
+      stopLoss: `$${(p * 0.99).toFixed(2)}`,
+      takeProfit: [`$${(p * 1.01).toFixed(2)}`, `$${(p * 1.02).toFixed(2)}`],
+      takeProfitRR: ["1:1", "1:2"],
+      leverage: "5x",
+      timeframe: "15m-1H",
+      holdTime: id ? "1-4 jam" : "1-4 hours",
+      sessionWindow: id ? "Kapan saja — tidak ada bias sesi" : "Anytime — no session bias",
+      notes: id
+        ? "Mode teknikal — analisis AI tidak tersedia sementara. Gunakan level S/R manual untuk konfirmasi scalp."
+        : "Technical mode — AI analysis temporarily unavailable. Use manual S/R levels for scalp confirmation.",
+    },
+    isFallback: true,
+  };
+}
+
 router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res: Response) => {
   const { pair, priceData, lang: rawLang } = req.body ?? {};
   if (!pair) return res.status(400).json({ error: "pair required" });
@@ -971,10 +1089,24 @@ Output the complete JSON signal. All price fields must use actual numeric values
     return res.json(idPayload);
   } catch (err: any) {
     req.log.error({ err: err?.message }, "AI signal failed");
-    if (
+    const isQuotaErr =
       err?.message?.includes("429") || err?.message?.includes("RESOURCE_EXHAUSTED") ||
-      err?.message?.toLowerCase().includes("quota")
-    ) {
+      err?.message?.toLowerCase().includes("quota") ||
+      err?.message?.toLowerCase().includes("not found") ||
+      err?.message?.includes("404");
+    if (isQuotaErr && livePrice > 0) {
+      req.log.warn({ pair }, "AI quota/model error — serving technical fallback signal");
+      const fallback = buildFallbackSignal({
+        pair: String(pair), livePrice,
+        ema20: ema20Val, ema50: ema50Val, ema200: ema200Val,
+        rsi1d: rsi1dVal, rsi4h: rsi4hVal, macd4h: macd4hVal,
+        sup1, sup2, sup3, res1, res2, res3,
+        trend4h, lang,
+      });
+      SIGNAL_CACHE.set(cacheKey, { ts: Date.now(), data: fallback });
+      return res.json(fallback);
+    }
+    if (isQuotaErr) {
       return res.status(429).json({ error: "QUOTA_EXCEEDED" });
     }
     return res.status(500).json({ error: "AI generation failed" });
