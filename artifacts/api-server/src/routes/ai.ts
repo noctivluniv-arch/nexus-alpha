@@ -38,7 +38,7 @@ interface SignalCacheEntry {
   data: Record<string, unknown>;
 }
 const SIGNAL_CACHE = new Map<string, SignalCacheEntry>();
-const SIGNAL_TTL_MS = 5 * 60 * 1000;
+const SIGNAL_TTL_MS = process.env.GEMINI_API_KEY ? 30 * 60 * 1000 : 5 * 60 * 1000;
 
 interface WhalesCacheEntry {
   ts: number;
