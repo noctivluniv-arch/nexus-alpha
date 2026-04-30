@@ -31,7 +31,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 const router: IRouter = Router();
-const MODEL = "gemini-2.5-flash";
+const MODEL = "gemini-1.5-flash";
 
 interface SignalCacheEntry {
   ts: number;
@@ -439,7 +439,6 @@ Output the SAME JSON structure with every value translated to Indonesian (keepin
         temperature: 0,
         topP: 1.0,
         topK: 1,
-        thinkingConfig: { thinkingBudget: 0 },
       },
     }),
     GEMINI_TIMEOUT_MS,
@@ -762,7 +761,6 @@ Output the complete JSON signal. All price fields must use actual numeric values
         // market data we provide (EMAs, RSI, MACD, BB, derivatives,
         // OHLC, S/R) into a committed entry/SL/TP plan. A higher budget
         // (6144) does NOT change the verdict but adds 10-20s latency.
-        thinkingConfig: { thinkingBudget: 2048 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -1181,7 +1179,6 @@ Fibonacci: 0.382=$${fib["0.382"].toFixed(2)} 0.5=$${fib["0.5"].toFixed(2)} 0.618
         temperature: 0.2,
         topP: 0.8,
         topK: 40,
-        thinkingConfig: { thinkingBudget: 2048 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
