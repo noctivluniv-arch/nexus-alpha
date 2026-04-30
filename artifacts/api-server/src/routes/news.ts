@@ -11,6 +11,8 @@ export interface TrendingTopic {
   category: string;
   sentiment: "BULLISH" | "BEARISH" | "NEUTRAL";
   count: number;
+  influencers?: string[];
+  influencerDriven?: boolean;
 }
 
 type InfluencerTag =
@@ -554,31 +556,61 @@ Return a JSON array with exactly 8 items. Fields:
   }));
 }
 
+const INFLUENCER_DISPLAY: Record<string, string> = {
+  TRUMP: "Trump", ELON: "Elon Musk", BLACKROCK: "BlackRock",
+  SAYLOR: "Saylor", CZ: "CZ", VITALIK: "Vitalik",
+  CATHIE: "Cathie Wood", ARMSTRONG: "Armstrong", KIYOSAKI: "Kiyosaki",
+  DORSEY: "Dorsey", HAYES: "A.Hayes",
+};
+
+const CAT_LABELS: Record<string, string> = {
+  BTC: "Bitcoin", ETH: "Ethereum", ALT: "Altcoin", MARKET: "Crypto Market",
+  DEFI: "DeFi", MEME: "Meme Coin", REGULATION: "Regulasi",
+};
+
 function computeTrending(items: NewsItem[]): TrendingTopic[] {
-  const catMap: Record<string, { count: number; bulls: number; bears: number }> = {};
+  interface CatBucket {
+    count: number;
+    bulls: number;
+    bears: number;
+    influencerSet: Set<string>;
+    influencerCount: number;
+  }
+  const catMap: Record<string, CatBucket> = {};
+
   for (const item of items) {
     const cat = item.category;
-    if (!catMap[cat]) catMap[cat] = { count: 0, bulls: 0, bears: 0 };
+    if (!catMap[cat]) catMap[cat] = { count: 0, bulls: 0, bears: 0, influencerSet: new Set(), influencerCount: 0 };
     catMap[cat].count++;
     if (item.sentiment === "BULLISH") catMap[cat].bulls++;
     if (item.sentiment === "BEARISH") catMap[cat].bears++;
+    if (item.influencer && item.influencer !== "NONE" as any) {
+      const displayName = INFLUENCER_DISPLAY[item.influencer] ?? item.influencer;
+      catMap[cat].influencerSet.add(displayName);
+      catMap[cat].influencerCount++;
+    }
   }
-
-  const LABELS: Record<string, string> = {
-    BTC: "Bitcoin", ETH: "Ethereum", ALT: "Altcoin", MARKET: "Crypto Market",
-    DEFI: "DeFi", MEME: "Meme Coin", REGULATION: "Regulasi",
-  };
 
   return Object.entries(catMap)
     .filter(([, v]) => v.count > 0)
-    .sort(([, a], [, b]) => b.count - a.count)
+    // Sort: influencer-driven topics first, then by total count
+    .sort(([, a], [, b]) => {
+      const infDiff = b.influencerCount - a.influencerCount;
+      if (infDiff !== 0) return infDiff;
+      return b.count - a.count;
+    })
     .slice(0, 6)
-    .map(([cat, v]) => ({
-      label: LABELS[cat] ?? cat,
-      category: cat,
-      sentiment: (v.bulls > v.bears ? "BULLISH" : v.bears > v.bulls ? "BEARISH" : "NEUTRAL") as "BULLISH" | "BEARISH" | "NEUTRAL",
-      count: v.count,
-    }));
+    .map(([cat, v]) => {
+      const influencers = Array.from(v.influencerSet);
+      return {
+        label: CAT_LABELS[cat] ?? cat,
+        category: cat,
+        sentiment: (v.bulls > v.bears ? "BULLISH" : v.bears > v.bulls ? "BEARISH" : "NEUTRAL") as "BULLISH" | "BEARISH" | "NEUTRAL",
+        count: v.count,
+        influencers: influencers.length > 0 ? influencers : undefined,
+        influencerDriven: v.influencerCount > 0,
+      };
+    });
 }
 
 let trendingCache: { ts: number; data: TrendingTopic[] } = { ts: 0, data: [] };
