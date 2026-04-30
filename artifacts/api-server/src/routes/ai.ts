@@ -977,7 +977,7 @@ Output the complete JSON signal. All price fields must use actual numeric values
     ) {
       return res.status(429).json({ error: "QUOTA_EXCEEDED" });
     }
-    return res.status(500).json({ error: "AI generation failed" });
+    return res.status(500).json({ error: "AI generation failed", detail: err?.message ?? "unknown" });
   }
 });
 
