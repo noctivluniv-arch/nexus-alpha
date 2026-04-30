@@ -15,7 +15,7 @@ import { Header } from "@/components/Header";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/lib/api";
 import { useT } from "@/lib/i18n";
-import { NewsFeedItem } from "@/lib/types";
+import { NewsFeedItem, MacroItem } from "@/lib/types";
 
 const TRUMP_COLOR = "#DC2626";
 const ELON_COLOR = "#1D9BF0";
@@ -78,6 +78,7 @@ export default function NewsScreen() {
   const [items, setItems] = useState<NewsFeedItem[]>([]);
   const [xBuzz, setXBuzz] = useState<NewsFeedItem[]>([]);
   const [trendingTopics, setTrendingTopics] = useState<import("@/lib/types").TrendingTopic[]>([]);
+  const [macroNews, setMacroNews] = useState<MacroItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,10 +86,11 @@ export default function NewsScreen() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const [data, buzz, trends] = await Promise.allSettled([
+      const [data, buzz, trends, macro] = await Promise.allSettled([
         api.getNews(),
         api.getXBuzz(),
         api.getTrending(),
+        api.getMacro(),
       ]);
       if (data.status === "fulfilled") setItems(data.value);
       else if ((data as any).reason?.message === "QUOTA_EXCEEDED") setError(t("common.quotaError"));
@@ -96,6 +98,7 @@ export default function NewsScreen() {
 
       if (buzz.status === "fulfilled") setXBuzz(buzz.value);
       if (trends.status === "fulfilled") setTrendingTopics(trends.value);
+      if (macro.status === "fulfilled") setMacroNews(macro.value);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -180,6 +183,11 @@ export default function NewsScreen() {
             colors={colors}
             catColor={catColor}
           />
+        ) : null}
+
+        {/* MAKRO EKONOMI DUNIA */}
+        {macroNews.length > 0 ? (
+          <MacroCard items={macroNews} colors={colors} />
         ) : null}
 
         <View
@@ -385,6 +393,80 @@ function InfluencerTopicsCard({
             <Text style={[styles.infTopicCount, { color: colors.mutedForeground }]}>
               {topic.count} artikel
             </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+const MACRO_GREEN = "#16A34A";
+const MACRO_GREEN_DIM = "#16A34A18";
+const MACRO_GREEN_BORDER = "#16A34A44";
+
+const MACRO_CAT_LABEL: Record<string, string> = {
+  FED: "The Fed", INFLATION: "Inflasi", TRADE: "Perang Dagang",
+  MARKETS: "Pasar Saham", ENERGY: "Energi", CURRENCY: "Mata Uang",
+  ECONOMY: "Ekonomi", GENERAL: "Makro",
+};
+const MACRO_CAT_ICON: Record<string, string> = {
+  FED: "percent", INFLATION: "trending-up", TRADE: "package",
+  MARKETS: "bar-chart-2", ENERGY: "zap", CURRENCY: "dollar-sign",
+  ECONOMY: "globe", GENERAL: "activity",
+};
+
+function MacroCard({ items, colors }: { items: MacroItem[]; colors: any }) {
+  const sentColors: Record<string, string> = {
+    BULLISH: colors.success ?? "#16C784",
+    BEARISH: colors.danger ?? "#EA3943",
+    NEUTRAL: colors.mutedForeground ?? "#6B7280",
+  };
+  const sentIcons: Record<string, string> = {
+    BULLISH: "arrow-up-right", BEARISH: "arrow-down-right", NEUTRAL: "minus",
+  };
+  return (
+    <View style={[styles.macroCard, { backgroundColor: MACRO_GREEN_DIM, borderColor: MACRO_GREEN_BORDER }]}>
+      {/* Header */}
+      <View style={styles.macroHeader}>
+        <Feather name="globe" size={13} color={MACRO_GREEN} />
+        <Text style={[styles.macroTitle, { color: MACRO_GREEN }]}>MAKRO EKONOMI DUNIA</Text>
+        <View style={[styles.macroBadge, { backgroundColor: MACRO_GREEN + "22", borderColor: MACRO_GREEN }]}>
+          <Text style={{ color: MACRO_GREEN, fontSize: 9, fontFamily: "Inter_700Bold" }}>LIVE</Text>
+        </View>
+      </View>
+      <View style={[styles.macroDivider, { backgroundColor: MACRO_GREEN_BORDER }]} />
+
+      {items.map((item, idx) => {
+        const sc = sentColors[item.sentiment] ?? sentColors.NEUTRAL;
+        const si = sentIcons[item.sentiment] ?? "minus";
+        const catIcon = (MACRO_CAT_ICON[item.category] ?? "activity") as any;
+        const catLabel = MACRO_CAT_LABEL[item.category] ?? item.category;
+        const isHigh = item.impact === "HIGH";
+        return (
+          <View key={item.id} style={styles.macroRow}>
+            <Text style={[styles.macroNum, { color: MACRO_GREEN }]}>{String(idx + 1).padStart(2, "0")}</Text>
+            <View style={{ flex: 1, gap: 5 }}>
+              {/* Category badge row */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+                <View style={[styles.macroCatBadge, { backgroundColor: MACRO_GREEN + "22", borderColor: MACRO_GREEN + "66" }]}>
+                  <Feather name={catIcon} size={8} color={MACRO_GREEN} />
+                  <Text style={{ color: MACRO_GREEN, fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.4 }}>{catLabel}</Text>
+                </View>
+                <View style={[styles.macroSentBadge, { backgroundColor: sc + "18", borderColor: sc + "66" }]}>
+                  <Feather name={si as any} size={9} color={sc} />
+                  <Text style={{ color: sc, fontSize: 9, fontFamily: "Inter_700Bold" }}>{item.sentiment}</Text>
+                </View>
+                {isHigh ? (
+                  <View style={[styles.macroImpactBadge, { backgroundColor: "#F97316" + "20", borderColor: "#F97316" + "60" }]}>
+                    <Text style={{ color: "#F97316", fontSize: 8, fontFamily: "Inter_700Bold", letterSpacing: 0.5 }}>HIGH IMPACT</Text>
+                  </View>
+                ) : null}
+              </View>
+              {/* Summary */}
+              <Text style={[styles.macroSummary, { color: colors.foreground }]}>{item.summary || item.title}</Text>
+              {/* Source + time */}
+              <Text style={[styles.macroMeta, { color: colors.mutedForeground }]}>{item.source} · {item.time}</Text>
+            </View>
           </View>
         );
       })}
@@ -1227,5 +1309,85 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: "Inter_400Regular",
     lineHeight: 20,
+  },
+  macroCard: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 14,
+    overflow: "hidden",
+  },
+  macroHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  macroTitle: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.8,
+    flex: 1,
+  },
+  macroBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  macroDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: 0,
+    marginBottom: 2,
+  },
+  macroRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#16A34A22",
+  },
+  macroNum: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    minWidth: 22,
+    lineHeight: 20,
+    letterSpacing: -0.5,
+  },
+  macroCatBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  macroSentBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  macroImpactBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  macroSummary: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    lineHeight: 17,
+  },
+  macroMeta: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 14,
   },
 });
