@@ -108,6 +108,7 @@ export interface TradingSignal {
   indicatorSnapshot?: string;
   priceScenarios?: PriceScenarios;
   scalpingPlan?: ScalpingPlan;
+  isFallback?: boolean;
 }
 
 export interface NewsFeedItem {
