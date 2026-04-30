@@ -1,15 +1,21 @@
 import { GoogleGenAI } from "@google/genai";
 
 function createAiClient(): GoogleGenAI {
+  if (process.env.GEMINI_API_KEY) {
+    return new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+    });
+  }
+
   if (!process.env.AI_INTEGRATIONS_GEMINI_BASE_URL) {
     throw new Error(
-      "AI_INTEGRATIONS_GEMINI_BASE_URL must be set. Did you forget to provision the Gemini AI integration?",
+      "GEMINI_API_KEY or AI_INTEGRATIONS_GEMINI_BASE_URL must be set.",
     );
   }
 
   if (!process.env.AI_INTEGRATIONS_GEMINI_API_KEY) {
     throw new Error(
-      "AI_INTEGRATIONS_GEMINI_API_KEY must be set. Did you forget to provision the Gemini AI integration?",
+      "AI_INTEGRATIONS_GEMINI_API_KEY must be set when using Replit AI proxy.",
     );
   }
 
