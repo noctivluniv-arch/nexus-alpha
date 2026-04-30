@@ -15,7 +15,7 @@ import { Header } from "@/components/Header";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/lib/api";
 import { useT } from "@/lib/i18n";
-import { NewsFeedItem, TrendingTopic } from "@/lib/types";
+import { NewsFeedItem } from "@/lib/types";
 
 const TRUMP_COLOR = "#DC2626";
 const ELON_COLOR = "#1D9BF0";
@@ -78,7 +78,6 @@ export default function NewsScreen() {
   const t = useT();
   const [items, setItems] = useState<NewsFeedItem[]>([]);
   const [xBuzz, setXBuzz] = useState<NewsFeedItem[]>([]);
-  const [trending, setTrending] = useState<TrendingTopic[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,17 +85,15 @@ export default function NewsScreen() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const [data, buzz, trend] = await Promise.allSettled([
+      const [data, buzz] = await Promise.allSettled([
         api.getNews(),
         api.getXBuzz(),
-        api.getTrending(),
       ]);
       if (data.status === "fulfilled") setItems(data.value);
       else if ((data as any).reason?.message === "QUOTA_EXCEEDED") setError(t("common.quotaError"));
       else setError(t("news.error"));
 
       if (buzz.status === "fulfilled") setXBuzz(buzz.value);
-      if (trend.status === "fulfilled") setTrending(trend.value);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -141,8 +138,13 @@ export default function NewsScreen() {
   const influencerItems = items.filter((i) => i.isInfluencer);
   const newsItems = items.filter((i) => i.sourceType === "NEWS");
 
-  const trendingSentColor = (s: TrendingTopic["sentiment"]) =>
-    s === "BULLISH" ? colors.success : s === "BEARISH" ? colors.danger : colors.cyan;
+  // Top 5 trending headlines: HIGH impact first, then MEDIUM
+  const trendingHeadlines = [...newsItems]
+    .sort((a, b) => {
+      const impOrder: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+      return impOrder[a.impact] - impOrder[b.impact];
+    })
+    .slice(0, 5);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -158,6 +160,17 @@ export default function NewsScreen() {
           />
         }
       >
+        {/* TRENDING GOLD COLUMN — top of page */}
+        {trendingHeadlines.length > 0 ? (
+          <TrendingColumn
+            items={trendingHeadlines}
+            t={t}
+            catColor={catColor}
+          />
+        ) : loading ? (
+          <TrendingColumnSkeleton />
+        ) : null}
+
         <View
           style={[
             styles.banner,
@@ -176,53 +189,6 @@ export default function NewsScreen() {
             </Text>
           </View>
         </View>
-
-        {/* TRENDING TOPICS CHIPS */}
-        {trending.length > 0 ? (
-          <View style={{ marginBottom: 18 }}>
-            <SectionTitle
-              icon="trending-up"
-              text={t("news.trendingSection")}
-              color={colors.primary}
-            />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 8, paddingRight: 8 }}
-            >
-              {trending.map((topic) => (
-                <View
-                  key={topic.category}
-                  style={[
-                    styles.trendingChip,
-                    {
-                      backgroundColor: trendingSentColor(topic.sentiment) + "18",
-                      borderColor: trendingSentColor(topic.sentiment),
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.trendingDot,
-                      { backgroundColor: trendingSentColor(topic.sentiment) },
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      styles.trendingLabel,
-                      { color: trendingSentColor(topic.sentiment) },
-                    ]}
-                  >
-                    {topic.label}
-                  </Text>
-                  <Text style={[styles.trendingCount, { color: colors.mutedForeground }]}>
-                    {topic.count}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
 
         {loading ? (
           <View
@@ -329,6 +295,150 @@ export default function NewsScreen() {
           </View>
         ) : null}
       </ScrollView>
+    </View>
+  );
+}
+
+const GOLD = "#F59E0B";
+const GOLD_LIGHT = "#FCD34D";
+const GOLD_DIM = "#F59E0B18";
+const GOLD_BORDER = "#F59E0B55";
+
+function TrendingColumn({
+  items,
+  t,
+  catColor,
+}: {
+  items: NewsFeedItem[];
+  t: (key: string) => string;
+  catColor: (c: NewsFeedItem["category"]) => string;
+}) {
+  return (
+    <View
+      style={[
+        styles.trendingCol,
+        { backgroundColor: GOLD_DIM, borderColor: GOLD },
+      ]}
+    >
+      {/* Header */}
+      <View style={styles.trendingColHeader}>
+        <View style={styles.trendingColHeaderLeft}>
+          <Feather name="zap" size={14} color={GOLD} />
+          <Text style={[styles.trendingColTitle, { color: GOLD }]}>
+            {t("news.trendingSection")}
+          </Text>
+        </View>
+        <View
+          style={[
+            styles.trendingLiveDot,
+            { backgroundColor: GOLD_BORDER, borderColor: GOLD },
+          ]}
+        >
+          <View
+            style={[styles.trendingLiveInner, { backgroundColor: GOLD }]}
+          />
+          <Text style={[styles.trendingLiveText, { color: GOLD }]}>LIVE</Text>
+        </View>
+      </View>
+
+      {/* Divider */}
+      <View style={[styles.trendingDivider, { backgroundColor: GOLD_BORDER }]} />
+
+      {/* Headlines */}
+      {items.map((item, idx) => (
+        <View key={item.id}>
+          <View style={styles.trendingRow}>
+            <Text style={[styles.trendingNum, { color: GOLD_LIGHT }]}>
+              {String(idx + 1).padStart(2, "0")}
+            </Text>
+            <View style={{ flex: 1, gap: 5 }}>
+              <Text
+                style={styles.trendingHeadline}
+                numberOfLines={2}
+              >
+                {item.title}
+              </Text>
+              <View style={styles.trendingMeta}>
+                <View
+                  style={[
+                    styles.trendingCatBadge,
+                    {
+                      backgroundColor: catColor(item.category) + "22",
+                      borderColor: catColor(item.category),
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[styles.trendingCatText, { color: catColor(item.category) }]}
+                  >
+                    {item.category}
+                  </Text>
+                </View>
+                <Text style={styles.trendingSource}>
+                  {item.source} • {item.time}
+                </Text>
+                {item.impact === "HIGH" ? (
+                  <View
+                    style={[
+                      styles.trendingHotBadge,
+                      { backgroundColor: "#EF444422", borderColor: "#EF4444" },
+                    ]}
+                  >
+                    <Feather name="trending-up" size={8} color="#EF4444" />
+                    <Text style={[styles.trendingHotText, { color: "#EF4444" }]}>
+                      HOT
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          </View>
+          {idx < items.length - 1 ? (
+            <View
+              style={[
+                styles.trendingItemDivider,
+                { backgroundColor: GOLD_BORDER },
+              ]}
+            />
+          ) : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function TrendingColumnSkeleton() {
+  return (
+    <View
+      style={[
+        styles.trendingCol,
+        { backgroundColor: GOLD_DIM, borderColor: GOLD },
+      ]}
+    >
+      <View style={styles.trendingColHeader}>
+        <View style={styles.trendingColHeaderLeft}>
+          <Feather name="zap" size={14} color={GOLD} />
+          <Text style={[styles.trendingColTitle, { color: GOLD }]}>
+            TRENDING SEKARANG
+          </Text>
+        </View>
+      </View>
+      <View style={[styles.trendingDivider, { backgroundColor: GOLD_BORDER }]} />
+      {[1, 2, 3].map((i) => (
+        <View key={i} style={[styles.trendingRow, { opacity: 0.4 }]}>
+          <Text style={[styles.trendingNum, { color: GOLD_LIGHT }]}>
+            {String(i).padStart(2, "0")}
+          </Text>
+          <View
+            style={{
+              flex: 1,
+              height: 14,
+              backgroundColor: GOLD_BORDER,
+              borderRadius: 4,
+            }}
+          />
+        </View>
+      ))}
     </View>
   );
 }
@@ -698,30 +808,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionText: { fontSize: 11, letterSpacing: 1.4, fontFamily: "Inter_700Bold" },
-  trendingChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  trendingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  trendingLabel: {
-    fontSize: 11,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: 0.5,
-  },
-  trendingCount: {
-    fontSize: 10,
-    fontFamily: "Inter_500Medium",
-    marginLeft: 2,
-  },
   aiBuzzBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -874,5 +960,112 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: "Inter_700Bold",
     letterSpacing: 1,
+  },
+  trendingCol: {
+    borderRadius: 14,
+    borderWidth: 1.5,
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+  trendingColHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  trendingColHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  trendingColTitle: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 1.5,
+  },
+  trendingLiveDot: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  trendingLiveInner: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  trendingLiveText: {
+    fontSize: 8,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 1,
+  },
+  trendingDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: 0,
+  },
+  trendingItemDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: 14,
+  },
+  trendingRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  trendingNum: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    lineHeight: 22,
+    letterSpacing: -0.5,
+    minWidth: 26,
+  },
+  trendingHeadline: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    color: "#FFFFFF",
+    lineHeight: 18,
+  },
+  trendingMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+  },
+  trendingCatBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  trendingCatText: {
+    fontSize: 8,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.8,
+  },
+  trendingSource: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    color: "#F59E0B99",
+    flex: 1,
+  },
+  trendingHotBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  trendingHotText: {
+    fontSize: 8,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.5,
   },
 });
