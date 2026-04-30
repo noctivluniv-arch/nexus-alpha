@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: nexusalpha-api
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm --filter @workspace/api-server run build
+    startCommand: node --enable-source-maps artifacts/api-server/dist/index.mjs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
