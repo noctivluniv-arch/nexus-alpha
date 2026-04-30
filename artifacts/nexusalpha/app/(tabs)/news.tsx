@@ -358,8 +358,13 @@ function InfluencerTopicsCard({
       {topics.map((topic, idx) => {
         const sent = SENT_ICON[topic.sentiment] ?? SENT_ICON.NEUTRAL;
         const cc = catColor(topic.category as any);
+        const searchUrl = `https://news.google.com/search?q=${encodeURIComponent(topic.label + " crypto")}`;
         return (
-          <View key={topic.category} style={styles.infTopicRow}>
+          <Pressable
+            key={topic.category}
+            style={({ pressed }) => [styles.infTopicRow, pressed && { opacity: 0.7 }]}
+            onPress={() => Linking.openURL(searchUrl).catch(() => {})}
+          >
             <Text style={[styles.infTopicNum, { color: colors.mutedForeground }]}>
               {String(idx + 1).padStart(2, "0")}
             </Text>
@@ -379,6 +384,7 @@ function InfluencerTopicsCard({
                     {topic.category}
                   </Text>
                 </View>
+                <Feather name="external-link" size={9} color="#8B5CF688" style={{ marginLeft: "auto" }} />
               </View>
               {topic.influencers && topic.influencers.length > 0 ? (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>
@@ -393,7 +399,7 @@ function InfluencerTopicsCard({
             <Text style={[styles.infTopicCount, { color: colors.mutedForeground }]}>
               {topic.count} artikel
             </Text>
-          </View>
+          </Pressable>
         );
       })}
     </View>
@@ -443,7 +449,11 @@ function MacroCard({ items, colors }: { items: MacroItem[]; colors: any }) {
         const catLabel = MACRO_CAT_LABEL[item.category] ?? item.category;
         const isHigh = item.impact === "HIGH";
         return (
-          <View key={item.id} style={styles.macroRow}>
+          <Pressable
+            key={item.id}
+            style={({ pressed }) => [styles.macroRow, pressed && { opacity: 0.7, backgroundColor: MACRO_GREEN + "10" }]}
+            onPress={() => item.url ? Linking.openURL(item.url).catch(() => {}) : null}
+          >
             <Text style={[styles.macroNum, { color: MACRO_GREEN }]}>{String(idx + 1).padStart(2, "0")}</Text>
             <View style={{ flex: 1, gap: 5 }}>
               {/* Category badge row */}
@@ -461,13 +471,14 @@ function MacroCard({ items, colors }: { items: MacroItem[]; colors: any }) {
                     <Text style={{ color: "#F97316", fontSize: 8, fontFamily: "Inter_700Bold", letterSpacing: 0.5 }}>HIGH IMPACT</Text>
                   </View>
                 ) : null}
+                {item.url ? <Feather name="external-link" size={9} color={MACRO_GREEN + "88"} style={{ marginLeft: "auto" }} /> : null}
               </View>
-              {/* Summary */}
-              <Text style={[styles.macroSummary, { color: colors.foreground }]}>{item.summary || item.title}</Text>
+              {/* Title */}
+              <Text style={[styles.macroSummary, { color: colors.foreground }]} numberOfLines={2}>{item.title}</Text>
               {/* Source + time */}
               <Text style={[styles.macroMeta, { color: colors.mutedForeground }]}>{item.source} · {item.time}</Text>
             </View>
-          </View>
+          </Pressable>
         );
       })}
     </View>
@@ -517,17 +528,20 @@ function TrendingColumn({
       {/* Headlines */}
       {items.map((item, idx) => (
         <View key={item.id}>
-          <View style={styles.trendingRow}>
+          <Pressable
+            style={({ pressed }) => [styles.trendingRow, pressed && { opacity: 0.7 }]}
+            onPress={() => item.url ? Linking.openURL(item.url).catch(() => {}) : null}
+          >
             <Text style={[styles.trendingNum, { color: GOLD_LIGHT }]}>
               {String(idx + 1).padStart(2, "0")}
             </Text>
             <View style={{ flex: 1, gap: 5 }}>
-              <Text
-                style={styles.trendingHeadline}
-                numberOfLines={2}
-              >
-                {item.title}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
+                <Text style={[styles.trendingHeadline, { flex: 1 }]} numberOfLines={2}>
+                  {item.title}
+                </Text>
+                {item.url ? <Feather name="external-link" size={10} color={GOLD + "99"} style={{ marginTop: 3 }} /> : null}
+              </View>
               <View style={styles.trendingMeta}>
                 <View
                   style={[
@@ -538,9 +552,7 @@ function TrendingColumn({
                     },
                   ]}
                 >
-                  <Text
-                    style={[styles.trendingCatText, { color: catColor(item.category) }]}
-                  >
+                  <Text style={[styles.trendingCatText, { color: catColor(item.category) }]}>
                     {item.category}
                   </Text>
                 </View>
@@ -548,28 +560,16 @@ function TrendingColumn({
                   {item.source} • {item.time}
                 </Text>
                 {item.impact === "HIGH" ? (
-                  <View
-                    style={[
-                      styles.trendingHotBadge,
-                      { backgroundColor: "#EF444422", borderColor: "#EF4444" },
-                    ]}
-                  >
+                  <View style={[styles.trendingHotBadge, { backgroundColor: "#EF444422", borderColor: "#EF4444" }]}>
                     <Feather name="trending-up" size={8} color="#EF4444" />
-                    <Text style={[styles.trendingHotText, { color: "#EF4444" }]}>
-                      HOT
-                    </Text>
+                    <Text style={[styles.trendingHotText, { color: "#EF4444" }]}>HOT</Text>
                   </View>
                 ) : null}
               </View>
             </View>
-          </View>
+          </Pressable>
           {idx < items.length - 1 ? (
-            <View
-              style={[
-                styles.trendingItemDivider,
-                { backgroundColor: GOLD_BORDER },
-              ]}
-            />
+            <View style={[styles.trendingItemDivider, { backgroundColor: GOLD_BORDER }]} />
           ) : null}
         </View>
       ))}
