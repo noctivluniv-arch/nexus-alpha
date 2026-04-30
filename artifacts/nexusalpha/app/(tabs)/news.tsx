@@ -77,6 +77,7 @@ export default function NewsScreen() {
   const t = useT();
   const [items, setItems] = useState<NewsFeedItem[]>([]);
   const [xBuzz, setXBuzz] = useState<NewsFeedItem[]>([]);
+  const [trendingTopics, setTrendingTopics] = useState<import("@/lib/types").TrendingTopic[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,15 +85,17 @@ export default function NewsScreen() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const [data, buzz] = await Promise.allSettled([
+      const [data, buzz, trends] = await Promise.allSettled([
         api.getNews(),
         api.getXBuzz(),
+        api.getTrending(),
       ]);
       if (data.status === "fulfilled") setItems(data.value);
       else if ((data as any).reason?.message === "QUOTA_EXCEEDED") setError(t("common.quotaError"));
       else setError(t("news.error"));
 
       if (buzz.status === "fulfilled") setXBuzz(buzz.value);
+      if (trends.status === "fulfilled") setTrendingTopics(trends.value);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -168,6 +171,15 @@ export default function NewsScreen() {
           />
         ) : loading ? (
           <TrendingColumnSkeleton />
+        ) : null}
+
+        {/* TOPIK YANG DIBICARAKAN TOKOH */}
+        {trendingTopics.length > 0 ? (
+          <InfluencerTopicsCard
+            topics={trendingTopics}
+            colors={colors}
+            catColor={catColor}
+          />
         ) : null}
 
         <View
@@ -302,6 +314,83 @@ const GOLD = "#F59E0B";
 const GOLD_LIGHT = "#FCD34D";
 const GOLD_DIM = "#F59E0B18";
 const GOLD_BORDER = "#F59E0B55";
+
+const SENT_ICON: Record<string, { icon: any; color: string }> = {
+  BULLISH: { icon: "trending-up", color: "#16C784" },
+  BEARISH: { icon: "trending-down", color: "#EA3943" },
+  NEUTRAL: { icon: "minus", color: "#EAB308" },
+};
+
+function InfluencerTopicsCard({
+  topics,
+  colors,
+  catColor,
+}: {
+  topics: import("@/lib/types").TrendingTopic[];
+  colors: any;
+  catColor: (c: any) => string;
+}) {
+  return (
+    <View
+      style={[
+        styles.infTopicsCard,
+        { backgroundColor: colors.card, borderColor: colors.border },
+      ]}
+    >
+      <View style={styles.infTopicsHeader}>
+        <Feather name="users" size={13} color="#8B5CF6" />
+        <Text style={[styles.infTopicsTitle, { color: "#8B5CF6" }]}>
+          SEDANG DIBICARAKAN TOKOH
+        </Text>
+        <View style={[styles.infTopicsBadge, { backgroundColor: "#8B5CF622", borderColor: "#8B5CF6" }]}>
+          <Text style={{ color: "#8B5CF6", fontSize: 9, fontFamily: "Inter_700Bold" }}>LIVE</Text>
+        </View>
+      </View>
+      <View style={[styles.trendingDivider, { backgroundColor: colors.border, marginBottom: 8 }]} />
+      {topics.map((topic, idx) => {
+        const sent = SENT_ICON[topic.sentiment] ?? SENT_ICON.NEUTRAL;
+        const cc = catColor(topic.category as any);
+        return (
+          <View key={topic.category} style={styles.infTopicRow}>
+            <Text style={[styles.infTopicNum, { color: colors.mutedForeground }]}>
+              {String(idx + 1).padStart(2, "0")}
+            </Text>
+            <View style={{ flex: 1, gap: 4 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={[styles.infTopicLabel, { color: colors.foreground }]}>
+                  {topic.label}
+                </Text>
+                <View style={[styles.infTopicSentBadge, { backgroundColor: sent.color + "22", borderColor: sent.color }]}>
+                  <Feather name={sent.icon} size={9} color={sent.color} />
+                  <Text style={{ color: sent.color, fontSize: 9, fontFamily: "Inter_700Bold" }}>
+                    {topic.sentiment}
+                  </Text>
+                </View>
+                <View style={[styles.infTopicCatBadge, { backgroundColor: cc + "22", borderColor: cc }]}>
+                  <Text style={{ color: cc, fontSize: 9, fontFamily: "Inter_600SemiBold" }}>
+                    {topic.category}
+                  </Text>
+                </View>
+              </View>
+              {topic.influencers && topic.influencers.length > 0 ? (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>
+                  <Feather name="message-circle" size={10} color={colors.mutedForeground} style={{ marginTop: 1 }} />
+                  <Text style={[styles.infTopicWho, { color: colors.mutedForeground }]}>
+                    {topic.influencers.slice(0, 4).join(", ")}
+                    {topic.influencers.length > 4 ? ` +${topic.influencers.length - 4}` : ""}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={[styles.infTopicCount, { color: colors.mutedForeground }]}>
+              {topic.count} artikel
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
 
 function TrendingColumn({
   items,
@@ -1066,5 +1155,77 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontFamily: "Inter_700Bold",
     letterSpacing: 0.5,
+  },
+  infTopicsCard: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 14,
+    overflow: "hidden",
+  },
+  infTopicsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  infTopicsTitle: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.8,
+    flex: 1,
+  },
+  infTopicsBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  infTopicRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#ffffff10",
+  },
+  infTopicNum: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+    minWidth: 22,
+    lineHeight: 20,
+    letterSpacing: -0.5,
+  },
+  infTopicLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    lineHeight: 18,
+  },
+  infTopicSentBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  infTopicCatBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  infTopicWho: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 16,
+    flexShrink: 1,
+  },
+  infTopicCount: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 20,
   },
 });
