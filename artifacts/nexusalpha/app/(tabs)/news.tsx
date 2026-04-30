@@ -99,6 +99,20 @@ export default function NewsScreen() {
       if (buzz.status === "fulfilled") setXBuzz(buzz.value);
       if (trends.status === "fulfilled") setTrendingTopics(trends.value);
       if (macro.status === "fulfilled") setMacroNews(macro.value);
+
+      // Retry trending & macro if they came back empty (server cold-start race)
+      const trendsEmpty = trends.status !== "fulfilled" || (trends.value as any[]).length === 0;
+      const macroEmpty = macro.status !== "fulfilled" || (macro.value as any[]).length === 0;
+      if (trendsEmpty || macroEmpty) {
+        setTimeout(async () => {
+          const [t2, m2] = await Promise.allSettled([
+            trendsEmpty ? api.getTrending() : Promise.resolve([] as any[]),
+            macroEmpty ? api.getMacro() : Promise.resolve([] as any[]),
+          ]);
+          if (t2.status === "fulfilled" && (t2.value as any[]).length > 0) setTrendingTopics(t2.value);
+          if (m2.status === "fulfilled" && (m2.value as any[]).length > 0) setMacroNews(m2.value);
+        }, 4000);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
