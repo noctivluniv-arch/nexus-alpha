@@ -448,6 +448,11 @@ export default function MemesScreen() {
                   {coin.burnFeature ? (
                     <Badge label={t("memes.burn")} color="#F97316" />
                   ) : null}
+                  {coin.earlyGemLabel === "GEM" ? (
+                    <Badge label="⭐ EARLY GEM" color="#F59E0B" />
+                  ) : coin.earlyGemLabel === "POTENSIAL" ? (
+                    <Badge label="🔍 POTENSIAL" color="#8B5CF6" />
+                  ) : null}
                 </View>
 
                 <SocialLinks coin={coin} colors={colors} />
@@ -681,6 +686,9 @@ export default function MemesScreen() {
 
                 {/* INDIKATOR MEME KHUSUS — Viral, Organik, Bebas Manipulasi */}
                 <MemeIndicatorsSection coin={coin} colors={colors} />
+
+                {/* EARLY GEM — Breakout Candidate Analysis */}
+                <EarlyGemSection coin={coin} colors={colors} />
 
                 {/* Technical Trader Recommendation — collapsed by default */}
                 {tr ? (
@@ -1830,6 +1838,90 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   miSignalText: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    flex: 1,
+    lineHeight: 14,
+  },
+  // ─── EarlyGemSection styles ────────────────────────────────────────────────
+  egCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    marginTop: 10,
+    overflow: "hidden",
+  },
+  egHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
+  egTitle: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.3,
+  },
+  egSubtitle: {
+    fontSize: 9,
+    fontFamily: "Inter_400Regular",
+    marginTop: 1,
+  },
+  egScorePill: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignItems: "center",
+  },
+  egScoreText: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+  },
+  egBarBg: {
+    height: 4,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 2,
+    marginTop: 4,
+    overflow: "hidden",
+  },
+  egBarFill: {
+    height: 4,
+    borderRadius: 2,
+  },
+  egBody: {
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    paddingTop: 8,
+    gap: 6,
+  },
+  egSectionLabel: {
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  egSignalRow: {
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "flex-start",
+  },
+  egSignalText: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    flex: 1,
+    lineHeight: 16,
+  },
+  egDisclaimerBox: {
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "flex-start",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 8,
+    marginTop: 6,
+  },
+  egDisclaimerText: {
     fontSize: 10,
     fontFamily: "Inter_400Regular",
     flex: 1,
@@ -3230,6 +3322,72 @@ function LegendDot({
       >
         {label}
       </Text>
+    </View>
+  );
+}
+
+// ─── EARLY GEM SECTION ───────────────────────────────────────────────────────
+
+function EarlyGemSection({ coin, colors }: { coin: MemeCoin; colors: any }) {
+  const [expanded, setExpanded] = React.useState(false);
+
+  const label = coin.earlyGemLabel;
+  const score = coin.earlyGemScore ?? 0;
+  const signals = coin.earlyGemSignals ?? [];
+
+  if (!label || label === "BIASA") return null;
+
+  const isGem = label === "GEM";
+  const accent = isGem ? "#F59E0B" : "#8B5CF6";
+  const bgColor = isGem ? "rgba(245,158,11,0.07)" : "rgba(139,92,246,0.07)";
+  const borderColor = isGem ? "rgba(245,158,11,0.35)" : "rgba(139,92,246,0.35)";
+  const icon = isGem ? "star" : "search";
+  const title = isGem ? "⭐ EARLY GEM — KANDIDAT BREAKOUT" : "🔍 POTENSIAL BREAKOUT";
+  const subtitle = isGem
+    ? "Pola mirip DOGE/SHIB/WIF di fase awal sebelum viral"
+    : "Sinyal awal terbentuk, pantau terus";
+
+  return (
+    <View style={[styles.egCard, { backgroundColor: bgColor, borderColor }]}>
+      {/* Header */}
+      <Pressable style={styles.egHeader} onPress={() => setExpanded((v) => !v)}>
+        <Feather name={icon as any} size={14} color={accent} />
+        <View style={{ flex: 1, marginLeft: 6 }}>
+          <Text style={[styles.egTitle, { color: accent }]}>{title}</Text>
+          <Text style={[styles.egSubtitle, { color: accent + "BB" }]}>{subtitle}</Text>
+        </View>
+        <View style={{ alignItems: "flex-end", gap: 3 }}>
+          <View style={[styles.egScorePill, { backgroundColor: accent + "22", borderColor: accent }]}>
+            <Text style={[styles.egScoreText, { color: accent }]}>{score}<Text style={{ fontSize: 9 }}>/100</Text></Text>
+          </View>
+          <Feather name={expanded ? "chevron-up" : "chevron-down"} size={12} color={accent + "88"} />
+        </View>
+      </Pressable>
+
+      {/* Score bar */}
+      <View style={[styles.egBarBg, { marginHorizontal: 12, marginBottom: expanded ? 0 : 10 }]}>
+        <View style={[styles.egBarFill, { width: `${score}%` as any, backgroundColor: accent }]} />
+      </View>
+
+      {/* Expanded signals */}
+      {expanded && signals.length > 0 && (
+        <View style={styles.egBody}>
+          <View style={[styles.miDivider, { backgroundColor: borderColor, marginBottom: 8 }]} />
+          <Text style={[styles.egSectionLabel, { color: accent }]}>MENGAPA BERPOTENSI VIRAL</Text>
+          {signals.map((s, i) => (
+            <View key={i} style={styles.egSignalRow}>
+              <Text style={{ color: accent, fontSize: 10, marginTop: 1 }}>✦</Text>
+              <Text style={[styles.egSignalText, { color: colors.foreground }]}>{s}</Text>
+            </View>
+          ))}
+          <View style={[styles.egDisclaimerBox, { backgroundColor: "rgba(255,255,255,0.04)", borderColor: colors.border }]}>
+            <Feather name="alert-triangle" size={11} color={colors.mutedForeground} />
+            <Text style={[styles.egDisclaimerText, { color: colors.mutedForeground }]}>
+              Ini analisis pola — bukan jaminan profit. Meme coin sangat berisiko. Selalu DYOR dan jangan invest lebih dari yang siap kamu rugi.
+            </Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }

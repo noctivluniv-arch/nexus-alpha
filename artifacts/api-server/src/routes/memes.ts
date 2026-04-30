@@ -1431,6 +1431,135 @@ function calcManipulationRisk(p: {
   return { risk, flags, cleanDays };
 }
 
+// ─── EARLY GEM SCORE ─────────────────────────────────────────────────────────
+// Detects early-stage meme coins with breakout potential — similar to early
+// patterns in DOGE / SHIB / WIF / PEPE before they went mainstream.
+
+interface EarlyGemResult {
+  score: number;
+  label: "GEM" | "POTENSIAL" | "BIASA";
+  signals: string[];
+}
+
+function calcEarlyGemScore(p: {
+  marketCap: number;
+  ageDays: number;
+  concentrationTop10: number;
+  viralScore: number;
+  organicScore: number;
+  manipulationRisk: "AMAN" | "WASPADA" | "MANIPULASI";
+  smartWalletsCount: number;
+  hasTwitter: boolean;
+  hasTelegram: boolean;
+  fromTrending: boolean;
+  iconic: boolean;
+  vol24h: number;
+  liqUsd: number;
+  change24h: number;
+}): EarlyGemResult {
+  let score = 0;
+  const signals: string[] = [];
+
+  // 1. Market cap — semakin kecil = potensi upside lebih besar
+  if (p.marketCap > 0 && p.marketCap < 1_000_000) {
+    score += 30;
+    signals.push(`Market cap $${(p.marketCap / 1000).toFixed(0)}K — sangat awal, seperti DOGE/SHIB di fase penemuan`);
+  } else if (p.marketCap < 5_000_000) {
+    score += 20;
+    signals.push(`Market cap $${(p.marketCap / 1_000_000).toFixed(2)}M — masih micro-cap, besar ruang untuk tumbuh`);
+  } else if (p.marketCap < 20_000_000) {
+    score += 10;
+    signals.push(`Market cap $${(p.marketCap / 1_000_000).toFixed(1)}M — small-cap dengan potensi 10x+`);
+  }
+
+  // 2. Usia — "sweet spot" 1-90 hari: cukup baru tapi sudah terbukti bertahan
+  if (p.ageDays >= 1 && p.ageDays <= 30) {
+    score += 15;
+    signals.push(`Berusia ${p.ageDays} hari — baru lahir, peluang masuk sangat awal`);
+  } else if (p.ageDays <= 90) {
+    score += 12;
+    signals.push(`Berusia ${p.ageDays} hari — masih sangat muda dan belum mainstream`);
+  } else if (p.ageDays <= 180) {
+    score += 6;
+    signals.push(`Berusia ${p.ageDays} hari — masih punya ruang tumbuh`);
+  }
+
+  // 3. Distribusi holder — komunitas yang merata seperti SHIB/DOGE awal
+  if (p.concentrationTop10 < 15) {
+    score += 18;
+    signals.push(`Distribusi holder sangat merata (top 10 hanya ${p.concentrationTop10.toFixed(0)}%) — pola komunitas DOGE/SHIB awal`);
+  } else if (p.concentrationTop10 < 30) {
+    score += 12;
+    signals.push(`Distribusi holder baik (${p.concentrationTop10.toFixed(0)}% top 10) — tidak terpusat`);
+  } else if (p.concentrationTop10 < 45) {
+    score += 5;
+  }
+
+  // 4. Momentum viral sedang tumbuh
+  if (p.viralScore >= 60) {
+    score += 15;
+    signals.push(`Viral score ${p.viralScore}/100 — momentum sedang terbentuk`);
+  } else if (p.viralScore >= 35) {
+    score += 8;
+    signals.push(`Viral score ${p.viralScore}/100 — mulai mendapat perhatian`);
+  }
+
+  // 5. Komunitas organik kuat
+  if (p.organicScore >= 70) {
+    score += 12;
+    signals.push(`Komunitas organik kuat (skor ${p.organicScore}/100) — bukan bot atau pump palsu`);
+  } else if (p.organicScore >= 45) {
+    score += 6;
+  }
+
+  // 6. Smart wallet masuk — "orang dalam" mulai akumulasi
+  if (p.smartWalletsCount >= 3) {
+    score += 12;
+    signals.push(`${p.smartWalletsCount} smart wallet akumulasi — pola whale awal seperti saat WIF masih murah`);
+  } else if (p.smartWalletsCount >= 1) {
+    score += 6;
+    signals.push(`${p.smartWalletsCount} smart wallet terdeteksi — insider mulai perhatikan koin ini`);
+  }
+
+  // 7. Tidak ada tanda manipulasi — kenaikan ini asli
+  if (p.manipulationRisk === "AMAN") {
+    score += 8;
+    signals.push("Tidak ada sinyal manipulasi — momentum ini organic");
+  }
+
+  // 8. Sosial media ada — bahan bakar viral
+  if (p.hasTwitter && p.hasTelegram) {
+    score += 8;
+    signals.push("Ada Twitter + Telegram aktif — komunitas siap menyebarkan");
+  } else if (p.hasTwitter || p.hasTelegram) {
+    score += 4;
+  }
+
+  // 9. Sudah masuk trending GeckoTerminal — sinyal awal "penemuan"
+  if (p.fromTrending) {
+    score += 5;
+    signals.push("Sudah masuk radar trending — trader mulai memperhatikan");
+  }
+
+  // 10. Tema ikonik — nama yang mudah menjadi meme (seperti DOGE, WIF, PEPE)
+  if (p.iconic) {
+    score += 5;
+    signals.push("Nama/tema mudah viral di sosial media — faktor meme sangat tinggi");
+  }
+
+  // 11. Volume vs likuiditas menunjukkan interest sejati
+  const volLiq = p.liqUsd > 0 ? p.vol24h / p.liqUsd : 0;
+  if (volLiq > 2 && volLiq < 50) {
+    score += 5;
+    signals.push(`Volume ${volLiq.toFixed(1)}x ukuran pool — interest nyata, bukan wash trading`);
+  }
+
+  const label: EarlyGemResult["label"] =
+    score >= 70 ? "GEM" : score >= 45 ? "POTENSIAL" : "BIASA";
+
+  return { score: Math.min(100, score), label, signals };
+}
+
 // Fetch 30-day OHLCV from GeckoTerminal for manipulation pattern detection.
 // Best-effort: silently skips on error/timeout, manipulation analysis falls
 // back to intraday signals.
@@ -2005,6 +2134,22 @@ async function refreshMemes(): Promise<any[]> {
         ohlcv30d: undefined,
       });
 
+      // Early Gem score — social fields patched in after DexScreener enrichment
+      const earlyGem = calcEarlyGemScore({
+        marketCap,
+        ageDays,
+        concentrationTop10: security.topHolders.concentrationTop10,
+        viralScore: viral.score,
+        organicScore: organic.score,
+        manipulationRisk: manipulation.risk,
+        smartWalletsCount: smartWallets.length,
+        hasTwitter: false,
+        hasTelegram: false,
+        fromTrending: c.fromTrending ?? false,
+        iconic,
+        vol24h, liqUsd, change24h,
+      });
+
       const reco = recommendation(
         price || 0.0000001,
         change1h,
@@ -2108,12 +2253,19 @@ async function refreshMemes(): Promise<any[]> {
         manipulationRisk: manipulation.risk,
         manipulationFlags: manipulation.flags,
         cleanDays30d: manipulation.cleanDays,
+        // ─── EARLY GEM ────────────────────────────────────────────────────
+        earlyGemScore: earlyGem.score,
+        earlyGemLabel: earlyGem.label,
+        earlyGemSignals: earlyGem.signals,
         // vol breakdown stored for OHLCV patch-up step
         _vol1h: vol1h, _vol6h: vol6h,
         _txBuys: txBuys, _txSells: txSells, _txBuyers: txBuyers, _txSellers: txSellers,
         _change1h: change1h, _change6h: change6h, _liqUsd: liqUsd,
         _concentrationTop10: security.topHolders.concentrationTop10,
         _ageDays: ageDays,
+        _marketCap: marketCap,
+        _iconic: iconic,
+        _fromTrending: c.fromTrending ?? false,
       };
     });
 
@@ -2181,6 +2333,27 @@ async function refreshMemes(): Promise<any[]> {
       row.manipulationFlags = updatedManipulation.flags;
       row.cleanDays30d = updatedManipulation.cleanDays;
 
+      // Re-compute Early Gem with real social data + updated organic/manipulation
+      const updatedEarlyGem = calcEarlyGemScore({
+        marketCap: row._marketCap ?? 0,
+        ageDays: row._ageDays ?? 0,
+        concentrationTop10: row._concentrationTop10 ?? 50,
+        viralScore: row.viralScore ?? 0,
+        organicScore: row.organicScore ?? 0,
+        manipulationRisk: row.manipulationRisk,
+        smartWalletsCount: (row.smartWallets ?? []).length,
+        hasTwitter,
+        hasTelegram,
+        fromTrending: row._fromTrending ?? false,
+        iconic: row._iconic ?? false,
+        vol24h: parseFloat(row.volume24h?.replace(/,/g, "") || "0"),
+        liqUsd: row._liqUsd ?? 0,
+        change24h: parseFloat(row.change24h || "0"),
+      });
+      row.earlyGemScore = updatedEarlyGem.score;
+      row.earlyGemLabel = updatedEarlyGem.label;
+      row.earlyGemSignals = updatedEarlyGem.signals;
+
       // Clean up internal temp fields before sending to client
       delete row._vol1h; delete row._vol6h;
       delete row._txBuys; delete row._txSells;
@@ -2188,6 +2361,7 @@ async function refreshMemes(): Promise<any[]> {
       delete row._change1h; delete row._change6h;
       delete row._liqUsd; delete row._concentrationTop10;
       delete row._ageDays; delete row._ohlcv30d;
+      delete row._marketCap; delete row._iconic; delete row._fromTrending;
     }
 
     cache = { ts: Date.now(), data: filtered };
