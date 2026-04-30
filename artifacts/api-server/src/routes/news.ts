@@ -840,120 +840,91 @@ let macroTs = 0;
 const MACRO_TTL_MS = 20 * 60 * 1000;
 let macroInflight: Promise<MacroItem[]> | null = null;
 
+// Keyword-based sentiment — no Gemini needed, instant and reliable
+function macroSentiment(title: string): "BULLISH" | "BEARISH" | "NEUTRAL" {
+  const t = title.toLowerCase();
+  const bull = ["rate cut","cuts rate","pause","pivot","eases","recovery","growth","rally","surge","deal","stimulus","rises","gains","strong","positive","jumps","climbs","up","rebound","boost"];
+  const bear = ["rate hike","hikes","raises rate","inflation","tariff","war","recession","slowdown","weak","decline","crash","falls","down","fear","crisis","risk","sell-off","drops","shrinks","contract","concerns","worry","plunges","tumbles"];
+  const bs = bull.filter((w) => t.includes(w)).length;
+  const rs = bear.filter((w) => t.includes(w)).length;
+  if (bs > rs) return "BULLISH";
+  if (rs > bs) return "BEARISH";
+  return "NEUTRAL";
+}
+
+function macroImpact(cat: MacroItem["category"]): MacroItem["impact"] {
+  if (["FED", "INFLATION", "TRADE"].includes(cat)) return "HIGH";
+  if (["MARKETS", "ECONOMY"].includes(cat)) return "MEDIUM";
+  return "LOW";
+}
+
 async function fetchMacroRss(): Promise<MacroRawArticle[]> {
   const results = await Promise.allSettled(
     MACRO_FEEDS.map(async (feed) => {
       try {
-        const r = await fetch(feed.url, { signal: AbortSignal.timeout(8000) });
+        const r = await fetch(feed.url, {
+          headers: { "User-Agent": "NexusAlpha/1.0" },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!r.ok) return [];
         const xml = await r.text();
         const parsed = XML_PARSER.parse(xml);
         const items: any[] = parsed?.rss?.channel?.item ?? parsed?.feed?.entry ?? [];
-        return (Array.isArray(items) ? items : [items]).slice(0, 5).map((it: any) => ({
-          title: String(it.title ?? "").replace(/<[^>]+>/g, "").trim(),
-          url: String(it.link ?? it.guid ?? ""),
-          source: feed.source,
-          pubDate: it.pubDate ?? it.updated ?? it.published ?? "",
+        const arr = Array.isArray(items) ? items : [items];
+        return arr.slice(0, 4).map((it: any): MacroRawArticle => ({
+          // Use same #text handling as fetchRssFeed — Google News wraps these
+          title: String(it.title?.["#text"] ?? it.title ?? "").replace(/<[^>]+>/g, "").trim(),
+          url: String(it.link?.["#text"] ?? it.link ?? it.guid?.["#text"] ?? it.guid ?? "").trim(),
+          source: String(it.source?.["#text"] ?? it.source ?? "Macro News"),
+          pubDate: String(it.pubDate ?? it.updated ?? it.published ?? ""),
           hintCategory: feed.category,
-        } as MacroRawArticle));
+        }));
       } catch {
         return [];
       }
     })
   );
-  return results.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).filter((a) => a.title.length > 10);
+  return results
+    .flatMap((r) => (r.status === "fulfilled" ? r.value : []))
+    .filter((a) => a.title.length > 15 && !a.title.startsWith("[object"));
 }
 
-async function enrichMacroWithGemini(articles: MacroRawArticle[]): Promise<MacroItem[]> {
-  const articleBlock = articles.slice(0, 25).map((a, i) =>
-    `[${i + 1}] CAT:${a.hintCategory} TITLE:"${a.title}" SOURCE:${a.source} DATE:${a.pubDate ?? ""} URL:${a.url}`
-  ).join("\n");
-
-  const schema = {
-    type: Type.ARRAY,
-    items: {
-      type: Type.OBJECT,
-      properties: {
-        idx:       { type: Type.INTEGER },
-        category:  { type: Type.STRING, enum: ["FED","INFLATION","TRADE","MARKETS","ENERGY","CURRENCY","ECONOMY","GENERAL"] },
-        sentiment: { type: Type.STRING, enum: ["BULLISH","BEARISH","NEUTRAL"] },
-        impact:    { type: Type.STRING, enum: ["HIGH","MEDIUM","LOW"] },
-        summary:   { type: Type.STRING },
-      },
-      required: ["idx","category","sentiment","impact","summary"],
-    },
-  };
-
-  const resp = await ai.models.generateContent({
-    model: MODEL,
-    contents: [{
-      role: "user",
-      parts: [{ text: `You are a macro economics analyst for crypto investors.
-Analyze these global macro news articles. For each, determine:
-- category: FED/INFLATION/TRADE/MARKETS/ENERGY/CURRENCY/ECONOMY/GENERAL
-- sentiment: BULLISH (positive for risk assets/crypto), BEARISH (negative), NEUTRAL
-- impact: HIGH/MEDIUM/LOW on crypto/financial markets
-- summary: 1-sentence summary in Indonesian (max 80 chars), must be informative
-
-Articles:
-${articleBlock}
-
-Return analysis for all articles as JSON array.` }],
-    }],
-    config: { responseMimeType: "application/json", responseSchema: schema },
-  });
-
-  const raw: any[] = JSON.parse(resp.text ?? "[]");
-  return raw.slice(0, 8).map((x: any): MacroItem => {
-    const src = articles[x.idx - 1];
-    const validCats = ["FED","INFLATION","TRADE","MARKETS","ENERGY","CURRENCY","ECONOMY","GENERAL"];
-    return {
-      id: `macro-${x.idx}-${Date.now()}`,
-      title: src?.title ?? "",
-      source: src?.source ?? "Macro News",
-      category: validCats.includes(x.category) ? x.category : "GENERAL",
-      sentiment: ["BULLISH","BEARISH","NEUTRAL"].includes(x.sentiment) ? x.sentiment : "NEUTRAL",
-      impact: ["HIGH","MEDIUM","LOW"].includes(x.impact) ? x.impact : "MEDIUM",
-      summary: String(x.summary ?? "").slice(0, 150),
-      time: relativeTime(src?.pubDate),
-      url: src?.url ?? "",
-    };
-  }).filter((m) => m.title.length > 0);
-}
-
-function fallbackMacroItems(articles: MacroRawArticle[]): MacroItem[] {
-  const catSentMap: Record<string, "BULLISH" | "BEARISH" | "NEUTRAL"> = {
-    FED: "NEUTRAL", INFLATION: "BEARISH", TRADE: "BEARISH",
-    MARKETS: "NEUTRAL", ENERGY: "BEARISH", CURRENCY: "NEUTRAL",
-    ECONOMY: "NEUTRAL", GENERAL: "NEUTRAL",
-  };
-  return articles.slice(0, 6).map((a, i): MacroItem => ({
-    id: `macro-fb-${i}`,
-    title: a.title,
-    source: a.source,
-    category: a.hintCategory,
-    sentiment: catSentMap[a.hintCategory] ?? "NEUTRAL",
-    impact: "MEDIUM",
-    summary: a.title.slice(0, 100),
-    time: relativeTime(a.pubDate),
-    url: a.url,
-  }));
+// Build MacroItems instantly from raw RSS — no AI needed
+function buildMacroItems(articles: MacroRawArticle[]): MacroItem[] {
+  // Deduplicate by title similarity (first 40 chars)
+  const seen = new Set<string>();
+  return articles
+    .filter((a) => {
+      const key = a.title.slice(0, 40).toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 8)
+    .map((a, i): MacroItem => ({
+      id: `macro-${i}-${Date.now()}`,
+      title: a.title,
+      source: a.source,
+      category: a.hintCategory,
+      sentiment: macroSentiment(a.title),
+      impact: macroImpact(a.hintCategory),
+      summary: a.title,
+      time: relativeTime(a.pubDate),
+      url: a.url,
+    }));
 }
 
 async function doRefreshMacro(): Promise<MacroItem[]> {
   try {
     const articles = await fetchMacroRss();
     if (articles.length === 0) return macroCacheData;
-    let enriched: MacroItem[] = [];
-    try {
-      enriched = await withTimeout(enrichMacroWithGemini(articles), 30_000);
-    } catch {
-      enriched = [];
-    }
-    const final = enriched.length > 0 ? enriched : fallbackMacroItems(articles);
+    const final = buildMacroItems(articles);
     if (final.length > 0) {
       macroCacheData = final;
       macroTs = Date.now();
     }
+    return macroCacheData;
+  } catch {
     return macroCacheData;
   } finally {
     macroInflight = null;
@@ -961,28 +932,33 @@ async function doRefreshMacro(): Promise<MacroItem[]> {
 }
 
 // GET /news/macro — macro economy news relevant to crypto markets
+// Returns immediately with cached or freshly fetched data (no Gemini wait)
 router.get("/news/macro", async (req: Request, res: Response) => {
   const age = Date.now() - macroTs;
+  // Fresh cache
   if (macroCacheData.length > 0 && age < MACRO_TTL_MS) {
     return res.json(macroCacheData);
   }
-  if (macroCacheData.length > 0 && age < MACRO_TTL_MS * 3) {
+  // Stale cache — return stale, refresh in background
+  if (macroCacheData.length > 0) {
     if (!macroInflight) {
       macroInflight = doRefreshMacro();
       macroInflight.catch(() => undefined);
     }
     return res.json(macroCacheData);
   }
+  // No cache — fetch and await (should be fast, ~10s max)
   if (macroInflight) {
     try { return res.json(await macroInflight); } catch { /* fall through */ }
   }
-  macroInflight = doRefreshMacro();
-  macroInflight.catch(() => undefined);
+  const p = doRefreshMacro();
+  macroInflight = p;
+  p.catch(() => undefined);
   try {
-    return res.json(await macroInflight);
+    const data = await p;
+    return res.json(data);
   } catch (err: any) {
     req.log.error({ err: err?.message }, "macro fetch failed");
-    if (macroCacheData.length > 0) return res.json(macroCacheData);
     return res.status(503).json({ error: "macro fetch failed" });
   }
 });
