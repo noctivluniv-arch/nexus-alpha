@@ -761,12 +761,37 @@ router.get("/news/feed", async (req: Request, res: Response) => {
 });
 
 // GET /news/trending — returns trending topics from current news cache
-router.get("/news/trending", (_req: Request, res: Response) => {
+// Made async so it can wait for news to load on cold-start
+router.get("/news/trending", async (_req: Request, res: Response) => {
   scheduleWarmup();
+
+  // Fresh trending cache
   if (trendingCache.data.length > 0) {
     return res.json(trendingCache.data);
   }
-  // Compute on the fly from current cache
+
+  // News already cached — compute trending immediately
+  if (newsCache.data.length > 0) {
+    const trending = computeTrending(newsCache.data);
+    trendingCache = { ts: Date.now(), data: trending };
+    return res.json(trending);
+  }
+
+  // Cold start: news is still loading — wait for it (up to 40s)
+  if (newsInflight) {
+    try {
+      await newsInflight;
+    } catch { /* ignore — fall through to cache check */ }
+  } else {
+    // Kick off news refresh and await it
+    const p = doRefresh();
+    newsInflight = p;
+    p.catch(() => undefined);
+    try { await p; } catch { /* ignore */ }
+  }
+
+  // After waiting, compute from whatever we have
+  if (trendingCache.data.length > 0) return res.json(trendingCache.data);
   if (newsCache.data.length > 0) {
     const trending = computeTrending(newsCache.data);
     trendingCache = { ts: Date.now(), data: trending };
@@ -790,40 +815,29 @@ export interface MacroItem {
 }
 
 const MACRO_FEEDS: { url: string; source: string; category: MacroItem["category"] }[] = [
+  // Official FED press releases — never blocked
   {
-    url: "https://news.google.com/rss/search?q=%22Federal+Reserve%22+(rate+OR+FOMC+OR+%22interest+rate%22+OR+%22rate+cut%22+OR+%22rate+hike%22)+when%3A3d&hl=en-US&gl=US&ceid=US:en",
-    source: "Google News",
+    url: "https://www.federalreserve.gov/feeds/press_all.xml",
+    source: "Federal Reserve",
     category: "FED",
   },
+  // CNBC Economy — 30+ articles, stable
   {
-    url: "https://news.google.com/rss/search?q=inflation+(CPI+OR+%22consumer+price%22+OR+%22core+inflation%22+OR+PCE)+when%3A3d&hl=en-US&gl=US&ceid=US:en",
-    source: "Google News",
-    category: "INFLATION",
+    url: "https://www.cnbc.com/id/20910258/device/rss/rss.html",
+    source: "CNBC",
+    category: "ECONOMY",
   },
+  // WSJ Markets RSS — 20+ articles, stable
   {
-    url: "https://news.google.com/rss/search?q=(tariff+OR+%22trade+war%22+OR+%22trade+deal%22+OR+%22trade+tension%22)+when%3A3d&hl=en-US&gl=US&ceid=US:en",
-    source: "Google News",
-    category: "TRADE",
-  },
-  {
-    url: "https://news.google.com/rss/search?q=(%22S%26P+500%22+OR+%22stock+market%22+OR+%22Wall+Street%22+OR+Nasdaq+OR+%22bull+market%22+OR+%22bear+market%22)+when%3A3d&hl=en-US&gl=US&ceid=US:en",
-    source: "Google News",
+    url: "https://feeds.a.dj.com/rss/RSSMarketsMain.xml",
+    source: "WSJ",
     category: "MARKETS",
   },
+  // Investing.com economy — broad macro coverage
   {
-    url: "https://news.google.com/rss/search?q=(gold+price+OR+%22US+dollar%22+OR+DXY+OR+%22dollar+index%22+OR+yuan+OR+%22currency+war%22)+when%3A3d&hl=en-US&gl=US&ceid=US:en",
-    source: "Google News",
-    category: "CURRENCY",
-  },
-  {
-    url: "https://news.google.com/rss/search?q=(oil+price+OR+OPEC+OR+%22energy+crisis%22+OR+%22crude+oil%22)+when%3A3d&hl=en-US&gl=US&ceid=US:en",
-    source: "Google News",
-    category: "ENERGY",
-  },
-  {
-    url: "https://news.google.com/rss/search?q=(recession+OR+%22economic+growth%22+OR+GDP+OR+unemployment+OR+%22economic+slowdown%22)+when%3A3d&hl=en-US&gl=US&ceid=US:en",
-    source: "Google News",
-    category: "ECONOMY",
+    url: "https://www.investing.com/rss/news_25.rss",
+    source: "Investing.com",
+    category: "TRADE",
   },
 ];
 
@@ -843,8 +857,20 @@ let macroInflight: Promise<MacroItem[]> | null = null;
 // Keyword-based sentiment — no Gemini needed, instant and reliable
 function macroSentiment(title: string): "BULLISH" | "BEARISH" | "NEUTRAL" {
   const t = title.toLowerCase();
-  const bull = ["rate cut","cuts rate","pause","pivot","eases","recovery","growth","rally","surge","deal","stimulus","rises","gains","strong","positive","jumps","climbs","up","rebound","boost"];
-  const bear = ["rate hike","hikes","raises rate","inflation","tariff","war","recession","slowdown","weak","decline","crash","falls","down","fear","crisis","risk","sell-off","drops","shrinks","contract","concerns","worry","plunges","tumbles"];
+  const bull = [
+    "rate cut","cuts rate","cut rates","lower rates","rate reduction",
+    "pause","pivot","eases","dovish","recovery","growth","rally","surge",
+    "deal","stimulus","rises","gains","strong","positive","jumps","climbs",
+    "rebound","boost","record high","all-time high","outperform","beat",
+  ];
+  const bear = [
+    "rate hike","hikes rate","raises rate","hold rates","holds rates",
+    "unchanged","no cut","higher for longer","hawkish",
+    "inflation","tariff","trade war","recession","slowdown","stagflation",
+    "weak","decline","crash","falls","fear","crisis","risk",
+    "sell-off","drops","shrinks","contraction","concerns","worry",
+    "plunges","tumbles","freefall","layoffs","unemployment rises",
+  ];
   const bs = bull.filter((w) => t.includes(w)).length;
   const rs = bear.filter((w) => t.includes(w)).length;
   if (bs > rs) return "BULLISH";
