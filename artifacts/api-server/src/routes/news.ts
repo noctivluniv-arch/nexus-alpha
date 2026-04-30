@@ -82,6 +82,19 @@ const RSS_FEEDS: { url: string; source: string }[] = [
     url: "https://decrypt.co/feed",
     source: "Decrypt",
   },
+  // Viral meme coin & social crypto buzz
+  {
+    url: "https://news.google.com/rss/search?q=(DOGE+OR+PEPE+OR+BONK+OR+WIF+OR+SHIB+OR+%22meme+coin%22)+(viral+OR+trending+OR+pump+OR+rally+OR+moon)+when%3A2d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+  },
+  {
+    url: "https://news.google.com/rss/search?q=(crypto+OR+bitcoin+OR+ethereum)+(viral+OR+%22trending+on+X%22+OR+%22going+viral%22+OR+%22social+media%22+OR+mascot)+when%3A2d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+  },
+  {
+    url: "https://news.google.com/rss/search?q=%22crypto+twitter%22+OR+%22crypto+X%22+OR+%22CT+bullish%22+OR+%22NFT+viral%22+OR+%22memecoin+season%22+when%3A3d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+  },
 ];
 
 // Real-time Google News searches scoped to each market-mover + crypto keywords.
@@ -760,6 +773,218 @@ router.get("/news/trending", (_req: Request, res: Response) => {
     return res.json(trending);
   }
   return res.json([]);
+});
+
+// ─── MACRO ECONOMY ───────────────────────────────────────────────────────────
+
+export interface MacroItem {
+  id: string;
+  title: string;
+  source: string;
+  category: "FED" | "INFLATION" | "TRADE" | "MARKETS" | "ENERGY" | "CURRENCY" | "ECONOMY" | "GENERAL";
+  sentiment: "BULLISH" | "BEARISH" | "NEUTRAL";
+  impact: "HIGH" | "MEDIUM" | "LOW";
+  summary: string;
+  time: string;
+  url: string;
+}
+
+const MACRO_FEEDS: { url: string; source: string; category: MacroItem["category"] }[] = [
+  {
+    url: "https://news.google.com/rss/search?q=%22Federal+Reserve%22+(rate+OR+FOMC+OR+%22interest+rate%22+OR+%22rate+cut%22+OR+%22rate+hike%22)+when%3A3d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+    category: "FED",
+  },
+  {
+    url: "https://news.google.com/rss/search?q=inflation+(CPI+OR+%22consumer+price%22+OR+%22core+inflation%22+OR+PCE)+when%3A3d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+    category: "INFLATION",
+  },
+  {
+    url: "https://news.google.com/rss/search?q=(tariff+OR+%22trade+war%22+OR+%22trade+deal%22+OR+%22trade+tension%22)+when%3A3d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+    category: "TRADE",
+  },
+  {
+    url: "https://news.google.com/rss/search?q=(%22S%26P+500%22+OR+%22stock+market%22+OR+%22Wall+Street%22+OR+Nasdaq+OR+%22bull+market%22+OR+%22bear+market%22)+when%3A3d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+    category: "MARKETS",
+  },
+  {
+    url: "https://news.google.com/rss/search?q=(gold+price+OR+%22US+dollar%22+OR+DXY+OR+%22dollar+index%22+OR+yuan+OR+%22currency+war%22)+when%3A3d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+    category: "CURRENCY",
+  },
+  {
+    url: "https://news.google.com/rss/search?q=(oil+price+OR+OPEC+OR+%22energy+crisis%22+OR+%22crude+oil%22)+when%3A3d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+    category: "ENERGY",
+  },
+  {
+    url: "https://news.google.com/rss/search?q=(recession+OR+%22economic+growth%22+OR+GDP+OR+unemployment+OR+%22economic+slowdown%22)+when%3A3d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+    category: "ECONOMY",
+  },
+];
+
+interface MacroRawArticle {
+  title: string;
+  url: string;
+  source: string;
+  pubDate?: string;
+  hintCategory: MacroItem["category"];
+}
+
+let macroCacheData: MacroItem[] = [];
+let macroTs = 0;
+const MACRO_TTL_MS = 20 * 60 * 1000;
+let macroInflight: Promise<MacroItem[]> | null = null;
+
+async function fetchMacroRss(): Promise<MacroRawArticle[]> {
+  const results = await Promise.allSettled(
+    MACRO_FEEDS.map(async (feed) => {
+      try {
+        const r = await fetch(feed.url, { signal: AbortSignal.timeout(8000) });
+        const xml = await r.text();
+        const parsed = XML_PARSER.parse(xml);
+        const items: any[] = parsed?.rss?.channel?.item ?? parsed?.feed?.entry ?? [];
+        return (Array.isArray(items) ? items : [items]).slice(0, 5).map((it: any) => ({
+          title: String(it.title ?? "").replace(/<[^>]+>/g, "").trim(),
+          url: String(it.link ?? it.guid ?? ""),
+          source: feed.source,
+          pubDate: it.pubDate ?? it.updated ?? it.published ?? "",
+          hintCategory: feed.category,
+        } as MacroRawArticle));
+      } catch {
+        return [];
+      }
+    })
+  );
+  return results.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).filter((a) => a.title.length > 10);
+}
+
+async function enrichMacroWithGemini(articles: MacroRawArticle[]): Promise<MacroItem[]> {
+  const articleBlock = articles.slice(0, 25).map((a, i) =>
+    `[${i + 1}] CAT:${a.hintCategory} TITLE:"${a.title}" SOURCE:${a.source} DATE:${a.pubDate ?? ""} URL:${a.url}`
+  ).join("\n");
+
+  const schema = {
+    type: Type.ARRAY,
+    items: {
+      type: Type.OBJECT,
+      properties: {
+        idx:       { type: Type.INTEGER },
+        category:  { type: Type.STRING, enum: ["FED","INFLATION","TRADE","MARKETS","ENERGY","CURRENCY","ECONOMY","GENERAL"] },
+        sentiment: { type: Type.STRING, enum: ["BULLISH","BEARISH","NEUTRAL"] },
+        impact:    { type: Type.STRING, enum: ["HIGH","MEDIUM","LOW"] },
+        summary:   { type: Type.STRING },
+      },
+      required: ["idx","category","sentiment","impact","summary"],
+    },
+  };
+
+  const resp = await ai.models.generateContent({
+    model: MODEL,
+    contents: [{
+      role: "user",
+      parts: [{ text: `You are a macro economics analyst for crypto investors.
+Analyze these global macro news articles. For each, determine:
+- category: FED/INFLATION/TRADE/MARKETS/ENERGY/CURRENCY/ECONOMY/GENERAL
+- sentiment: BULLISH (positive for risk assets/crypto), BEARISH (negative), NEUTRAL
+- impact: HIGH/MEDIUM/LOW on crypto/financial markets
+- summary: 1-sentence summary in Indonesian (max 80 chars), must be informative
+
+Articles:
+${articleBlock}
+
+Return analysis for all articles as JSON array.` }],
+    }],
+    config: { responseMimeType: "application/json", responseSchema: schema },
+  });
+
+  const raw: any[] = JSON.parse(resp.text ?? "[]");
+  return raw.slice(0, 8).map((x: any): MacroItem => {
+    const src = articles[x.idx - 1];
+    const validCats = ["FED","INFLATION","TRADE","MARKETS","ENERGY","CURRENCY","ECONOMY","GENERAL"];
+    return {
+      id: `macro-${x.idx}-${Date.now()}`,
+      title: src?.title ?? "",
+      source: src?.source ?? "Macro News",
+      category: validCats.includes(x.category) ? x.category : "GENERAL",
+      sentiment: ["BULLISH","BEARISH","NEUTRAL"].includes(x.sentiment) ? x.sentiment : "NEUTRAL",
+      impact: ["HIGH","MEDIUM","LOW"].includes(x.impact) ? x.impact : "MEDIUM",
+      summary: String(x.summary ?? "").slice(0, 150),
+      time: relativeTime(src?.pubDate),
+      url: src?.url ?? "",
+    };
+  }).filter((m) => m.title.length > 0);
+}
+
+function fallbackMacroItems(articles: MacroRawArticle[]): MacroItem[] {
+  const catSentMap: Record<string, "BULLISH" | "BEARISH" | "NEUTRAL"> = {
+    FED: "NEUTRAL", INFLATION: "BEARISH", TRADE: "BEARISH",
+    MARKETS: "NEUTRAL", ENERGY: "BEARISH", CURRENCY: "NEUTRAL",
+    ECONOMY: "NEUTRAL", GENERAL: "NEUTRAL",
+  };
+  return articles.slice(0, 6).map((a, i): MacroItem => ({
+    id: `macro-fb-${i}`,
+    title: a.title,
+    source: a.source,
+    category: a.hintCategory,
+    sentiment: catSentMap[a.hintCategory] ?? "NEUTRAL",
+    impact: "MEDIUM",
+    summary: a.title.slice(0, 100),
+    time: relativeTime(a.pubDate),
+    url: a.url,
+  }));
+}
+
+async function doRefreshMacro(): Promise<MacroItem[]> {
+  try {
+    const articles = await fetchMacroRss();
+    if (articles.length === 0) return macroCacheData;
+    let enriched: MacroItem[] = [];
+    try {
+      enriched = await withTimeout(enrichMacroWithGemini(articles), 30_000);
+    } catch {
+      enriched = [];
+    }
+    const final = enriched.length > 0 ? enriched : fallbackMacroItems(articles);
+    if (final.length > 0) {
+      macroCacheData = final;
+      macroTs = Date.now();
+    }
+    return macroCacheData;
+  } finally {
+    macroInflight = null;
+  }
+}
+
+// GET /news/macro — macro economy news relevant to crypto markets
+router.get("/news/macro", async (req: Request, res: Response) => {
+  const age = Date.now() - macroTs;
+  if (macroCacheData.length > 0 && age < MACRO_TTL_MS) {
+    return res.json(macroCacheData);
+  }
+  if (macroCacheData.length > 0 && age < MACRO_TTL_MS * 3) {
+    if (!macroInflight) {
+      macroInflight = doRefreshMacro();
+      macroInflight.catch(() => undefined);
+    }
+    return res.json(macroCacheData);
+  }
+  if (macroInflight) {
+    try { return res.json(await macroInflight); } catch { /* fall through */ }
+  }
+  macroInflight = doRefreshMacro();
+  macroInflight.catch(() => undefined);
+  try {
+    return res.json(await macroInflight);
+  } catch (err: any) {
+    req.log.error({ err: err?.message }, "macro fetch failed");
+    if (macroCacheData.length > 0) return res.json(macroCacheData);
+    return res.status(503).json({ error: "macro fetch failed" });
+  }
 });
 
 // GET /news/xbuzz — returns AI-generated X buzz from crypto influencers
