@@ -31,7 +31,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 const router: IRouter = Router();
-const MODEL = "gemini-1.5-flash";
+const MODEL = "gemini-2.0-flash-lite";
 
 interface SignalCacheEntry {
   ts: number;
@@ -977,7 +977,7 @@ Output the complete JSON signal. All price fields must use actual numeric values
     ) {
       return res.status(429).json({ error: "QUOTA_EXCEEDED" });
     }
-    return res.status(500).json({ error: "AI generation failed", detail: err?.message ?? "unknown" });
+    return res.status(500).json({ error: "AI generation failed" });
   }
 });
 
