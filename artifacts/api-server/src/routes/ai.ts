@@ -31,7 +31,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 const router: IRouter = Router();
-const MODEL = "gemini-2.0-flash-lite";
+const MODEL = process.env.GEMINI_API_KEY ? "gemini-2.0-flash" : "gemini-2.5-flash";
 
 interface SignalCacheEntry {
   ts: number;
