@@ -972,7 +972,7 @@ Output the complete JSON signal. All price fields must use actual numeric values
   } catch (err: any) {
     req.log.error({ err: err?.message }, "AI signal failed");
     if (
-      err?.message?.includes("429") ||
+      err?.message?.includes("429") || err?.message?.includes("RESOURCE_EXHAUSTED") ||
       err?.message?.toLowerCase().includes("quota")
     ) {
       return res.status(429).json({ error: "QUOTA_EXCEEDED" });
@@ -1044,7 +1044,7 @@ router.post("/ai/whales", requireAppSecret, aiLimiter, async (req: Request, res:
   } catch (err: any) {
     req.log.error({ err: err?.message }, "AI whales failed");
     if (
-      err?.message?.includes("429") ||
+      err?.message?.includes("429") || err?.message?.includes("RESOURCE_EXHAUSTED") ||
       err?.message?.toLowerCase().includes("quota")
     ) {
       return res.status(429).json({ error: "QUOTA_EXCEEDED" });
