@@ -137,6 +137,18 @@ export interface TrendingTopic {
   influencerDriven?: boolean;
 }
 
+export interface MacroItem {
+  id: string;
+  title: string;
+  source: string;
+  category: "FED" | "INFLATION" | "TRADE" | "MARKETS" | "ENERGY" | "CURRENCY" | "ECONOMY" | "GENERAL";
+  sentiment: "BULLISH" | "BEARISH" | "NEUTRAL";
+  impact: "HIGH" | "MEDIUM" | "LOW";
+  summary: string;
+  time: string;
+  url: string;
+}
+
 export interface MemeCoin {
   id: string;
   name: string;
