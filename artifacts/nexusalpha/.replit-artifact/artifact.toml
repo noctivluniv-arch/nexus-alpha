@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "NexusAlpha"
+version = "1.0.0"
+id = "artifacts/nexusalpha"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 25837
+
+[services.development]
+run = "pnpm --filter @workspace/nexusalpha run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/nexusalpha", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/nexusalpha", "run", "serve" ]
+
+[services.env]
+PORT = "25837"
+BASE_PATH = "/"

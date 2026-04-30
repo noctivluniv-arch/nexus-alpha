@@ -34187,43 +34187,37 @@ var import_express3 = __toESM(require_express2(), 1);
 
 // ../../lib/integrations-gemini-ai/src/client.ts
 import { GoogleGenAI } from "@google/genai";
-if (!process.env.AI_INTEGRATIONS_GEMINI_BASE_URL) {
-  throw new Error(
-    "AI_INTEGRATIONS_GEMINI_BASE_URL must be set. Did you forget to provision the Gemini AI integration?"
-  );
+function createAiClient() {
+  if (!process.env.AI_INTEGRATIONS_GEMINI_BASE_URL) {
+    throw new Error(
+      "AI_INTEGRATIONS_GEMINI_BASE_URL must be set. Did you forget to provision the Gemini AI integration?"
+    );
+  }
+  if (!process.env.AI_INTEGRATIONS_GEMINI_API_KEY) {
+    throw new Error(
+      "AI_INTEGRATIONS_GEMINI_API_KEY must be set. Did you forget to provision the Gemini AI integration?"
+    );
+  }
+  return new GoogleGenAI({
+    apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
+    httpOptions: {
+      apiVersion: "",
+      baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL
+    }
+  });
 }
-if (!process.env.AI_INTEGRATIONS_GEMINI_API_KEY) {
-  throw new Error(
-    "AI_INTEGRATIONS_GEMINI_API_KEY must be set. Did you forget to provision the Gemini AI integration?"
-  );
-}
-var ai = new GoogleGenAI({
-  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-  httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL
+var _ai;
+var ai = new Proxy({}, {
+  get(_target, prop) {
+    if (!_ai) {
+      _ai = createAiClient();
+    }
+    return _ai[prop];
   }
 });
 
 // ../../lib/integrations-gemini-ai/src/image/client.ts
 import { GoogleGenAI as GoogleGenAI2, Modality } from "@google/genai";
-if (!process.env.AI_INTEGRATIONS_GEMINI_BASE_URL) {
-  throw new Error(
-    "AI_INTEGRATIONS_GEMINI_BASE_URL must be set. Did you forget to provision the Gemini AI integration?"
-  );
-}
-if (!process.env.AI_INTEGRATIONS_GEMINI_API_KEY) {
-  throw new Error(
-    "AI_INTEGRATIONS_GEMINI_API_KEY must be set. Did you forget to provision the Gemini AI integration?"
-  );
-}
-var ai2 = new GoogleGenAI2({
-  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-  httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL
-  }
-});
 
 // src/routes/ai.ts
 import { Type } from "@google/genai";
