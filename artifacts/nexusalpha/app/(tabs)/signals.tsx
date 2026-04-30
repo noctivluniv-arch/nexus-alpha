@@ -262,6 +262,28 @@ export default function SignalsScreen() {
                 >
                   {signal.traderStyle}
                 </Text>
+                {signal.isFallback ? (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginTop: 4,
+                      alignSelf: "flex-start",
+                      backgroundColor: "#F59E0B22",
+                      borderColor: "#F59E0B",
+                      borderWidth: 1,
+                      borderRadius: 6,
+                      paddingHorizontal: 6,
+                      paddingVertical: 2,
+                      gap: 4,
+                    }}
+                  >
+                    <Feather name="cpu" size={10} color="#F59E0B" />
+                    <Text style={{ color: "#F59E0B", fontSize: 10, fontFamily: "Inter_600SemiBold" }}>
+                      MODE TEKNIKAL
+                    </Text>
+                  </View>
+                ) : null}
               </View>
               <View
                 style={[
