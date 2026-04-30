@@ -122,7 +122,7 @@ export interface NewsFeedItem {
   time: string;
   url: string;
   isInfluencer: boolean;
-  influencer?: "TRUMP" | "ELON" | "BLACKROCK" | null;
+  influencer?: "TRUMP" | "ELON" | "BLACKROCK" | "SAYLOR" | "CZ" | "VITALIK" | "CATHIE" | "ARMSTRONG" | "KIYOSAKI" | "DORSEY" | "HAYES" | null;
   impact: "HIGH" | "MEDIUM" | "LOW";
   sentiment: "BULLISH" | "BEARISH" | "NEUTRAL";
   isAIGenerated?: boolean;
