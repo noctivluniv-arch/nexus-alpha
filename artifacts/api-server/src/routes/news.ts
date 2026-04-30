@@ -13,7 +13,18 @@ export interface TrendingTopic {
   count: number;
 }
 
-type InfluencerTag = "TRUMP" | "ELON" | "BLACKROCK";
+type InfluencerTag =
+  | "TRUMP"
+  | "ELON"
+  | "BLACKROCK"
+  | "SAYLOR"
+  | "CZ"
+  | "VITALIK"
+  | "CATHIE"
+  | "ARMSTRONG"
+  | "KIYOSAKI"
+  | "DORSEY"
+  | "HAYES";
 
 interface NewsItem {
   id: string;
@@ -96,6 +107,54 @@ const INFLUENCER_FEEDS: {
       "https://news.google.com/rss/search?q=BlackRock+(bitcoin+OR+IBIT+OR+ETHA+OR+%22spot+ETF%22+OR+ethereum+OR+cryptocurrency)+when%3A2d&hl=en-US&gl=US&ceid=US:en",
     source: "Google News",
     influencer: "BLACKROCK",
+  },
+  {
+    url:
+      "https://news.google.com/rss/search?q=%22Michael+Saylor%22+(bitcoin+OR+BTC+OR+MicroStrategy+OR+cryptocurrency)+when%3A2d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+    influencer: "SAYLOR",
+  },
+  {
+    url:
+      "https://news.google.com/rss/search?q=%22CZ%22+OR+%22Changpeng+Zhao%22+(Binance+OR+bitcoin+OR+crypto+OR+BNB)+when%3A2d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+    influencer: "CZ",
+  },
+  {
+    url:
+      "https://news.google.com/rss/search?q=%22Vitalik+Buterin%22+(ethereum+OR+ETH+OR+crypto+OR+blockchain)+when%3A2d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+    influencer: "VITALIK",
+  },
+  {
+    url:
+      "https://news.google.com/rss/search?q=%22Cathie+Wood%22+(bitcoin+OR+crypto+OR+ARK+OR+ARKK+OR+%22digital+asset%22)+when%3A2d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+    influencer: "CATHIE",
+  },
+  {
+    url:
+      "https://news.google.com/rss/search?q=%22Brian+Armstrong%22+(Coinbase+OR+bitcoin+OR+crypto+OR+regulation)+when%3A2d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+    influencer: "ARMSTRONG",
+  },
+  {
+    url:
+      "https://news.google.com/rss/search?q=%22Robert+Kiyosaki%22+(bitcoin+OR+crypto+OR+gold+OR+BTC)+when%3A2d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+    influencer: "KIYOSAKI",
+  },
+  {
+    url:
+      "https://news.google.com/rss/search?q=%22Jack+Dorsey%22+(bitcoin+OR+BTC+OR+crypto+OR+Block)+when%3A2d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+    influencer: "DORSEY",
+  },
+  {
+    url:
+      "https://news.google.com/rss/search?q=%22Arthur+Hayes%22+(bitcoin+OR+crypto+OR+BitMEX+OR+macro+OR+DeFi)+when%3A2d&hl=en-US&gl=US&ceid=US:en",
+    source: "Google News",
+    influencer: "HAYES",
   },
 ];
 
@@ -242,8 +301,8 @@ async function enrichWithGemini(
 - summary (1 short sentence in Indonesian explaining market relevance)
 - time (relative, in Indonesian like "2 jam lalu" — derive from DATE field)
 - sourceType: "X" if URL contains x.com/twitter.com, otherwise "NEWS"
-- isInfluencer: true ONLY if INFLUENCER field above is ELON, TRUMP, or BLACKROCK
-- influencer: copy the INFLUENCER field VERBATIM (ELON / TRUMP / BLACKROCK / NONE) — do NOT change or guess
+- isInfluencer: true ONLY if INFLUENCER field above is ELON, TRUMP, BLACKROCK, SAYLOR, CZ, VITALIK, CATHIE, ARMSTRONG, KIYOSAKI, DORSEY, or HAYES
+- influencer: copy the INFLUENCER field VERBATIM (ELON / TRUMP / BLACKROCK / SAYLOR / CZ / VITALIK / CATHIE / ARMSTRONG / KIYOSAKI / DORSEY / HAYES / NONE) — do NOT change or guess
 - url: copy the URL field exactly as given (do not modify)
 - title: copy the TITLE exactly (you may slightly clean if needed, keep meaning)
 - source: copy the SOURCE exactly
@@ -287,7 +346,7 @@ Return ONLY a flat JSON array with ${articles.length} items, in the same order a
             isInfluencer: { type: Type.BOOLEAN },
             influencer: {
               type: Type.STRING,
-              enum: ["TRUMP", "ELON", "BLACKROCK", "NONE"],
+              enum: ["TRUMP", "ELON", "BLACKROCK", "SAYLOR", "CZ", "VITALIK", "CATHIE", "ARMSTRONG", "KIYOSAKI", "DORSEY", "HAYES", "NONE"],
             },
             impact: { type: Type.STRING, enum: ["HIGH", "MEDIUM", "LOW"] },
             sentiment: {
@@ -406,11 +465,14 @@ function fallbackFromRss(articles: RssArticle[]): NewsItem[] {
 }
 
 const X_INFLUENCERS = [
-  { handle: "@saylor", name: "Michael Saylor", account: "MicroStrategy", style: "Bitcoin maximalist, corporate treasury" },
-  { handle: "@VitalikButerin", name: "Vitalik Buterin", account: "Ethereum", style: "Technical, ETH ecosystem, long-term thinking" },
-  { handle: "@cz_binance", name: "CZ Binance", account: "Binance founder", style: "Industry builder, market commentary" },
-  { handle: "@CryptoHayes", name: "Arthur Hayes", account: "BitMEX founder", style: "Macro analysis, DeFi, derivatives" },
-  { handle: "@CathieWood", name: "Cathie Wood", account: "ARK Invest CEO", style: "Institutional perspective, long-term bull" },
+  { handle: "@saylor", name: "Michael Saylor", account: "MicroStrategy CEO", style: "Bitcoin maximalist, corporate treasury advocate, accumulation mindset" },
+  { handle: "@VitalikButerin", name: "Vitalik Buterin", account: "Ethereum co-founder", style: "Technical, ETH ecosystem, philosophical, long-term thinking" },
+  { handle: "@cz_binance", name: "CZ (Changpeng Zhao)", account: "Binance founder", style: "Industry builder, market commentary, casual tone" },
+  { handle: "@CryptoHayes", name: "Arthur Hayes", account: "BitMEX co-founder", style: "Macro analysis, DeFi, derivatives, blunt and confident" },
+  { handle: "@CathieWood", name: "Cathie Wood", account: "ARK Invest CEO", style: "Institutional, long-term bull on innovation and crypto" },
+  { handle: "@brian_armstrong", name: "Brian Armstrong", account: "Coinbase CEO", style: "Regulatory, mainstream adoption, pragmatic builder" },
+  { handle: "@realRobertKiyosaki", name: "Robert Kiyosaki", account: "Rich Dad Poor Dad author", style: "Anti-fiat, Bitcoin bull, warns about economic collapse" },
+  { handle: "@jack", name: "Jack Dorsey", account: "Block Inc CEO", style: "Bitcoin-only maximalist, anti-Web3, open protocols advocate" },
 ];
 
 async function generateXBuzz(newsHeadlines: string[]): Promise<NewsItem[]> {
@@ -428,14 +490,14 @@ ${headlineBlock}
 Influencers to simulate:
 ${influencerBlock}
 
-Generate exactly 5 tweet-style posts, one per influencer in order. Each post:
+Generate exactly 8 tweet-style posts, one per influencer in order. Each post:
 - Max 240 characters
 - Authentic to the influencer's voice/style above
 - Directly relevant to one of the news headlines above
 - No hashtags overload (max 1-2)
 - Sound like a real tweet, not a press release
 
-Return a JSON array with exactly 5 items. Fields:
+Return a JSON array with exactly 8 items. Fields:
 - handle: their @handle
 - name: their name
 - tweet: the tweet text in ENGLISH
@@ -449,7 +511,7 @@ Return a JSON array with exactly 5 items. Fields:
     contents: prompt,
     config: {
       responseMimeType: "application/json",
-      maxOutputTokens: 1024,
+      maxOutputTokens: 2048,
       responseSchema: {
         type: Type.ARRAY,
         items: {
@@ -473,7 +535,7 @@ Return a JSON array with exactly 5 items. Fields:
   try { list = JSON.parse(response.text ?? "[]"); } catch { list = []; }
   if (!Array.isArray(list)) list = [];
 
-  return list.slice(0, 5).map((x: any, idx: number) => ({
+  return list.slice(0, 8).map((x: any, idx: number) => ({
     id: `xbuzz-${Date.now()}-${idx}`,
     source: String(x.name ?? "Crypto X"),
     sourceType: "X" as const,
