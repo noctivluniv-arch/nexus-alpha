@@ -361,6 +361,42 @@ function FearGreedCard({
         </Text>
       </View>
 
+      {/* 7-day mini bar chart */}
+      {fg.history && fg.history.length > 1 ? (
+        <View style={fgStyles.miniChartWrap}>
+          <Text style={[fgStyles.miniChartLabel, { color: colors.mutedForeground }]}>
+            TREND 7 HARI
+          </Text>
+          <View style={fgStyles.miniChartBars}>
+            {fg.history.slice(0, 7).reverse().map((p, i) => {
+              const barColor = p.value <= 24 ? "#EA3943" : p.value <= 49 ? "#F97316" : p.value <= 54 ? "#EAB308" : p.value <= 74 ? "#84CC16" : "#16C784";
+              const isToday = i === 6;
+              const dayLabel = i === 6 ? "Hari\nIni" : i === 5 ? "Kmrn" : `-${6 - i}h`;
+              return (
+                <View key={i} style={fgStyles.miniBarCol}>
+                  <Text style={[fgStyles.miniBarVal, { color: barColor }]}>{p.value}</Text>
+                  <View style={fgStyles.miniBarTrack}>
+                    <View
+                      style={[
+                        fgStyles.miniBarFill,
+                        {
+                          height: `${Math.max(p.value, 8)}%` as any,
+                          backgroundColor: isToday ? barColor : barColor + "99",
+                          borderColor: isToday ? barColor : "transparent",
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[fgStyles.miniBarDay, { color: isToday ? barColor : colors.mutedForeground }]}>
+                    {dayLabel}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
+
       {/* History strip */}
       <View style={fgStyles.histRow}>
         <FgHistCell
@@ -483,6 +519,57 @@ const fgStyles = StyleSheet.create({
   },
   histValue: { fontSize: 18, fontFamily: "Inter_700Bold", lineHeight: 22 },
   histClass: { fontSize: 9, fontFamily: "Inter_500Medium", marginTop: 2 },
+  miniChartWrap: {
+    marginBottom: 12,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(255,255,255,0.06)",
+  },
+  miniChartLabel: {
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 1.2,
+    marginBottom: 8,
+  },
+  miniChartBars: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 4,
+    height: 72,
+  },
+  miniBarCol: {
+    flex: 1,
+    alignItems: "center",
+    height: "100%",
+    justifyContent: "flex-end",
+    gap: 3,
+  },
+  miniBarVal: {
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+    lineHeight: 11,
+  },
+  miniBarTrack: {
+    flex: 1,
+    width: "100%",
+    justifyContent: "flex-end",
+    borderRadius: 3,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    maxHeight: 48,
+  },
+  miniBarFill: {
+    width: "100%",
+    borderRadius: 3,
+    borderWidth: 1,
+    minHeight: 4,
+  },
+  miniBarDay: {
+    fontSize: 8,
+    fontFamily: "Inter_500Medium",
+    textAlign: "center",
+    lineHeight: 10,
+  },
 });
 
 const styles = StyleSheet.create({
