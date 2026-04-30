@@ -133,6 +133,8 @@ export interface TrendingTopic {
   category: string;
   sentiment: "BULLISH" | "BEARISH" | "NEUTRAL";
   count: number;
+  influencers?: string[];
+  influencerDriven?: boolean;
 }
 
 export interface MemeCoin {
