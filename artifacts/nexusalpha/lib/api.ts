@@ -6,6 +6,7 @@ import {
   MemeCoin,
   NewsFeedItem,
   TrendingTopic,
+  MacroItem,
   NexusFeed,
   FearGreedData,
   ChartPayload,
@@ -14,9 +15,9 @@ import {
 
 const BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-  : "";
+  : "https://nexus-alpha-j3yb.onrender.com";
 
-const AI_APP_SECRET = process.env.EXPO_PUBLIC_AI_APP_SECRET;
+const AI_APP_SECRET = process.env.EXPO_PUBLIC_AI_APP_SECRET ?? "nexusalpha-secret-2026";
 
 function withAppSecret(init?: RequestInit): RequestInit {
   if (!AI_APP_SECRET) return init ?? {};
@@ -93,6 +94,10 @@ export const api = {
 
   async getTrending(): Promise<TrendingTopic[]> {
     return jsonFetch<TrendingTopic[]>(`/api/news/trending`);
+  },
+
+  async getMacro(): Promise<MacroItem[]> {
+    return jsonFetch<MacroItem[]>(`/api/news/macro`);
   },
 
   async getFearGreed(): Promise<FearGreedData> {
