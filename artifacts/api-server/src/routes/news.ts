@@ -6,6 +6,13 @@ import { Type } from "@google/genai";
 const router: IRouter = Router();
 const MODEL = "gemini-2.5-flash";
 
+export interface TrendingTopic {
+  label: string;
+  category: string;
+  sentiment: "BULLISH" | "BEARISH" | "NEUTRAL";
+  count: number;
+}
+
 type InfluencerTag = "TRUMP" | "ELON" | "BLACKROCK";
 
 interface NewsItem {
@@ -22,6 +29,7 @@ interface NewsItem {
   influencer?: InfluencerTag | null;
   impact: "HIGH" | "MEDIUM" | "LOW";
   sentiment: "BULLISH" | "BEARISH" | "NEUTRAL";
+  isAIGenerated?: boolean;
 }
 
 interface RssArticle {
@@ -397,6 +405,136 @@ function fallbackFromRss(articles: RssArticle[]): NewsItem[] {
   }));
 }
 
+const X_INFLUENCERS = [
+  { handle: "@saylor", name: "Michael Saylor", account: "MicroStrategy", style: "Bitcoin maximalist, corporate treasury" },
+  { handle: "@VitalikButerin", name: "Vitalik Buterin", account: "Ethereum", style: "Technical, ETH ecosystem, long-term thinking" },
+  { handle: "@cz_binance", name: "CZ Binance", account: "Binance founder", style: "Industry builder, market commentary" },
+  { handle: "@CryptoHayes", name: "Arthur Hayes", account: "BitMEX founder", style: "Macro analysis, DeFi, derivatives" },
+  { handle: "@CathieWood", name: "Cathie Wood", account: "ARK Invest CEO", style: "Institutional perspective, long-term bull" },
+];
+
+async function generateXBuzz(newsHeadlines: string[]): Promise<NewsItem[]> {
+  if (newsHeadlines.length === 0) return [];
+  const headlineBlock = newsHeadlines.slice(0, 8).map((h, i) => `[${i + 1}] ${h}`).join("\n");
+  const influencerBlock = X_INFLUENCERS.map(
+    (x) => `- ${x.handle} (${x.name}, ${x.account}): Style: ${x.style}`,
+  ).join("\n");
+
+  const prompt = `You are simulating crypto influencer posts on X (Twitter) based on CURRENT real news.
+
+Current top crypto news headlines:
+${headlineBlock}
+
+Influencers to simulate:
+${influencerBlock}
+
+Generate exactly 5 tweet-style posts, one per influencer in order. Each post:
+- Max 240 characters
+- Authentic to the influencer's voice/style above
+- Directly relevant to one of the news headlines above
+- No hashtags overload (max 1-2)
+- Sound like a real tweet, not a press release
+
+Return a JSON array with exactly 5 items. Fields:
+- handle: their @handle
+- name: their name
+- tweet: the tweet text in ENGLISH
+- tweetId: the tweet id (summary: tweet text translated to Indonesian in 1 short sentence)
+- category: BTC/ETH/ALT/MARKET/DEFI/MEME/REGULATION
+- sentiment: BULLISH/BEARISH/NEUTRAL
+- impact: HIGH/MEDIUM/LOW`;
+
+  const response = await ai.models.generateContent({
+    model: MODEL,
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      maxOutputTokens: 1024,
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            handle: { type: Type.STRING },
+            name: { type: Type.STRING },
+            tweet: { type: Type.STRING },
+            tweetId: { type: Type.STRING },
+            category: { type: Type.STRING, enum: ["BTC", "ETH", "ALT", "MARKET", "DEFI", "MEME", "REGULATION"] },
+            sentiment: { type: Type.STRING, enum: ["BULLISH", "BEARISH", "NEUTRAL"] },
+            impact: { type: Type.STRING, enum: ["HIGH", "MEDIUM", "LOW"] },
+          },
+          required: ["handle", "name", "tweet", "tweetId", "category", "sentiment", "impact"],
+        },
+      },
+    },
+  });
+
+  let list: any[] = [];
+  try { list = JSON.parse(response.text ?? "[]"); } catch { list = []; }
+  if (!Array.isArray(list)) list = [];
+
+  return list.slice(0, 5).map((x: any, idx: number) => ({
+    id: `xbuzz-${Date.now()}-${idx}`,
+    source: String(x.name ?? "Crypto X"),
+    sourceType: "X" as const,
+    author: String(x.handle ?? "@crypto"),
+    title: String(x.tweet ?? ""),
+    summary: String(x.tweetId ?? x.tweet ?? ""),
+    category: ["BTC","ETH","ALT","MARKET","DEFI","MEME","REGULATION"].includes(x.category)
+      ? x.category : "MARKET",
+    time: "baru saja",
+    url: `https://x.com/${String(x.handle ?? "").replace("@", "")}`,
+    isInfluencer: false,
+    influencer: null,
+    impact: ["HIGH","MEDIUM","LOW"].includes(x.impact) ? x.impact : "MEDIUM",
+    sentiment: ["BULLISH","BEARISH","NEUTRAL"].includes(x.sentiment) ? x.sentiment : "NEUTRAL",
+    isAIGenerated: true,
+  }));
+}
+
+function computeTrending(items: NewsItem[]): TrendingTopic[] {
+  const catMap: Record<string, { count: number; bulls: number; bears: number }> = {};
+  for (const item of items) {
+    const cat = item.category;
+    if (!catMap[cat]) catMap[cat] = { count: 0, bulls: 0, bears: 0 };
+    catMap[cat].count++;
+    if (item.sentiment === "BULLISH") catMap[cat].bulls++;
+    if (item.sentiment === "BEARISH") catMap[cat].bears++;
+  }
+
+  const LABELS: Record<string, string> = {
+    BTC: "Bitcoin", ETH: "Ethereum", ALT: "Altcoin", MARKET: "Crypto Market",
+    DEFI: "DeFi", MEME: "Meme Coin", REGULATION: "Regulasi",
+  };
+
+  return Object.entries(catMap)
+    .filter(([, v]) => v.count > 0)
+    .sort(([, a], [, b]) => b.count - a.count)
+    .slice(0, 6)
+    .map(([cat, v]) => ({
+      label: LABELS[cat] ?? cat,
+      category: cat,
+      sentiment: (v.bulls > v.bears ? "BULLISH" : v.bears > v.bulls ? "BEARISH" : "NEUTRAL") as "BULLISH" | "BEARISH" | "NEUTRAL",
+      count: v.count,
+    }));
+}
+
+let trendingCache: { ts: number; data: TrendingTopic[] } = { ts: 0, data: [] };
+let xBuzzCache: { ts: number; data: NewsItem[] } = { ts: 0, data: [] };
+let xBuzzInflight: Promise<NewsItem[]> | null = null;
+
+async function doRefreshXBuzz(headlines: string[]): Promise<NewsItem[]> {
+  try {
+    const buzz = await withTimeout(generateXBuzz(headlines), 30_000);
+    if (buzz.length > 0) xBuzzCache = { ts: Date.now(), data: buzz };
+    return xBuzzCache.data;
+  } catch {
+    return xBuzzCache.data;
+  } finally {
+    xBuzzInflight = null;
+  }
+}
+
 async function doRefresh(): Promise<NewsItem[]> {
   try {
     const articles = await fetchAllRss();
@@ -421,6 +559,13 @@ async function doRefresh(): Promise<NewsItem[]> {
 
     if (final.length > 0) {
       newsCache = { ts: Date.now(), data: final };
+      trendingCache = { ts: Date.now(), data: computeTrending(final) };
+      // Kick off X buzz refresh in the background (non-blocking)
+      const headlines = final.slice(0, 8).map((n) => n.title);
+      if (!xBuzzInflight && headlines.length > 0) {
+        xBuzzInflight = doRefreshXBuzz(headlines);
+        xBuzzInflight.catch(() => undefined);
+      }
     }
     return newsCache.data;
   } finally {
@@ -506,6 +651,57 @@ router.get("/news/feed", async (req: Request, res: Response) => {
     if (newsCache.data.length > 0) return res.json(newsCache.data);
     return res.status(500).json({ error: "news fetch failed" });
   }
+});
+
+// GET /news/trending — returns trending topics from current news cache
+router.get("/news/trending", (_req: Request, res: Response) => {
+  scheduleWarmup();
+  if (trendingCache.data.length > 0) {
+    return res.json(trendingCache.data);
+  }
+  // Compute on the fly from current cache
+  if (newsCache.data.length > 0) {
+    const trending = computeTrending(newsCache.data);
+    trendingCache = { ts: Date.now(), data: trending };
+    return res.json(trending);
+  }
+  return res.json([]);
+});
+
+// GET /news/xbuzz — returns AI-generated X buzz from crypto influencers
+router.get("/news/xbuzz", async (req: Request, res: Response) => {
+  scheduleWarmup();
+
+  // Return cached X buzz if fresh (15 min TTL)
+  const XBUZZ_TTL = 15 * 60 * 1000;
+  if (xBuzzCache.data.length > 0 && Date.now() - xBuzzCache.ts < XBUZZ_TTL) {
+    return res.json(xBuzzCache.data);
+  }
+
+  // If news is available, generate X buzz
+  if (newsCache.data.length > 0) {
+    const headlines = newsCache.data.slice(0, 8).map((n) => n.title);
+    if (xBuzzInflight) {
+      try { await xBuzzInflight; } catch { /* ignore */ }
+      return res.json(xBuzzCache.data);
+    }
+    xBuzzInflight = doRefreshXBuzz(headlines);
+    xBuzzInflight.catch(() => undefined);
+    try {
+      const data = await xBuzzInflight;
+      return res.json(data);
+    } catch {
+      return res.json(xBuzzCache.data);
+    }
+  }
+
+  // No news yet — trigger news refresh first (non-blocking, return empty)
+  if (!newsInflight) {
+    const p = doRefresh();
+    newsInflight = p;
+    p.catch(() => undefined);
+  }
+  return res.json([]);
 });
 
 export default router;

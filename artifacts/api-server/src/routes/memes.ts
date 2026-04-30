@@ -2053,7 +2053,30 @@ export function schedulePrewarmMemes(): void {
   }, 5000);
 }
 
+let memesWarmupDone = false;
+function scheduleMemesWarmup() {
+  if (memesWarmupDone) return;
+  memesWarmupDone = true;
+  // Prewarm cache 8 seconds after server start (delayed so news warmup goes first)
+  setTimeout(() => {
+    if (!memesInflight && cache.data.length === 0) {
+      memesInflight = refreshMemes();
+      memesInflight.catch(() => undefined);
+    }
+  }, 8000);
+
+  // Refresh cache automatically every TTL
+  setInterval(() => {
+    if (Date.now() - cache.ts > TTL_MS && !memesInflight) {
+      memesInflight = refreshMemes();
+      memesInflight.catch(() => undefined);
+    }
+  }, TTL_MS);
+}
+
 router.post("/ai/memes", async (req: Request, res: Response) => {
+  scheduleMemesWarmup();
+
   if (cache.data.length > 0 && Date.now() - cache.ts < TTL_MS) {
     return res.json(cache.data);
   }

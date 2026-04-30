@@ -15,7 +15,7 @@ import { Header } from "@/components/Header";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/lib/api";
 import { useT } from "@/lib/i18n";
-import { NewsFeedItem } from "@/lib/types";
+import { NewsFeedItem, TrendingTopic } from "@/lib/types";
 
 const TRUMP_COLOR = "#DC2626";
 const ELON_COLOR = "#1D9BF0";
@@ -77,6 +77,8 @@ export default function NewsScreen() {
   const colors = useColors();
   const t = useT();
   const [items, setItems] = useState<NewsFeedItem[]>([]);
+  const [xBuzz, setXBuzz] = useState<NewsFeedItem[]>([]);
+  const [trending, setTrending] = useState<TrendingTopic[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,14 +86,17 @@ export default function NewsScreen() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const data = await api.getNews();
-      setItems(data);
-    } catch (e: any) {
-      if (e?.message === "QUOTA_EXCEEDED") {
-        setError(t("common.quotaError"));
-      } else {
-        setError(t("news.error"));
-      }
+      const [data, buzz, trend] = await Promise.allSettled([
+        api.getNews(),
+        api.getXBuzz(),
+        api.getTrending(),
+      ]);
+      if (data.status === "fulfilled") setItems(data.value);
+      else if ((data as any).reason?.message === "QUOTA_EXCEEDED") setError(t("common.quotaError"));
+      else setError(t("news.error"));
+
+      if (buzz.status === "fulfilled") setXBuzz(buzz.value);
+      if (trend.status === "fulfilled") setTrending(trend.value);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -134,8 +139,10 @@ export default function NewsScreen() {
         : colors.mutedForeground;
 
   const influencerItems = items.filter((i) => i.isInfluencer);
-  const xItems = items.filter((i) => i.sourceType === "X" && !i.isInfluencer);
   const newsItems = items.filter((i) => i.sourceType === "NEWS");
+
+  const trendingSentColor = (s: TrendingTopic["sentiment"]) =>
+    s === "BULLISH" ? colors.success : s === "BEARISH" ? colors.danger : colors.cyan;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -169,6 +176,53 @@ export default function NewsScreen() {
             </Text>
           </View>
         </View>
+
+        {/* TRENDING TOPICS CHIPS */}
+        {trending.length > 0 ? (
+          <View style={{ marginBottom: 18 }}>
+            <SectionTitle
+              icon="trending-up"
+              text={t("news.trendingSection")}
+              color={colors.primary}
+            />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, paddingRight: 8 }}
+            >
+              {trending.map((topic) => (
+                <View
+                  key={topic.category}
+                  style={[
+                    styles.trendingChip,
+                    {
+                      backgroundColor: trendingSentColor(topic.sentiment) + "18",
+                      borderColor: trendingSentColor(topic.sentiment),
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.trendingDot,
+                      { backgroundColor: trendingSentColor(topic.sentiment) },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.trendingLabel,
+                      { color: trendingSentColor(topic.sentiment) },
+                    ]}
+                  >
+                    {topic.label}
+                  </Text>
+                  <Text style={[styles.trendingCount, { color: colors.mutedForeground }]}>
+                    {topic.count}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
         {loading ? (
           <View
@@ -221,16 +275,28 @@ export default function NewsScreen() {
           </View>
         ) : null}
 
-        {xItems.length > 0 ? (
+        {/* X BUZZ — AI-generated influencer posts */}
+        {xBuzz.length > 0 ? (
           <View style={{ marginBottom: 18 }}>
             <SectionTitle
               icon="message-circle"
               text={t("news.xSection")}
               color={colors.cyan}
             />
+            <View
+              style={[
+                styles.aiBuzzBanner,
+                { backgroundColor: colors.cyan + "12", borderColor: colors.cyan + "44" },
+              ]}
+            >
+              <Feather name="cpu" size={11} color={colors.cyan} />
+              <Text style={[styles.aiBuzzText, { color: colors.cyan }]}>
+                {t("news.aiBuzzNote")}
+              </Text>
+            </View>
             <View style={{ gap: 10 }}>
-              {xItems.map((it) => (
-                <NewsCard
+              {xBuzz.map((it) => (
+                <XBuzzCard
                   key={it.id}
                   item={it}
                   colors={colors}
@@ -389,6 +455,107 @@ function InfluencerCard({
   );
 }
 
+function XBuzzCard({
+  item,
+  colors,
+  catColor,
+  sentColor,
+}: {
+  item: NewsFeedItem;
+  colors: any;
+  catColor: (c: NewsFeedItem["category"]) => string;
+  sentColor: (s: NewsFeedItem["sentiment"]) => string;
+}) {
+  const t = useT();
+  const handleInitial = (item.author ?? "@")
+    .replace("@", "")
+    .charAt(0)
+    .toUpperCase();
+
+  return (
+    <Pressable
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.cyan + "55",
+          borderWidth: 1,
+        },
+      ]}
+    >
+      <View style={styles.cardHead}>
+        <View
+          style={[
+            styles.xAvatar,
+            { backgroundColor: colors.cyan + "22", borderColor: colors.cyan },
+          ]}
+        >
+          <Text style={[styles.xAvatarText, { color: colors.cyan }]}>
+            {handleInitial}
+          </Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.xAuthor, { color: colors.foreground }]}>
+            {item.source}
+          </Text>
+          <Text style={[styles.xHandle, { color: colors.mutedForeground }]}>
+            {item.author} • {item.time}
+          </Text>
+        </View>
+        <View
+          style={[
+            styles.aiBadge,
+            { backgroundColor: colors.cyan + "22", borderColor: colors.cyan },
+          ]}
+        >
+          <Feather name="cpu" size={8} color={colors.cyan} />
+          <Text style={[styles.aiBadgeText, { color: colors.cyan }]}>AI</Text>
+        </View>
+      </View>
+
+      <Text style={[styles.xTweet, { color: colors.foreground }]}>
+        {item.title}
+      </Text>
+      <Text style={[styles.summary, { color: colors.mutedForeground }]}>
+        {item.summary}
+      </Text>
+
+      <View style={styles.footer}>
+        <View
+          style={[
+            styles.catBadge,
+            {
+              backgroundColor: catColor(item.category) + "22",
+              borderColor: catColor(item.category),
+            },
+          ]}
+        >
+          <Text style={[styles.catText, { color: catColor(item.category) }]}>
+            {item.category}
+          </Text>
+        </View>
+        <View
+          style={[
+            styles.sentBadge,
+            {
+              backgroundColor: sentColor(item.sentiment) + "1A",
+              borderColor: sentColor(item.sentiment),
+            },
+          ]}
+        >
+          <Text style={[styles.sentText, { color: sentColor(item.sentiment) }]}>
+            {item.sentiment}
+          </Text>
+        </View>
+        <View style={{ flex: 1 }} />
+        <Text style={[styles.readMore, { color: colors.mutedForeground }]}>
+          {t("news.aiBuzzSimulated")}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
 function NewsCard({
   item,
   colors,
@@ -531,6 +698,46 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionText: { fontSize: 11, letterSpacing: 1.4, fontFamily: "Inter_700Bold" },
+  trendingChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  trendingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  trendingLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.5,
+  },
+  trendingCount: {
+    fontSize: 10,
+    fontFamily: "Inter_500Medium",
+    marginLeft: 2,
+  },
+  aiBuzzBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 10,
+  },
+  aiBuzzText: {
+    fontSize: 10,
+    fontFamily: "Inter_500Medium",
+    flex: 1,
+    lineHeight: 14,
+  },
   influencerCard: {
     padding: 14,
     borderRadius: 12,
@@ -578,6 +785,48 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     marginBottom: 8,
+  },
+  xAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  xAvatarText: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+  },
+  xAuthor: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    lineHeight: 16,
+  },
+  xHandle: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 14,
+  },
+  xTweet: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    lineHeight: 20,
+    marginBottom: 5,
+  },
+  aiBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 5,
+    borderWidth: 1,
+  },
+  aiBadgeText: {
+    fontSize: 8,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.5,
   },
   typeBadge: {
     flexDirection: "row",

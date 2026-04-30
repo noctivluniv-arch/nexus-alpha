@@ -5,6 +5,7 @@ import {
   WhaleAlert,
   MemeCoin,
   NewsFeedItem,
+  TrendingTopic,
   NexusFeed,
   FearGreedData,
   ChartPayload,
@@ -84,6 +85,14 @@ export const api = {
 
   async getNews(): Promise<NewsFeedItem[]> {
     return jsonFetch<NewsFeedItem[]>(`/api/news/feed`);
+  },
+
+  async getXBuzz(): Promise<NewsFeedItem[]> {
+    return jsonFetch<NewsFeedItem[]>(`/api/news/xbuzz`);
+  },
+
+  async getTrending(): Promise<TrendingTopic[]> {
+    return jsonFetch<TrendingTopic[]>(`/api/news/trending`);
   },
 
   async getFearGreed(): Promise<FearGreedData> {

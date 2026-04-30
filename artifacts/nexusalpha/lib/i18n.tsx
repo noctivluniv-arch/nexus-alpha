@@ -247,13 +247,16 @@ const ID: Dict = {
   "news.loaderText": "Mengambil berita real-time dari X & sumber crypto...",
   "news.error": "Gagal memuat berita. Periksa koneksi.",
   "news.influencerSection": "INFLUENCER ALERT — TRUMP / ELON / BLACKROCK",
-  "news.xSection": "X / TWITTER TRENDING",
+  "news.trendingSection": "TRENDING SEKARANG",
+  "news.xSection": "X BUZZ — INFLUENCER CRYPTO",
   "news.mainstreamSection": "MAINSTREAM CRYPTO NEWS",
   "news.xPost": "X POST",
   "news.newsTag": "NEWS",
   "news.openTweet": "BUKA TWEET",
   "news.openArticle": "BUKA ARTIKEL",
   "news.read": "BACA →",
+  "news.aiBuzzNote": "Dibuat AI berdasarkan berita real-time. Bukan postingan nyata dari akun tersebut.",
+  "news.aiBuzzSimulated": "SIMULASI AI",
 };
 
 const EN: Dict = {
@@ -501,13 +504,16 @@ const EN: Dict = {
   "news.loaderText": "Fetching real-time news from X & crypto sources...",
   "news.error": "Failed to load news. Check your connection.",
   "news.influencerSection": "INFLUENCER ALERT — TRUMP / ELON / BLACKROCK",
-  "news.xSection": "X / TWITTER TRENDING",
+  "news.trendingSection": "TRENDING NOW",
+  "news.xSection": "X BUZZ — CRYPTO INFLUENCERS",
   "news.mainstreamSection": "MAINSTREAM CRYPTO NEWS",
   "news.xPost": "X POST",
   "news.newsTag": "NEWS",
   "news.openTweet": "OPEN TWEET",
   "news.openArticle": "OPEN ARTICLE",
   "news.read": "READ →",
+  "news.aiBuzzNote": "AI-generated based on real-time news. Not actual posts from these accounts.",
+  "news.aiBuzzSimulated": "AI SIMULATED",
 };
 
 const DICTS: Record<Lang, Dict> = { id: ID, en: EN };

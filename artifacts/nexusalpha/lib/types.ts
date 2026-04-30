@@ -125,6 +125,14 @@ export interface NewsFeedItem {
   influencer?: "TRUMP" | "ELON" | "BLACKROCK" | null;
   impact: "HIGH" | "MEDIUM" | "LOW";
   sentiment: "BULLISH" | "BEARISH" | "NEUTRAL";
+  isAIGenerated?: boolean;
+}
+
+export interface TrendingTopic {
+  label: string;
+  category: string;
+  sentiment: "BULLISH" | "BEARISH" | "NEUTRAL";
+  count: number;
 }
 
 export interface MemeCoin {
