@@ -1113,6 +1113,354 @@ function recommendation(
   };
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// NEW INDICATORS: Viral, Organic Community, Manipulation-Free 30 Days
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface ViralResult {
+  score: number;
+  label: "VIRAL" | "TRENDING" | "QUIET";
+  signals: string[];
+}
+
+function calcViralScore(p: {
+  fromTrending: boolean;
+  change1h: number;
+  change6h: number;
+  change24h: number;
+  vol24h: number;
+  vol1h: number;
+  vol6h: number;
+  liqUsd: number;
+  txBuys: number;
+  txSells: number;
+}): ViralResult {
+  let score = 0;
+  const signals: string[] = [];
+
+  // In GeckoTerminal's trending list = confirmed hot
+  if (p.fromTrending) {
+    score += 25;
+    signals.push("Masuk daftar trending GeckoTerminal saat ini");
+  }
+
+  // All-timeframe positive momentum
+  if (p.change1h > 0 && p.change6h > 0 && p.change24h > 5) {
+    score += 20;
+    signals.push(`Momentum naik semua timeframe (+${p.change24h.toFixed(1)}% 24J, +${p.change6h.toFixed(1)}% 6J, +${p.change1h.toFixed(1)}% 1J)`);
+  } else if (p.change1h > 0 && p.change24h > 0) {
+    score += 10;
+    signals.push(`Momentum positif: +${p.change24h.toFixed(1)}% 24J`);
+  }
+
+  // Volume vs liquidity — high ratio = high interest
+  const volLiq = p.liqUsd > 0 ? p.vol24h / p.liqUsd : 0;
+  if (volLiq > 5) {
+    score += 20;
+    signals.push(`Volume $${formatNumber(p.vol24h, 0)} = ${volLiq.toFixed(1)}x ukuran pool — sangat aktif`);
+  } else if (volLiq > 2) {
+    score += 12;
+    signals.push(`Volume aktif: ${volLiq.toFixed(1)}x likuiditas`);
+  } else if (volLiq > 0.5) {
+    score += 5;
+  }
+
+  // Volume acceleration in last 1h vs 24h average
+  if (p.vol1h > 0 && p.vol24h > 0) {
+    const avgHourly = p.vol24h / 24;
+    const accel = avgHourly > 0 ? p.vol1h / avgHourly : 0;
+    if (accel > 4) {
+      score += 20;
+      signals.push(`Volume 1J = ${accel.toFixed(1)}x rata-rata per jam — VIRAL sekarang!`);
+    } else if (accel > 2) {
+      score += 10;
+      signals.push(`Volume 1J meningkat ${accel.toFixed(1)}x dari rata-rata`);
+    }
+  }
+
+  // Buy pressure (buys > sells = organic demand, not panic selling)
+  if (p.txBuys > 0 || p.txSells > 0) {
+    const total = p.txBuys + p.txSells;
+    const buyRatio = total > 0 ? p.txBuys / total : 0;
+    if (buyRatio > 0.65) {
+      score += 15;
+      signals.push(`${(buyRatio * 100).toFixed(0)}% transaksi adalah BUY — banyak yang masuk`);
+    } else if (buyRatio > 0.5) {
+      score += 8;
+    }
+  }
+
+  const label: ViralResult["label"] =
+    score >= 65 ? "VIRAL" : score >= 35 ? "TRENDING" : "QUIET";
+  return { score: Math.min(100, score), label, signals };
+}
+
+interface OrganicResult {
+  score: number;
+  label: "ORGANIK" | "MODERAT" | "KURANG";
+  signals: string[];
+}
+
+function calcOrganicScore(p: {
+  concentrationTop10: number;
+  ageDays: number;
+  vol24h: number;
+  vol6h: number;
+  liqUsd: number;
+  smartWalletsCount: number;
+  hasTwitter: boolean;
+  hasTelegram: boolean;
+  influencer: string;
+  txBuyers: number;
+  txSellers: number;
+}): OrganicResult {
+  let score = 0;
+  const signals: string[] = [];
+
+  // Holder distribution — lower concentration = more organic community
+  const conc = p.concentrationTop10;
+  if (conc < 20) {
+    score += 25;
+    signals.push(`Top 10 holder hanya ${conc.toFixed(1)}% supply — distribusi sangat merata`);
+  } else if (conc < 35) {
+    score += 18;
+    signals.push(`Top 10 holder ${conc.toFixed(1)}% supply — distribusi cukup baik`);
+  } else if (conc < 50) {
+    score += 10;
+    signals.push(`Top 10 holder ${conc.toFixed(1)}% supply`);
+  } else {
+    signals.push(`Peringatan: Top 10 holder ${conc.toFixed(1)}% supply — terkonsentrasi tinggi`);
+  }
+
+  // Volume consistency across timeframes (organic = steady, not one burst)
+  if (p.vol24h > 0 && p.vol6h > 0) {
+    const projected6h = p.vol6h * 4;
+    const consistency =
+      Math.min(projected6h, p.vol24h) / Math.max(projected6h, p.vol24h);
+    if (consistency > 0.65) {
+      score += 20;
+      signals.push("Volume konsisten sepanjang hari — pertumbuhan organik");
+    } else if (consistency > 0.35) {
+      score += 10;
+      signals.push("Volume cukup konsisten");
+    } else {
+      signals.push("Volume terkonsentrasi satu waktu — waspada pump");
+    }
+  }
+
+  // Real community = has both Twitter AND Telegram
+  let socialPts = 0;
+  if (p.hasTwitter) socialPts += 8;
+  if (p.hasTelegram) socialPts += 8;
+  if (socialPts >= 16) {
+    score += 16;
+    signals.push("Ada Twitter + Telegram resmi — komunitas terverifikasi");
+  } else if (socialPts > 0) {
+    score += socialPts;
+    signals.push(p.hasTwitter ? "Ada Twitter resmi" : "Ada Telegram resmi");
+  }
+
+  // Age = survived market cycles (not rug)
+  if (p.ageDays > 180) {
+    score += 15;
+    signals.push(`Berusia ${Math.round(p.ageDays)} hari — komunitas teruji lama`);
+  } else if (p.ageDays > 60) {
+    score += 10;
+    signals.push(`Berusia ${Math.round(p.ageDays)} hari — komunitas mulai mapan`);
+  } else if (p.ageDays > 14) {
+    score += 5;
+    signals.push(`Berusia ${Math.round(p.ageDays)} hari — komunitas masih berkembang`);
+  }
+
+  // Smart wallets = organic accumulation by savvy wallets
+  if (p.smartWalletsCount >= 3) {
+    score += 12;
+    signals.push(`${p.smartWalletsCount} smart wallet aktif — akumulasi organik terdeteksi`);
+  } else if (p.smartWalletsCount > 0) {
+    score += 6;
+    signals.push(`${p.smartWalletsCount} smart wallet terpantau`);
+  }
+
+  // Unique buyers vs sellers
+  if (p.txBuyers > 0 || p.txSellers > 0) {
+    const total = p.txBuyers + p.txSellers;
+    const buyerRatio = total > 0 ? p.txBuyers / total : 0;
+    if (buyerRatio > 0.6) {
+      score += 12;
+      signals.push(`${p.txBuyers} pembeli unik vs ${p.txSellers} penjual — demand organik`);
+    } else if (buyerRatio > 0.5) {
+      score += 6;
+    }
+  }
+
+  // Influencer-driven = less organic (price depends on tweets, not community)
+  if (p.influencer !== "NONE") {
+    score -= 10;
+    signals.push("Harga rentan tweet tokoh — kurang organik");
+  }
+
+  const label: OrganicResult["label"] =
+    score >= 65 ? "ORGANIK" : score >= 35 ? "MODERAT" : "KURANG";
+  return { score: Math.min(100, Math.max(0, score)), label, signals };
+}
+
+interface ManipulationResult {
+  risk: "AMAN" | "WASPADA" | "MANIPULASI";
+  flags: string[];
+  cleanDays: number; // out of 30
+}
+
+function calcManipulationRisk(p: {
+  vol24h: number;
+  vol6h: number;
+  vol1h: number;
+  liqUsd: number;
+  change1h: number;
+  change6h: number;
+  change24h: number;
+  concentrationTop10: number;
+  ageDays: number;
+  txBuys: number;
+  txSells: number;
+  txBuyers: number;
+  txSellers: number;
+  ohlcv30d?: { open: number; high: number; low: number; close: number; volume: number }[];
+}): ManipulationResult {
+  let riskPts = 0;
+  const flags: string[] = [];
+
+  // 1. Wash trading detection (volume >> liquidity)
+  const volLiq = p.liqUsd > 0 ? p.vol24h / p.liqUsd : 0;
+  if (volLiq > 100) {
+    riskPts += 40;
+    flags.push(`Wash trading: volume ${volLiq.toFixed(0)}x likuiditas (sangat tidak normal)`);
+  } else if (volLiq > 30) {
+    riskPts += 20;
+    flags.push(`Volume mencurigakan: ${volLiq.toFixed(0)}x likuiditas`);
+  }
+
+  // 2. Active pump detection (huge 24h gain + 1h spike)
+  if (p.change24h > 100 && p.change1h > 20) {
+    riskPts += 30;
+    flags.push(`Pump aktif: +${p.change24h.toFixed(0)}% 24J, +${p.change1h.toFixed(0)}% 1J`);
+  } else if (p.change24h > 200) {
+    riskPts += 25;
+    flags.push(`Harga naik ekstrem +${p.change24h.toFixed(0)}% dalam 24J`);
+  }
+
+  // 3. Dump in progress (after big rally, price falling now)
+  if (p.change24h > 50 && p.change1h < -10) {
+    riskPts += 25;
+    flags.push(`Dump terdeteksi: -${Math.abs(p.change1h).toFixed(0)}% 1J setelah rally +${p.change24h.toFixed(0)}%`);
+  }
+
+  // 4. Whale concentration + high volume = insider risk
+  if (p.concentrationTop10 > 70 && volLiq > 3) {
+    riskPts += 30;
+    flags.push(`${p.concentrationTop10.toFixed(0)}% supply di top 10 + volume tinggi — risiko whale dump`);
+  } else if (p.concentrationTop10 > 55 && volLiq > 5) {
+    riskPts += 15;
+    flags.push(`Konsentrasi holder ${p.concentrationTop10.toFixed(0)}% dengan volume besar`);
+  }
+
+  // 5. Bot trading (many txns, few unique traders)
+  const totalTx = p.txBuys + p.txSells;
+  const uniqueTraders = p.txBuyers + p.txSellers;
+  if (totalTx > 300 && uniqueTraders > 0 && totalTx / uniqueTraders > 15) {
+    riskPts += 20;
+    flags.push(`Avg ${(totalTx / uniqueTraders).toFixed(0)} transaksi/trader — kemungkinan bot`);
+  }
+
+  // 6. OHLCV 30-day pump/dump pattern analysis
+  let cleanDays = 30;
+  if (p.ohlcv30d && p.ohlcv30d.length >= 7) {
+    const candles = p.ohlcv30d;
+    let pumpDumpCount = 0;
+    let suspVolDays = 0;
+    const totalVol = candles.reduce((s, c) => s + (c.volume ?? 0), 0);
+    const avgVol = totalVol / candles.length;
+
+    for (let i = 1; i < candles.length; i++) {
+      const prev = candles[i - 1];
+      const curr = candles[i];
+      if (!prev.close || !curr.close) continue;
+      const dayChange = ((curr.close - prev.close) / prev.close) * 100;
+
+      // Pump day: >80% gain
+      if (dayChange > 80 && i + 1 < candles.length) {
+        const next = candles[i + 1];
+        if (next?.close && curr.close > 0) {
+          const nextChange = ((next.close - curr.close) / curr.close) * 100;
+          if (nextChange < -40) pumpDumpCount++;
+        }
+      }
+
+      // Suspicious volume day: >15x average
+      if (avgVol > 0 && curr.volume > avgVol * 15) suspVolDays++;
+    }
+
+    cleanDays = Math.max(0, candles.length - pumpDumpCount * 2 - suspVolDays);
+
+    if (pumpDumpCount >= 2) {
+      riskPts += 40;
+      flags.push(`${pumpDumpCount} kejadian pump & dump terdeteksi dalam 30 hari terakhir`);
+    } else if (pumpDumpCount === 1) {
+      riskPts += 20;
+      flags.push("1 kejadian pump & dump dalam 30 hari terakhir");
+    }
+    if (suspVolDays >= 3) {
+      riskPts += 20;
+      flags.push(`Volume anomali ${suspVolDays} hari dalam 30 hari terakhir`);
+    }
+
+    if (pumpDumpCount === 0 && suspVolDays < 2) {
+      flags.push(`30 hari terakhir: harga stabil, tidak ada pump & dump`);
+    }
+  } else {
+    // No OHLCV data — note that
+    flags.push("Data 30 hari belum tersedia, analisis dari data intraday");
+    cleanDays = -1; // sentinel: no data
+  }
+
+  if (riskPts === 0 && flags.filter((f) => f.startsWith("Data 30")).length === 0) {
+    flags.push("Tidak ada sinyal manipulasi terdeteksi");
+  }
+
+  const risk: ManipulationResult["risk"] =
+    riskPts >= 50 ? "MANIPULASI" : riskPts >= 20 ? "WASPADA" : "AMAN";
+  return { risk, flags, cleanDays };
+}
+
+// Fetch 30-day OHLCV from GeckoTerminal for manipulation pattern detection.
+// Best-effort: silently skips on error/timeout, manipulation analysis falls
+// back to intraday signals.
+async function enrichWithOhlcv30d(rows: any[]): Promise<void> {
+  if (rows.length === 0) return;
+  await Promise.allSettled(
+    rows.map(async (row) => {
+      if (!row.geckoNetwork || !row.poolAddress) return;
+      try {
+        const url =
+          `https://api.geckoterminal.com/api/v2/networks/${row.geckoNetwork}` +
+          `/pools/${row.poolAddress}/ohlcv/day?limit=30&token=base`;
+        const data = await fetchJson<any>(url, 0);
+        const list: any[] | undefined = data?.data?.attributes?.ohlcv_list;
+        if (!Array.isArray(list) || list.length < 3) return;
+        // GeckoTerminal OHLCV format: [timestamp, open, high, low, close, volume]
+        row._ohlcv30d = list.map(([_ts, o, h, l, c, v]: any) => ({
+          open: Number(o),
+          high: Number(h),
+          low: Number(l),
+          close: Number(c),
+          volume: Number(v),
+        }));
+      } catch {
+        // Silently ignore — no OHLCV = manipulation analysis uses intraday only
+      }
+    }),
+  );
+}
+
 async function fetchJson<T>(url: string, retries = 2): Promise<T | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -1191,6 +1539,9 @@ interface PoolCandidate {
   // dedup). Falls back to chosen pool's age when no dedup info available.
   // Used by evaluateQuality TOO_NEW check and the displayed ageInDays.
   tokenAgeDays?: number;
+  // True when at least one pool for this token appeared in GeckoTerminal's
+  // trending_pools list — used as a strong viral signal.
+  fromTrending?: boolean;
 }
 
 interface SmartWallet {
@@ -1379,6 +1730,7 @@ async function refreshMemes(): Promise<any[]> {
         fetchPools(n, "trending_pools").catch(() => []),
         fetchPools(n, "new_pools").catch(() => []),
       ]);
+      trending.forEach((p) => (p.fromTrending = true));
       allPools.push(...trending, ...fresh);
       if (i < networks.length - 1) {
         await new Promise((res) => setTimeout(res, 350));
@@ -1414,6 +1766,8 @@ async function refreshMemes(): Promise<any[]> {
         return vb - va;
       });
       const c = arr[0];
+      // Propagate trending flag: if ANY pool for this token was trending, mark the winner
+      if (arr.some((p) => p.fromTrending)) c.fromTrending = true;
       // Pre-filter on the chosen pool's fundamentals
       const liq = parseFloat(c.pool.attributes.reserve_in_usd ?? "0");
       const vol = parseFloat(c.pool.attributes.volume_usd?.h24 ?? "0");
@@ -1496,10 +1850,17 @@ async function refreshMemes(): Promise<any[]> {
       const price = parseFloat(a.base_token_price_usd ?? "0");
       const liqUsd = parseFloat(a.reserve_in_usd ?? "0");
       const vol24h = parseFloat(a.volume_usd?.h24 ?? "0");
+      const vol6h = parseFloat(a.volume_usd?.h6 ?? "0");
+      const vol1h = parseFloat(a.volume_usd?.h1 ?? "0");
       const change24h = parseFloat(a.price_change_percentage?.h24 ?? "0");
       const change1h = parseFloat(a.price_change_percentage?.h1 ?? "0");
       const change6h = parseFloat(a.price_change_percentage?.h6 ?? String(change1h));
       const marketCap = parseFloat(a.market_cap_usd ?? a.fdv_usd ?? "0");
+      const txH24 = a.transactions?.h24;
+      const txBuys = txH24?.buys ?? 0;
+      const txSells = txH24?.sells ?? 0;
+      const txBuyers = txH24?.buyers ?? 0;
+      const txSellers = txH24?.sellers ?? 0;
       // Prefer the cross-venue MAX age set during dedup (token age) over the
       // chosen pool's creation date, which would understate age when the
       // deepest pool was migrated/relaunched recently.
@@ -1532,6 +1893,8 @@ async function refreshMemes(): Promise<any[]> {
         price,
         liqUsd,
         vol24h,
+        vol6h,
+        vol1h,
         change1h,
         change6h,
         change24h,
@@ -1542,6 +1905,10 @@ async function refreshMemes(): Promise<any[]> {
         influencer,
         iconic,
         quality,
+        txBuys,
+        txSells,
+        txBuyers,
+        txSellers,
       };
     });
 
@@ -1578,6 +1945,8 @@ async function refreshMemes(): Promise<any[]> {
         price,
         liqUsd,
         vol24h,
+        vol6h,
+        vol1h,
         change1h,
         change6h,
         change24h,
@@ -1588,6 +1957,10 @@ async function refreshMemes(): Promise<any[]> {
         influencer,
         iconic,
         quality,
+        txBuys,
+        txSells,
+        txBuyers,
+        txSellers,
       } = e;
       const addr = c.baseToken.attributes.address;
       const networkLabel = chainLabel(c.network);
@@ -1605,6 +1978,32 @@ async function refreshMemes(): Promise<any[]> {
 
       const qualityScore = Math.min(100, quality.qualityScore + smartBonus);
       const influencerReason = influencerReasonFor(influencer, baseName);
+
+      // === NEW INDICATORS ===
+      const viral = calcViralScore({
+        fromTrending: c.fromTrending ?? false,
+        change1h, change6h, change24h,
+        vol24h, vol1h, vol6h, liqUsd,
+        txBuys, txSells,
+      });
+      const organic = calcOrganicScore({
+        concentrationTop10: security.topHolders.concentrationTop10,
+        ageDays,
+        vol24h, vol6h, liqUsd,
+        smartWalletsCount: smartWallets.length,
+        hasTwitter: false,  // updated later in social enrichment
+        hasTelegram: false,
+        influencer,
+        txBuyers, txSellers,
+      });
+      // Manipulation analysis without OHLCV for now; OHLCV patched in after
+      const manipulation = calcManipulationRisk({
+        vol24h, vol6h, vol1h, liqUsd,
+        change1h, change6h, change24h,
+        concentrationTop10: security.topHolders.concentrationTop10,
+        ageDays, txBuys, txSells, txBuyers, txSellers,
+        ohlcv30d: undefined,
+      });
 
       const reco = recommendation(
         price || 0.0000001,
@@ -1699,6 +2098,22 @@ async function refreshMemes(): Promise<any[]> {
         qualityScore,
         tier: quality.tier,
         warnings: quality.warnings,
+        // ─── NEW INDICATORS ───────────────────────────────────────────────
+        viralScore: viral.score,
+        viralLabel: viral.label,
+        viralSignals: viral.signals,
+        organicScore: organic.score,
+        organicLabel: organic.label,
+        organicSignals: organic.signals,
+        manipulationRisk: manipulation.risk,
+        manipulationFlags: manipulation.flags,
+        cleanDays30d: manipulation.cleanDays,
+        // vol breakdown stored for OHLCV patch-up step
+        _vol1h: vol1h, _vol6h: vol6h,
+        _txBuys: txBuys, _txSells: txSells, _txBuyers: txBuyers, _txSellers: txSellers,
+        _change1h: change1h, _change6h: change6h, _liqUsd: liqUsd,
+        _concentrationTop10: security.topHolders.concentrationTop10,
+        _ageDays: ageDays,
       };
     });
 
@@ -1717,7 +2132,62 @@ async function refreshMemes(): Promise<any[]> {
     // `twitter` and `telegram` fields on each row so the X/Telegram buttons
     // render in the mobile UI. Failure is silently ignored: the rest of the
     // memes payload is still useful and the buttons simply won't show.
-    await enrichWithDexScreenerSocials(filtered);
+    // Run OHLCV enrichment in parallel with DexScreener socials.
+    await Promise.allSettled([
+      enrichWithDexScreenerSocials(filtered),
+      enrichWithOhlcv30d(filtered),
+    ]);
+
+    // Patch-up: re-compute organic score with real social data now available,
+    // and re-run manipulation analysis with OHLCV data fetched above.
+    for (const row of filtered) {
+      const hasTwitter = typeof row.twitter === "string" && row.twitter.length > 0;
+      const hasTelegram = typeof row.telegram === "string" && row.telegram.length > 0;
+      const updatedOrganic = calcOrganicScore({
+        concentrationTop10: row._concentrationTop10 ?? 50,
+        ageDays: row._ageDays ?? 0,
+        vol24h: parseFloat(row.volume24h?.replace(/,/g, "") || "0"),
+        vol6h: row._vol6h ?? 0,
+        liqUsd: row._liqUsd ?? 0,
+        smartWalletsCount: (row.smartWallets ?? []).length,
+        hasTwitter,
+        hasTelegram,
+        influencer: row.influencer ?? "NONE",
+        txBuyers: row._txBuyers ?? 0,
+        txSellers: row._txSellers ?? 0,
+      });
+      row.organicScore = updatedOrganic.score;
+      row.organicLabel = updatedOrganic.label;
+      row.organicSignals = updatedOrganic.signals;
+
+      const updatedManipulation = calcManipulationRisk({
+        vol24h: parseFloat(row.volume24h?.replace(/,/g, "") || "0"),
+        vol6h: row._vol6h ?? 0,
+        vol1h: row._vol1h ?? 0,
+        liqUsd: row._liqUsd ?? 0,
+        change1h: row._change1h ?? 0,
+        change6h: row._change6h ?? 0,
+        change24h: parseFloat(row.change24h || "0"),
+        concentrationTop10: row._concentrationTop10 ?? 50,
+        ageDays: row._ageDays ?? 0,
+        txBuys: row._txBuys ?? 0,
+        txSells: row._txSells ?? 0,
+        txBuyers: row._txBuyers ?? 0,
+        txSellers: row._txSellers ?? 0,
+        ohlcv30d: row._ohlcv30d,
+      });
+      row.manipulationRisk = updatedManipulation.risk;
+      row.manipulationFlags = updatedManipulation.flags;
+      row.cleanDays30d = updatedManipulation.cleanDays;
+
+      // Clean up internal temp fields before sending to client
+      delete row._vol1h; delete row._vol6h;
+      delete row._txBuys; delete row._txSells;
+      delete row._txBuyers; delete row._txSellers;
+      delete row._change1h; delete row._change6h;
+      delete row._liqUsd; delete row._concentrationTop10;
+      delete row._ageDays; delete row._ohlcv30d;
+    }
 
     cache = { ts: Date.now(), data: filtered };
     return filtered;

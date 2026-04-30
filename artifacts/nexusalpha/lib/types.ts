@@ -251,6 +251,16 @@ export interface MemeCoin {
   warnings?: string[];
   geckoNetwork?: string;
   poolAddress?: string;
+  // ─── NEW INDICATORS ────────────────────────────────────────────────────────
+  viralScore?: number;
+  viralLabel?: "VIRAL" | "TRENDING" | "QUIET";
+  viralSignals?: string[];
+  organicScore?: number;
+  organicLabel?: "ORGANIK" | "MODERAT" | "KURANG";
+  organicSignals?: string[];
+  manipulationRisk?: "AMAN" | "WASPADA" | "MANIPULASI";
+  manipulationFlags?: string[];
+  cleanDays30d?: number;
 }
 
 export type ChartTimeframe = "1h" | "24h" | "7d";

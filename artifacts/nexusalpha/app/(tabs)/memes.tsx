@@ -679,6 +679,9 @@ export default function MemesScreen() {
                   />
                 </Collapsible>
 
+                {/* INDIKATOR MEME KHUSUS — Viral, Organik, Bebas Manipulasi */}
+                <MemeIndicatorsSection coin={coin} colors={colors} />
+
                 {/* Technical Trader Recommendation — collapsed by default */}
                 {tr ? (
                   <Collapsible
@@ -1757,6 +1760,80 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     minWidth: 50,
     textAlign: "right",
+  },
+  // ─── MemeIndicatorsSection styles ──────────────────────────────────────────
+  miCard: {
+    borderWidth: 1,
+    borderRadius: 10,
+    marginTop: 10,
+    overflow: "hidden",
+  },
+  miHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  miTitle: {
+    fontSize: 10,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.5,
+  },
+  miBadge: {
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  miBody: {
+    paddingBottom: 4,
+  },
+  miDivider: {
+    height: 1,
+    marginHorizontal: 12,
+  },
+  miRow: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  miRowLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+  },
+  miScoreBar: {
+    height: 3,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 2,
+    marginTop: 4,
+    overflow: "hidden",
+  },
+  miScoreFill: {
+    height: 3,
+    borderRadius: 2,
+  },
+  miScore: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    minWidth: 28,
+    textAlign: "right",
+  },
+  miSignals: {
+    gap: 4,
+    paddingTop: 6,
+    paddingLeft: 4,
+  },
+  miSignalRow: {
+    flexDirection: "row",
+    gap: 5,
+    alignItems: "flex-start",
+  },
+  miSignalText: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    flex: 1,
+    lineHeight: 14,
   },
 });
 
@@ -3154,6 +3231,173 @@ function LegendDot({
         {label}
       </Text>
     </View>
+  );
+}
+
+// ─── MEME INDICATORS SECTION ────────────────────────────────────────────────
+
+function MemeIndicatorsSection({ coin, colors }: { coin: MemeCoin; colors: any }) {
+  const [expanded, setExpanded] = React.useState(false);
+
+  const hasData =
+    coin.viralLabel !== undefined ||
+    coin.organicLabel !== undefined ||
+    coin.manipulationRisk !== undefined;
+  if (!hasData) return null;
+
+  const viral = coin.viralLabel ?? "QUIET";
+  const organic = coin.organicLabel ?? "MODERAT";
+  const manip = coin.manipulationRisk ?? "WASPADA";
+
+  const viralColor =
+    viral === "VIRAL" ? "#EC4899" : viral === "TRENDING" ? "#F59E0B" : colors.mutedForeground;
+  const organicColor =
+    organic === "ORGANIK" ? "#16A34A" : organic === "MODERAT" ? "#F59E0B" : colors.danger;
+  const manipColor =
+    manip === "AMAN" ? "#16A34A" : manip === "WASPADA" ? "#F59E0B" : colors.danger;
+
+  const cleanDays = coin.cleanDays30d;
+  const cleanLabel =
+    cleanDays === undefined || cleanDays === -1
+      ? "Data intraday"
+      : cleanDays >= 25
+        ? `${cleanDays}/30 hari bersih`
+        : `${cleanDays}/30 hari bersih`;
+
+  return (
+    <View
+      style={[
+        styles.miCard,
+        { backgroundColor: "rgba(99,102,241,0.06)", borderColor: "rgba(99,102,241,0.25)" },
+      ]}
+    >
+      {/* Header */}
+      <Pressable
+        style={styles.miHeader}
+        onPress={() => setExpanded((v) => !v)}
+      >
+        <Feather name="activity" size={13} color="#6366F1" />
+        <Text style={[styles.miTitle, { color: "#6366F1" }]}>INDIKATOR MEME KHUSUS</Text>
+        <View style={{ flexDirection: "row", gap: 4, marginLeft: "auto", alignItems: "center" }}>
+          <View style={[styles.miBadge, { backgroundColor: viralColor + "22", borderColor: viralColor }]}>
+            <Text style={{ color: viralColor, fontSize: 8, fontFamily: "Inter_700Bold" }}>{viral}</Text>
+          </View>
+          <View style={[styles.miBadge, { backgroundColor: organicColor + "22", borderColor: organicColor }]}>
+            <Text style={{ color: organicColor, fontSize: 8, fontFamily: "Inter_700Bold" }}>{organic}</Text>
+          </View>
+          <View style={[styles.miBadge, { backgroundColor: manipColor + "22", borderColor: manipColor }]}>
+            <Text style={{ color: manipColor, fontSize: 8, fontFamily: "Inter_700Bold" }}>{manip}</Text>
+          </View>
+          <Feather name={expanded ? "chevron-up" : "chevron-down"} size={13} color="#6366F188" />
+        </View>
+      </Pressable>
+
+      {expanded && (
+        <View style={styles.miBody}>
+          {/* Divider */}
+          <View style={[styles.miDivider, { backgroundColor: "rgba(99,102,241,0.2)" }]} />
+
+          {/* 1. VIRAL MEME */}
+          <MemeIndicatorRow
+            icon="zap"
+            label="🔥 VIRAL MEME"
+            badge={viral}
+            badgeColor={viralColor}
+            score={coin.viralScore}
+            signals={coin.viralSignals ?? []}
+            colors={colors}
+          />
+
+          <View style={[styles.miDivider, { backgroundColor: colors.border }]} />
+
+          {/* 2. KOMUNITAS ORGANIK */}
+          <MemeIndicatorRow
+            icon="users"
+            label="🌱 KOMUNITAS ORGANIK"
+            badge={organic}
+            badgeColor={organicColor}
+            score={coin.organicScore}
+            signals={coin.organicSignals ?? []}
+            colors={colors}
+          />
+
+          <View style={[styles.miDivider, { backgroundColor: colors.border }]} />
+
+          {/* 3. BEBAS MANIPULASI 30 HARI */}
+          <MemeIndicatorRow
+            icon="shield"
+            label="🛡️ BEBAS MANIPULASI"
+            badge={manip}
+            badgeColor={manipColor}
+            score={undefined}
+            signals={coin.manipulationFlags ?? []}
+            colors={colors}
+            extra={cleanLabel}
+          />
+        </View>
+      )}
+    </View>
+  );
+}
+
+function MemeIndicatorRow({
+  label,
+  badge,
+  badgeColor,
+  score,
+  signals,
+  colors,
+  extra,
+}: {
+  icon: string;
+  label: string;
+  badge: string;
+  badgeColor: string;
+  score?: number;
+  signals: string[];
+  colors: any;
+  extra?: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <Pressable style={styles.miRow} onPress={() => setOpen((v) => !v)}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={[styles.miRowLabel, { color: colors.foreground }]}>{label}</Text>
+            <View style={[styles.miBadge, { backgroundColor: badgeColor + "22", borderColor: badgeColor }]}>
+              <Text style={{ color: badgeColor, fontSize: 9, fontFamily: "Inter_700Bold" }}>{badge}</Text>
+            </View>
+            {extra ? (
+              <Text style={{ color: colors.mutedForeground, fontSize: 9, fontFamily: "Inter_500Medium" }}>
+                {extra}
+              </Text>
+            ) : null}
+            {signals.length > 0 ? (
+              <Feather name={open ? "chevron-up" : "chevron-down"} size={11} color={colors.mutedForeground} style={{ marginLeft: "auto" }} />
+            ) : null}
+          </View>
+          {score !== undefined ? (
+            <View style={styles.miScoreBar}>
+              <View style={[styles.miScoreFill, { width: `${Math.min(100, score)}%` as any, backgroundColor: badgeColor }]} />
+            </View>
+          ) : null}
+        </View>
+        {score !== undefined ? (
+          <Text style={[styles.miScore, { color: badgeColor }]}>{score}</Text>
+        ) : null}
+      </View>
+      {open && signals.length > 0 && (
+        <View style={styles.miSignals}>
+          {signals.map((s, i) => (
+            <View key={i} style={styles.miSignalRow}>
+              <Text style={{ color: badgeColor, fontSize: 9 }}>•</Text>
+              <Text style={[styles.miSignalText, { color: colors.mutedForeground }]}>{s}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </Pressable>
   );
 }
 
