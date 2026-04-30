@@ -40,17 +40,31 @@ export default function MarketScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const retryRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (attempt = 0) => {
     try {
       setError(null);
       const [data, fgData] = await Promise.all([
         api.getPrices(SUPPORTED_PAIRS),
         api.getFearGreed().catch(() => null),
       ]);
+      if (data.length === 0 && attempt < 3) {
+        setRetryCount(attempt + 1);
+        retryRef.current = setTimeout(() => load(attempt + 1), 4000);
+        if (fgData) setFg(fgData);
+        return;
+      }
+      setRetryCount(0);
       setPrices(data);
       if (fgData) setFg(fgData);
     } catch (e: any) {
+      if (attempt < 3) {
+        setRetryCount(attempt + 1);
+        retryRef.current = setTimeout(() => load(attempt + 1), 4000);
+        return;
+      }
       setError(e?.message ?? t("market.error"));
     } finally {
       setLoading(false);
@@ -60,8 +74,11 @@ export default function MarketScreen() {
 
   useEffect(() => {
     load();
-    const i = setInterval(load, 60000);
-    return () => clearInterval(i);
+    const i = setInterval(() => load(), 60000);
+    return () => {
+      clearInterval(i);
+      if (retryRef.current) clearTimeout(retryRef.current);
+    };
   }, [load]);
 
   const onRefresh = () => {
@@ -148,9 +165,14 @@ export default function MarketScreen() {
           </View>
         ) : null}
 
-        {loading && prices.length === 0 ? (
-          <View style={{ paddingVertical: 40, alignItems: "center" }}>
+        {(loading || retryCount > 0) && prices.length === 0 ? (
+          <View style={{ paddingVertical: 36, alignItems: "center", gap: 10 }}>
             <ActivityIndicator color={colors.primary} />
+            {retryCount > 0 ? (
+              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center" }}>
+                {`Menghubungkan ke server...\n(${retryCount}/3)`}
+              </Text>
+            ) : null}
           </View>
         ) : (
           <View style={{ gap: 10 }}>
