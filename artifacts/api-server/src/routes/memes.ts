@@ -1727,8 +1727,8 @@ async function refreshMemes(): Promise<any[]> {
     for (let i = 0; i < networks.length; i++) {
       const n = networks[i];
       const [trending, fresh] = await Promise.all([
-        fetchPools(n, "trending_pools").catch(() => []),
-        fetchPools(n, "new_pools").catch(() => []),
+        fetchPools(n, "trending_pools").catch(() => [] as PoolCandidate[]),
+        fetchPools(n, "new_pools").catch(() => [] as PoolCandidate[]),
       ]);
       trending.forEach((p) => (p.fromTrending = true));
       allPools.push(...trending, ...fresh);
@@ -2140,7 +2140,8 @@ async function refreshMemes(): Promise<any[]> {
 
     // Patch-up: re-compute organic score with real social data now available,
     // and re-run manipulation analysis with OHLCV data fetched above.
-    for (const row of filtered) {
+    for (const rawRow of filtered) {
+      const row = rawRow as any;
       const hasTwitter = typeof row.twitter === "string" && row.twitter.length > 0;
       const hasTelegram = typeof row.telegram === "string" && row.telegram.length > 0;
       const updatedOrganic = calcOrganicScore({
