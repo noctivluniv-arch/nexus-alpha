@@ -31,6 +31,8 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
-  scheduleSignalPrewarm();
+  if (!process.env["GEMINI_API_KEY"]) {
+    scheduleSignalPrewarm();
+  }
   schedulePrewarmMemes();
 });
