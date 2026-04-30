@@ -1464,10 +1464,10 @@ function calcEarlyGemScore(p: {
   if (p.marketCap > 0 && p.marketCap < 1_000_000) {
     score += 30;
     signals.push(`Market cap $${(p.marketCap / 1000).toFixed(0)}K — sangat awal, seperti DOGE/SHIB di fase penemuan`);
-  } else if (p.marketCap < 5_000_000) {
+  } else if (p.marketCap > 0 && p.marketCap < 5_000_000) {
     score += 20;
     signals.push(`Market cap $${(p.marketCap / 1_000_000).toFixed(2)}M — masih micro-cap, besar ruang untuk tumbuh`);
-  } else if (p.marketCap < 20_000_000) {
+  } else if (p.marketCap > 0 && p.marketCap < 20_000_000) {
     score += 10;
     signals.push(`Market cap $${(p.marketCap / 1_000_000).toFixed(1)}M — small-cap dengan potensi 10x+`);
   }
