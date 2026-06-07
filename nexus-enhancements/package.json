@@ -1,0 +1,17 @@
+{
+  "name": "nexus-alpha-enhancements",
+  "version": "1.0.0",
+  "description": "Enhanced signal indicators, risk management, and confluence scoring for NexusAlpha",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "vitest": "^1.6.0",
+    "@vitest/coverage-v8": "^1.6.0",
+    "typescript": "^5.4.0"
+  }
+}
