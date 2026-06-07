@@ -21,13 +21,14 @@
       "jsEngine": "jsc"
     },
     "web": {
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/icon.png",
+      "bundler": "metro"
     },
     "plugins": [
       [
         "expo-router",
         {
-          "origin": "https://replit.com/"
+          "origin": "https://nexusalpha88.netlify.app/"
         }
       ],
       "expo-font",
