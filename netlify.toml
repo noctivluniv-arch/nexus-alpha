@@ -1,7 +1,8 @@
 [build]
-  command = "cd artifacts/nexusalpha && pnpm install --no-frozen-lockfile && pnpm exec expo export --platform web"
+  command = "cd artifacts/nexusalpha && pnpm install --no-frozen-lockfile && pnpm exec expo export --platform web --clear"
   publish = "artifacts/nexusalpha/dist"
 
 [build.environment]
   NODE_VERSION = "20"
   PNPM_VERSION = "10.30.3"
+  EXPO_NO_CACHE = "1"
