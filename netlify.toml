@@ -1,0 +1,7 @@
+[build]
+  base = "artifacts/nexusalpha"
+  command = "cd ../.. && npm install -g pnpm && pnpm install --no-frozen-lockfile && cd artifacts/nexusalpha && pnpm exec expo export --platform web"
+  publish = "artifacts/nexusalpha/dist"
+
+[build.environment]
+  NODE_VERSION = "20"

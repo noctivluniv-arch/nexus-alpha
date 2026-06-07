@@ -7,16 +7,19 @@
     "icon": "./assets/images/icon.png",
     "scheme": "nexusalpha",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#0B0E11"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "jsEngine": "jsc"
     },
-    "android": {},
+    "android": {
+      "jsEngine": "jsc"
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
@@ -32,7 +35,19 @@
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": false
+    },
+    "extra": {
+      "eas": {
+        "projectId": "0c5484d9-fba8-4334-8b2c-4801518b94c3"
+      }
+    },
+    "owner": "noctivluniv",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/0c5484d9-fba8-4334-8b2c-4801518b94c3"
     }
   }
 }
