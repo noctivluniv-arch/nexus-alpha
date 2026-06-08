@@ -1072,26 +1072,11 @@ ${buildLanguageDirective("en")}`;
       }
     }
 
-    const evResult   = enhanced.ev(2.5);
-    const sizeResult = enhanced.sizing(2.5, a14val, livePrice);
     const englishPayload = {
        ...result,
       noTrade: result.side === "NO_TRADE",
       pair,
       timestamp: Date.now(),
-      // New enhanced fields
-      evGrade: evResult.grade,
-      evPerR: parseFloat(evResult.evPerR.toFixed(3)),
-      evSummary: evResult.summary,
-      positionSizing: {
-      recommendedRiskPct: parseFloat((sizeResult.riskFraction * 100).toFixed(2)),
-      atrVolatilityRatio: parseFloat(sizeResult.atrRatio.toFixed(2)),
-      recommendation: sizeResult.recommendation,
-    },
-      cvdSignal: enhanced.cvd.summary,
-      stochRsiSignal: enhanced.stochRsi4h.summary,
-      oiRegime: enhanced.oiRegime.regime,
-      mtfAlignment: enhanced.mtf.summary,
       indicatorSnapshot: snapshot + "\n\n" + marketDataBlock,
     };
     // Cache the canonical English version under :en regardless of requested
