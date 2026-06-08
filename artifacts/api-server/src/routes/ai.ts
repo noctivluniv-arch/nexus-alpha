@@ -846,7 +846,7 @@ Market Context: ETF inflows positive, BTC holding key levels
     sup3,
     fgi,
     fundingRate: deriv?.fundingRate ?? null,
-    oiUsd: deriv?.oiUsd ?? null,
+    oiUsd: null,
     lsRatio: deriv?.lsRatio ?? null,
     btcDom: global?.btcDom ?? null,
     mcapChange24h: global?.mcapChange24h ?? null,
