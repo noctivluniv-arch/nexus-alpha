@@ -788,7 +788,7 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
        hourly: hourlyData,
        candles4h,
        daily,
-       currentOIUsd: deriv?.oiUsd ?? null,
+       currentOIUsd: null, // OI dari volume proxy — deriv belum tersedia di sini
        currentPrice: livePrice,
        currentATR: a14val,
        confidence: 65, // placeholder — updated after Gemini scores
