@@ -861,13 +861,7 @@ Additional computed data:
 ${snapshot}
 KEY SUPPORT: $${supportLevel} | KEY RESISTANCE: $${resistanceLevel}
 
-OOutput the complete JSON signal. All price fields must use actual numeric values from the market data above.
-SCORING GUIDANCE UPDATE — use new indicators in your score:
-
-CVD: "${enhanced.cvd.summary}" → add to confluence score
-StochRSI: "${enhanced.stochRsi4h.summary}" → add to momentum/confluence
-OI Regime: "${enhanced.oiRegime.regime}" → add to sentiment/funding score
-MTF: "${enhanced.mtf.summary}" → add to trend score
+Output the complete JSON signal. All price fields must use actual numeric values from the market data above.
 If EV grade is F (negative expectancy), default to NO_TRADE.
 ${buildLanguageDirective("en")}`;
 
