@@ -19,6 +19,10 @@ import {
   aggregateCandles,
   bosLevel,
 } from "../lib/indicators";
+import {
+computeEnhancedIndicators,
+type EnhancedIndicators,
+} from "../lib/enhanced-indicators";
 
 const GEMINI_TIMEOUT_MS = 60_000;
 const MAX_MARKET_CONTEXT_CHARS = 500;
@@ -779,6 +783,17 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
     );
 
     bos = bosLevel(candles4h.highs, candles4h.lows, candles4h.closes, 20);
+    const a14val = atr(daily.highs, daily.lows, daily.closes, 14);
+    const enhanced = computeEnhancedIndicators({
+       hourly: hourlyData,
+       candles4h,
+       daily,
+       currentOIUsd: deriv?.oiUsd ?? null,
+       currentPrice: livePrice,
+       currentATR: a14val,
+       confidence: 65, // placeholder — updated after Gemini scores
+       rr: 2.5,        // default RR
+    });
 
     const fib = fibLevels(res1, sup1);
     const a14 = atr(daily.highs, daily.lows, daily.closes, 14);
@@ -839,16 +854,22 @@ Market Context: ETF inflows positive, BTC holding key levels
 
   const fullPrompt = `${marketDataBlock}
 
+${enhanced.marketSection}
 ${LAYER_3}
-
 ${LAYER_4}
-
 Additional computed data:
 ${snapshot}
-
 KEY SUPPORT: $${supportLevel} | KEY RESISTANCE: $${resistanceLevel}
 
-Output the complete JSON signal. All price fields must use actual numeric values from the market data above.${buildLanguageDirective("en")}`;
+OOutput the complete JSON signal. All price fields must use actual numeric values from the market data above.
+SCORING GUIDANCE UPDATE — use new indicators in your score:
+
+CVD: "${enhanced.cvd.summary}" → add to confluence score
+StochRSI: "${enhanced.stochRsi4h.summary}" → add to momentum/confluence
+OI Regime: "${enhanced.oiRegime.regime}" → add to sentiment/funding score
+MTF: "${enhanced.mtf.summary}" → add to trend score
+If EV grade is F (negative expectancy), default to NO_TRADE.
+${buildLanguageDirective("en")}`;
 
   try {
     const response = await withTimeout<GenerateContentResponse>(ai.models.generateContent({
@@ -1051,14 +1072,28 @@ Output the complete JSON signal. All price fields must use actual numeric values
       }
     }
 
+    const evResult   = enhanced.ev(2.5);
+    const sizeResult = enhanced.sizing(2.5, a14val, livePrice);
     const englishPayload = {
-      ...result,
+       ...result,
       noTrade: result.side === "NO_TRADE",
       pair,
       timestamp: Date.now(),
+      // New enhanced fields
+      evGrade: evResult.grade,
+      evPerR: parseFloat(evResult.evPerR.toFixed(3)),
+      evSummary: evResult.summary,
+      positionSizing: {
+      recommendedRiskPct: parseFloat((sizeResult.riskFraction * 100).toFixed(2)),
+      atrVolatilityRatio: parseFloat(sizeResult.atrRatio.toFixed(2)),
+      recommendation: sizeResult.recommendation,
+    },
+      cvdSignal: enhanced.cvd.summary,
+      stochRsiSignal: enhanced.stochRsi4h.summary,
+      oiRegime: enhanced.oiRegime.regime,
+      mtfAlignment: enhanced.mtf.summary,
       indicatorSnapshot: snapshot + "\n\n" + marketDataBlock,
     };
-
     // Cache the canonical English version under :en regardless of requested
     // language, so subsequent ID requests can re-translate from the same
     // numbers without rerunning the analysis.
@@ -1249,6 +1284,17 @@ async function prewarmSignal(pair: string): Promise<void> {
       last,
     );
     const bosVal = bosLevel(candles4h.highs, candles4h.lows, candles4h.closes, 20);
+    const a14prewarm = atr(daily.highs, daily.lows, daily.closes, 14);
+    const enhancedPre = computeEnhancedIndicators({
+    hourly: ohlc.hourly,
+    candles4h,
+    daily,
+    currentOIUsd: deriv?.oiUsd ?? null,
+    currentPrice: last,
+    currentATR: a14prewarm,
+    confidence: 65,
+    rr: 2.5,
+  });
     const fib = fibLevels(swing7d.resistance, swing7d.support);
     const a14 = atr(daily.highs, daily.lows, daily.closes, 14);
 
@@ -1298,7 +1344,13 @@ Fibonacci: 0.382=$${fib["0.382"].toFixed(2)} 0.5=$${fib["0.5"].toFixed(2)} 0.618
     // /ai/signal handler translates it to Indonesian on demand while
     // preserving every number, so prewarming English is sufficient for
     // both languages.
-    const fullPrompt = `${marketDataBlock}\n\n${LAYER_3}\n\n${LAYER_4}\n\nAdditional: ${snapshot}\nKEY SUPPORT: $${swing7d.support.toFixed(2)} | KEY RESISTANCE: $${swing7d.resistance.toFixed(2)}\nOutput complete JSON signal.${buildLanguageDirective("en")}`;
+    const fullPrompt = `${marketDataBlock}
+    ${enhancedPre.marketSection}
+    ${LAYER_3}
+    ${LAYER_4}
+    Additional: ${snapshot}
+    KEY SUPPORT: $${swing7d.support.toFixed(2)} | KEY RESISTANCE: $${swing7d.resistance.toFixed(2)}
+    Output complete JSON signal.${buildLanguageDirective("en")}`;
 
     const response = await ai.models.generateContent({
       model: MODEL,
