@@ -854,7 +854,6 @@ Market Context: ETF inflows positive, BTC holding key levels
 
   const fullPrompt = `${marketDataBlock}
 
-${enhanced.marketSection}
 ${LAYER_3}
 ${LAYER_4}
 Additional computed data:
