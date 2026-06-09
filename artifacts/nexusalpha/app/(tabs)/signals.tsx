@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { WebIcon } from "@/components/WebIcon";
 
 import { Header } from "@/components/Header";
 import { useColors } from "@/hooks/useColors";
@@ -189,7 +189,7 @@ export default function SignalsScreen() {
             },
           ]}
         >
-          <Feather name="zap" size={16} color={colors.primaryForeground} />
+          <WebIcon name="zap" size={16} color={colors.primaryForeground} />
           <Text style={[styles.ctaText, { color: colors.primaryForeground }]}>
             {loading ? t("signals.cta.loading") : t("signals.cta.generate")}
           </Text>
@@ -201,7 +201,7 @@ export default function SignalsScreen() {
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
-          <Feather name="cpu" size={14} color={colors.cyan} />
+          <WebIcon name="cpu" size={14} color={colors.cyan} />
           <Text style={[styles.discText, { color: colors.mutedForeground }]}>
             {t("signals.disclaimer")}
           </Text>
@@ -214,7 +214,7 @@ export default function SignalsScreen() {
               { backgroundColor: "#2A1A1F", borderColor: colors.danger },
             ]}
           >
-            <Feather name="alert-triangle" size={16} color={colors.danger} />
+            <WebIcon name="alert-triangle" size={16} color={colors.danger} />
             <Text style={[styles.errorText, { color: colors.danger }]}>
               {error}
             </Text>
@@ -278,7 +278,7 @@ export default function SignalsScreen() {
                       gap: 4,
                     }}
                   >
-                    <Feather name="cpu" size={10} color="#F59E0B" />
+                    <WebIcon name="cpu" size={10} color="#F59E0B" />
                     <Text style={{ color: "#F59E0B", fontSize: 10, fontFamily: "Helvetica Neue" }}>
                       MODE TEKNIKAL
                     </Text>
@@ -347,7 +347,7 @@ export default function SignalsScreen() {
                     },
                   ]}
                 >
-                  <Feather name="target" size={11} color={colors.primary} />
+                  <WebIcon name="target" size={11} color={colors.primary} />
                   <Text style={[styles.metaText, { color: colors.primary }]}>
                     R:R {signal.riskReward}
                   </Text>
@@ -363,7 +363,7 @@ export default function SignalsScreen() {
                     },
                   ]}
                 >
-                  <Feather name="clock" size={11} color={colors.cyan} />
+                  <WebIcon name="clock" size={11} color={colors.cyan} />
                   <Text style={[styles.metaText, { color: colors.cyan }]}>
                     {signal.timeframe}
                   </Text>
@@ -524,7 +524,7 @@ export default function SignalsScreen() {
                   },
                 ]}
               >
-                <Feather name="star" size={11} color={colors.primary} />
+                <WebIcon name="star" size={11} color={colors.primary} />
                 <Text
                   style={[styles.spotLabel, { color: colors.mutedForeground }]}
                 >
@@ -624,7 +624,7 @@ export default function SignalsScreen() {
                           { backgroundColor: colors.success },
                         ]}
                       >
-                        <Feather name="check" size={10} color="#000" />
+                        <WebIcon name="check" size={10} color="#000" />
                       </View>
                       <Text
                         style={[
@@ -1073,7 +1073,7 @@ function ScalpingPlanCard({
     >
       <View style={styles.scalpHeader}>
         <View style={styles.scalpHeaderLeft}>
-          <Feather name="zap" size={13} color={accent} />
+          <WebIcon name="zap" size={13} color={accent} />
           <Text style={[styles.scalpTitle, { color: accent }]}>
             {t("signals.scalp.title")}
           </Text>

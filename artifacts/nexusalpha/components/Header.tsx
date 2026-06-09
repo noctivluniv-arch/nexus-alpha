@@ -1,6 +1,6 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { WebIcon } from "@/components/WebIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
@@ -10,7 +10,7 @@ interface HeaderProps {
   onRefresh?: () => void;
   refreshing?: boolean;
   // Kept for backward compatibility with existing screens; the header now
-  // displays a unified brand tagline ("AI Crypto Signal" + "by Davesavio")
+  // displays a unified brand tagline ("AI Crypto Signal" + "by Noctiv Luniv")
   // under the NEXUS ALPHA wordmark instead of a per-screen label.
   subtitle?: string;
 }
@@ -42,7 +42,7 @@ export function Header({ onRefresh, refreshing }: HeaderProps) {
           AI CRYPTO SIGNAL
         </Text>
         <Text style={[styles.byline, { color: colors.mutedForeground }]}>
-          by Davesavio
+          by Noctiv Luniv
         </Text>
       </View>
 

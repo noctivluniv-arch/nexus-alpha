@@ -7,7 +7,7 @@ import {
   View,
   ActivityIndicator,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { WebIcon } from "@/components/WebIcon";
 
 import { Header } from "@/components/Header";
 import { useColors } from "@/hooks/useColors";
@@ -118,7 +118,7 @@ export default function MarketScreen() {
               $2.{Math.floor(Math.random() * 99) + 10}T
             </Text>
             <View style={styles.heroRow}>
-              <Feather name="arrow-up-right" size={14} color={colors.success} />
+              <WebIcon name="arrow-up-right" size={14} color={colors.success} />
               <Text style={[styles.heroChange, { color: colors.success }]}>
                 +2,4% {t("market.changeSuffix")}
               </Text>
@@ -137,7 +137,7 @@ export default function MarketScreen() {
               52,3%
             </Text>
             <View style={styles.heroRow}>
-              <Feather name="trending-up" size={14} color={colors.primary} />
+              <WebIcon name="trending-up" size={14} color={colors.primary} />
               <Text style={[styles.heroChange, { color: colors.primary }]}>
                 {t("market.bullishTrend")}
               </Text>
@@ -158,7 +158,7 @@ export default function MarketScreen() {
               { backgroundColor: "#2A1A1F", borderColor: colors.danger },
             ]}
           >
-            <Feather name="alert-triangle" size={16} color={colors.danger} />
+            <WebIcon name="alert-triangle" size={16} color={colors.danger} />
             <Text style={[styles.errorText, { color: colors.danger }]}>
               {error}
             </Text>
@@ -250,7 +250,7 @@ export default function MarketScreen() {
           ]}
         >
           <View style={styles.strategyHead}>
-            <Feather name="target" size={16} color={colors.primary} />
+            <WebIcon name="target" size={16} color={colors.primary} />
             <Text style={[styles.strategyTitle, { color: colors.foreground }]}>
               {t("market.strategy.btcDcaTitle")}
             </Text>
@@ -266,7 +266,7 @@ export default function MarketScreen() {
           ]}
         >
           <View style={styles.strategyHead}>
-            <Feather name="layers" size={16} color={colors.cyan} />
+            <WebIcon name="layers" size={16} color={colors.cyan} />
             <Text style={[styles.strategyTitle, { color: colors.foreground }]}>
               {t("market.strategy.ethSolTitle")}
             </Text>

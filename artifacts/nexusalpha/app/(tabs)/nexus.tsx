@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { WebIcon } from "@/components/WebIcon";
 
 import { Header } from "@/components/Header";
 import { useColors } from "@/hooks/useColors";
@@ -98,7 +98,7 @@ export default function NexusScreen() {
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
-          <Feather name="anchor" size={18} color={colors.primary} />
+          <WebIcon name="anchor" size={18} color={colors.primary} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.bannerTitle, { color: colors.foreground }]}>
               {t("nexus.banner.title")}
@@ -225,7 +225,7 @@ export default function NexusScreen() {
               { backgroundColor: "#2A1A1F", borderColor: colors.danger },
             ]}
           >
-            <Feather name="alert-triangle" size={16} color={colors.danger} />
+            <WebIcon name="alert-triangle" size={16} color={colors.danger} />
             <Text style={[styles.errorText, { color: colors.danger }]}>
               {error}
             </Text>

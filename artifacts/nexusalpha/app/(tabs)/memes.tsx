@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
-import { Feather } from "@expo/vector-icons";
+import { WebIcon } from "@/components/WebIcon";
 import Svg, {
   Path,
   Line as SvgLine,
@@ -190,7 +190,7 @@ export default function MemesScreen() {
             },
           ]}
         >
-          <Feather name="zap" size={16} color={colors.fuchsia} />
+          <WebIcon name="zap" size={16} color={colors.fuchsia} />
           <Text style={[styles.bannerText, { color: colors.fuchsia }]}>
             {t("memes.dyor")}
           </Text>
@@ -203,7 +203,7 @@ export default function MemesScreen() {
               { backgroundColor: "#2A1A1F", borderColor: colors.danger },
             ]}
           >
-            <Feather name="alert-triangle" size={16} color={colors.danger} />
+            <WebIcon name="alert-triangle" size={16} color={colors.danger} />
             <Text style={[styles.errorText, { color: colors.danger }]}>
               {error}
             </Text>
@@ -293,7 +293,7 @@ export default function MemesScreen() {
 
         {filteredCoins.length === 0 && coins.length > 0 ? (
           <View style={{ paddingVertical: 32, alignItems: "center" }}>
-            <Feather name="filter" size={20} color={colors.mutedForeground} />
+            <WebIcon name="filter" size={20} color={colors.mutedForeground} />
             <Text
               style={{
                 color: colors.mutedForeground,
@@ -1222,7 +1222,7 @@ function SocialLinks({
             },
           ]}
         >
-          <Feather name={it.icon} size={11} color={it.color} />
+          <WebIcon name={it.icon} size={11} color={it.color} />
           <Text style={[styles.socialBtnText, { color: it.color }]}>
             {it.label}
           </Text>
@@ -2005,7 +2005,7 @@ function LpLockSection({
       ]}
     >
       <View style={styles.scanHead}>
-        <Feather name="lock" size={13} color={c.fg} />
+        <WebIcon name="lock" size={13} color={c.fg} />
         <Text style={[styles.scanTitle, { color: c.fg }]}>
           {t("memes.lpLock.title")}
         </Text>
@@ -2096,7 +2096,7 @@ function BurnSection({
       ]}
     >
       <View style={styles.scanHead}>
-        <Feather name="zap-off" size={13} color={accent} />
+        <WebIcon name="zap-off" size={13} color={accent} />
         <Text style={[styles.scanTitle, { color: accent }]}>
           {t("memes.burn.title")}
         </Text>
@@ -2126,7 +2126,7 @@ function BurnSection({
                 gap: 6,
               }}
             >
-              <Feather name="x-circle" size={10} color={accent} />
+              <WebIcon name="x-circle" size={10} color={accent} />
               <Text
                 style={{
                   flex: 1,
@@ -2190,7 +2190,7 @@ function Collapsible({
           },
         ]}
       >
-        <Feather name={icon} size={13} color={accent} />
+        <WebIcon name={icon} size={13} color={accent} />
         <Text style={[styles.collapsibleTitle, { color: accent }]}>
           {title}
         </Text>
@@ -2238,7 +2238,7 @@ function TopHoldersSection({
       >
         {headerless ? null : (
           <View style={styles.scanHead}>
-            <Feather name="users" size={13} color={colors.mutedForeground} />
+            <WebIcon name="users" size={13} color={colors.mutedForeground} />
             <Text
               style={[styles.scanTitle, { color: colors.mutedForeground }]}
             >
@@ -2270,7 +2270,7 @@ function TopHoldersSection({
     >
       {headerless ? null : (
         <View style={styles.scanHead}>
-          <Feather name="users" size={13} color={colors.cyan} />
+          <WebIcon name="users" size={13} color={colors.cyan} />
           <Text style={[styles.scanTitle, { color: colors.cyan }]}>
             {t("memes.holders.title")}
           </Text>
@@ -2520,7 +2520,7 @@ function PriceChartSection({
           ]}
         >
           <View style={styles.scanHead}>
-            <Feather name="trending-up" size={13} color={accent} />
+            <WebIcon name="trending-up" size={13} color={accent} />
             <Text style={[styles.scanTitle, { color: accent }]}>
               {t("memes.chart.title")}
             </Text>
@@ -3351,7 +3351,7 @@ function EarlyGemSection({ coin, colors }: { coin: MemeCoin; colors: any }) {
     <View style={[styles.egCard, { backgroundColor: bgColor, borderColor }]}>
       {/* Header */}
       <Pressable style={styles.egHeader} onPress={() => setExpanded((v) => !v)}>
-        <Feather name={icon as any} size={14} color={accent} />
+        <WebIcon name={icon as any} size={14} color={accent} />
         <View style={{ flex: 1, marginLeft: 6 }}>
           <Text style={[styles.egTitle, { color: accent }]}>{title}</Text>
           <Text style={[styles.egSubtitle, { color: accent + "BB" }]}>{subtitle}</Text>
@@ -3360,7 +3360,7 @@ function EarlyGemSection({ coin, colors }: { coin: MemeCoin; colors: any }) {
           <View style={[styles.egScorePill, { backgroundColor: accent + "22", borderColor: accent }]}>
             <Text style={[styles.egScoreText, { color: accent }]}>{score}<Text style={{ fontSize: 9 }}>/100</Text></Text>
           </View>
-          <Feather name={expanded ? "chevron-up" : "chevron-down"} size={12} color={accent + "88"} />
+          <WebIcon name={expanded ? "chevron-up" : "chevron-down"} size={12} color={accent + "88"} />
         </View>
       </Pressable>
 
@@ -3381,7 +3381,7 @@ function EarlyGemSection({ coin, colors }: { coin: MemeCoin; colors: any }) {
             </View>
           ))}
           <View style={[styles.egDisclaimerBox, { backgroundColor: "rgba(255,255,255,0.04)", borderColor: colors.border }]}>
-            <Feather name="alert-triangle" size={11} color={colors.mutedForeground} />
+            <WebIcon name="alert-triangle" size={11} color={colors.mutedForeground} />
             <Text style={[styles.egDisclaimerText, { color: colors.mutedForeground }]}>
               Ini analisis pola — bukan jaminan profit. Meme coin sangat berisiko. Selalu DYOR dan jangan invest lebih dari yang siap kamu rugi.
             </Text>
@@ -3434,7 +3434,7 @@ function MemeIndicatorsSection({ coin, colors }: { coin: MemeCoin; colors: any }
         style={styles.miHeader}
         onPress={() => setExpanded((v) => !v)}
       >
-        <Feather name="activity" size={13} color="#6366F1" />
+        <WebIcon name="activity" size={13} color="#6366F1" />
         <Text style={[styles.miTitle, { color: "#6366F1" }]}>INDIKATOR MEME KHUSUS</Text>
         <View style={{ flexDirection: "row", gap: 4, marginLeft: "auto", alignItems: "center" }}>
           <View style={[styles.miBadge, { backgroundColor: viralColor + "22", borderColor: viralColor }]}>
@@ -3446,7 +3446,7 @@ function MemeIndicatorsSection({ coin, colors }: { coin: MemeCoin; colors: any }
           <View style={[styles.miBadge, { backgroundColor: manipColor + "22", borderColor: manipColor }]}>
             <Text style={{ color: manipColor, fontSize: 8, fontFamily: "Helvetica Neue" }}>{manip}</Text>
           </View>
-          <Feather name={expanded ? "chevron-up" : "chevron-down"} size={13} color="#6366F188" />
+          <WebIcon name={expanded ? "chevron-up" : "chevron-down"} size={13} color="#6366F188" />
         </View>
       </Pressable>
 
@@ -3532,7 +3532,7 @@ function MemeIndicatorRow({
               </Text>
             ) : null}
             {signals.length > 0 ? (
-              <Feather name={open ? "chevron-up" : "chevron-down"} size={11} color={colors.mutedForeground} style={{ marginLeft: "auto" }} />
+              <WebIcon name={open ? "chevron-up" : "chevron-down"} size={11} color={colors.mutedForeground} style={{ marginLeft: "auto" }} />
             ) : null}
           </View>
           {score !== undefined ? (
@@ -3583,7 +3583,7 @@ function WatchlistWarningsSection({
       ]}
     >
       <View style={styles.scanHead}>
-        <Feather name="alert-triangle" size={13} color={amber} />
+        <WebIcon name="alert-triangle" size={13} color={amber} />
         <Text style={[styles.scanTitle, { color: amber }]}>
           {t("memes.warnings.title")}
         </Text>
@@ -3668,7 +3668,7 @@ function SmartWalletsSection({
       >
         {headerless ? null : (
           <View style={styles.scanHead}>
-            <Feather name="zap" size={13} color={colors.mutedForeground} />
+            <WebIcon name="zap" size={13} color={colors.mutedForeground} />
             <Text
               style={[styles.scanTitle, { color: colors.mutedForeground }]}
             >
@@ -3713,7 +3713,7 @@ function SmartWalletsSection({
     >
       {headerless ? null : (
         <View style={styles.scanHead}>
-          <Feather name="zap" size={13} color="#A855F7" />
+          <WebIcon name="zap" size={13} color="#A855F7" />
           <Text style={[styles.scanTitle, { color: "#A855F7" }]}>
             {t("memes.smart.title")}
           </Text>
