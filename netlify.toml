@@ -1,15 +1,18 @@
 [build]
-  command = "cd artifacts/nexusalpha && pnpm install --no-frozen-lockfile && pnpm exec expo export --platform web --clear"
+  command = """
+    cd artifacts/nexusalpha && \
+    pnpm install --no-frozen-lockfile && \
+    pnpm exec expo export --platform web --clear && \
+    mkdir -p dist/assets && \
+    find ../../node_modules/.pnpm -name "Inter_*.ttf" -exec cp {} dist/assets/ \; && \
+    find ../../node_modules/.pnpm -name "Feather.*.ttf" -exec cp {} dist/assets/ \; || \
+    find ../../node_modules/.pnpm -name "Feather.ttf" -exec cp {} dist/assets/ \;
+  """
   publish = "artifacts/nexusalpha/dist"
 
 [build.environment]
   NODE_VERSION = "20"
   PNPM_VERSION = "10.30.3"
-
-[[headers]]
-  for = "/assets/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
 
 [[redirects]]
   from = "/*"
