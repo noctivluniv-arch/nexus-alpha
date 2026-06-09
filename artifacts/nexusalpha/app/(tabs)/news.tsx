@@ -487,7 +487,7 @@ function MacroCard({ items, colors }: { items: MacroItem[]; colors: any }) {
                     <Text style={{ color: "#F97316", fontSize: 8, fontFamily: "Helvetica Neue", letterSpacing: 0.5 }}>HIGH IMPACT</Text>
                   </View>
                 ) : null}
-                {item.url ?  : null}
+                {null}
               </View>
               {/* Title */}
               <Text style={[styles.macroSummary, { color: colors.foreground }]} numberOfLines={2}>{item.title}</Text>
@@ -556,7 +556,7 @@ function TrendingColumn({
                 <Text style={[styles.trendingHeadline, { flex: 1 }]} numberOfLines={2}>
                   {item.title}
                 </Text>
-                {item.url ?  : null}
+                {null}
               </View>
               <View style={styles.trendingMeta}>
                 <View
