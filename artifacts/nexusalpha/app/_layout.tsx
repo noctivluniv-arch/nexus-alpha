@@ -1,4 +1,3 @@
-import { useFonts } from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -28,14 +27,6 @@ export default function RootLayout() {
     Inter_600SemiBold: { uri: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYAZ9hiJ-Ek-_EeA.woff2" } as any,
     Inter_700Bold: { uri: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFuYAZ9hiJ-Ek-_EeA.woff2" } as any,
   });
-
-  useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
-
-  if (!fontsLoaded && !fontError) return null;
 
   return (
     <SafeAreaProvider>

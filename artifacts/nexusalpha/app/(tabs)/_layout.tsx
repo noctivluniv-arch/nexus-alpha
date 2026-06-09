@@ -36,7 +36,7 @@ export default function TabLayout() {
         },
         tabBarLabelStyle: {
           fontSize: 10,
-          fontFamily: "Inter_600SemiBold",
+          fontFamily: "Helvetica Neue",
           letterSpacing: 0.5,
         },
       }}

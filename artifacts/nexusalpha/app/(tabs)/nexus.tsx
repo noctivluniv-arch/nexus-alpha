@@ -240,7 +240,7 @@ export default function NexusScreen() {
                 color: colors.mutedForeground,
                 marginTop: 12,
                 fontSize: 11,
-                fontFamily: "Inter_500Medium",
+                fontFamily: "Helvetica Neue",
               }}
             >
               {t("nexus.fetchingOnchain")}
@@ -343,8 +343,8 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 16,
   },
-  bannerTitle: { fontSize: 12, fontFamily: "Inter_700Bold", letterSpacing: 1 },
-  bannerSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  bannerTitle: { fontSize: 12, fontFamily: "Helvetica Neue", letterSpacing: 1 },
+  bannerSub: { fontSize: 11, fontFamily: "Helvetica Neue", marginTop: 2 },
   derivGrid: { flexDirection: "row", gap: 8, marginBottom: 14 },
   derivCard: {
     flex: 1,
@@ -355,16 +355,16 @@ const styles = StyleSheet.create({
   },
   derivSymbol: {
     fontSize: 13,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     marginBottom: 4,
   },
   derivLabel: {
     fontSize: 8,
     letterSpacing: 1,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
     marginTop: 4,
   },
-  derivVal: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  derivVal: { fontSize: 12, fontFamily: "Helvetica Neue" },
   biasPill: {
     marginTop: 6,
     paddingVertical: 3,
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     alignSelf: "flex-start",
   },
-  biasText: { fontSize: 8, fontFamily: "Inter_700Bold", letterSpacing: 0.8 },
+  biasText: { fontSize: 8, fontFamily: "Helvetica Neue", letterSpacing: 0.8 },
   summaryBox: {
     padding: 14,
     borderRadius: 12,
@@ -383,11 +383,11 @@ const styles = StyleSheet.create({
   summaryTitle: {
     fontSize: 9,
     letterSpacing: 1.2,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
   },
   summaryAmount: {
     fontSize: 22,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     marginTop: 4,
     marginBottom: 12,
   },
@@ -395,10 +395,10 @@ const styles = StyleSheet.create({
   splitLabel: {
     fontSize: 9,
     letterSpacing: 1,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     marginBottom: 4,
   },
-  splitValue: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  splitValue: { fontSize: 14, fontFamily: "Helvetica Neue" },
   errorBox: {
     flexDirection: "row",
     alignItems: "center",
@@ -408,11 +408,11 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 12,
   },
-  errorText: { fontSize: 12, flex: 1, fontFamily: "Inter_500Medium" },
+  errorText: { fontSize: 12, flex: 1, fontFamily: "Helvetica Neue" },
   sectionLabel: {
     fontSize: 10,
     letterSpacing: 1.2,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     marginBottom: 8,
     marginTop: 4,
   },
@@ -436,17 +436,17 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  typeLabel: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 1 },
-  timeText: { fontSize: 10, fontFamily: "Inter_500Medium" },
+  typeLabel: { fontSize: 9, fontFamily: "Helvetica Neue", letterSpacing: 1 },
+  timeText: { fontSize: 10, fontFamily: "Helvetica Neue" },
   amountRow: { flexDirection: "row", alignItems: "baseline", gap: 6 },
-  amount: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  symbol: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  usd: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2 },
+  amount: { fontSize: 20, fontFamily: "Helvetica Neue" },
+  symbol: { fontSize: 14, fontFamily: "Helvetica Neue" },
+  usd: { fontSize: 11, fontFamily: "Helvetica Neue", marginTop: 2 },
   flowRow: {
     marginTop: 10,
     paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(255,255,255,0.05)",
   },
-  flowVenue: { fontSize: 10, fontFamily: "Inter_500Medium" },
+  flowVenue: { fontSize: 10, fontFamily: "Helvetica Neue" },
 });

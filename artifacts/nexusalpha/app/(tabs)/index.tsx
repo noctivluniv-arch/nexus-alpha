@@ -169,7 +169,7 @@ export default function MarketScreen() {
           <View style={{ paddingVertical: 36, alignItems: "center", gap: 10 }}>
             <ActivityIndicator color={colors.primary} />
             {retryCount > 0 ? (
-              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center" }}>
+              <Text style={{ fontSize: 12, fontFamily: "Helvetica Neue", color: colors.mutedForeground, textAlign: "center" }}>
                 {`Menghubungkan ke server...\n(${retryCount}/3)`}
               </Text>
             ) : null}
@@ -491,7 +491,7 @@ const fgStyles = StyleSheet.create({
   label: {
     fontSize: 10,
     letterSpacing: 1.5,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
   },
   classBadge: {
     paddingHorizontal: 8,
@@ -499,15 +499,15 @@ const fgStyles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  classText: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
+  classText: { fontSize: 10, fontFamily: "Helvetica Neue", letterSpacing: 0.5 },
   valueRow: {
     flexDirection: "row",
     alignItems: "baseline",
     gap: 6,
     marginBottom: 12,
   },
-  bigValue: { fontSize: 44, fontFamily: "Inter_700Bold", lineHeight: 48 },
-  outOf: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  bigValue: { fontSize: 44, fontFamily: "Helvetica Neue", lineHeight: 48 },
+  outOf: { fontSize: 12, fontFamily: "Helvetica Neue" },
   barRow: {
     flexDirection: "row",
     gap: 4,
@@ -524,7 +524,7 @@ const fgStyles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 12,
   },
-  scaleText: { fontSize: 9, fontFamily: "Inter_500Medium" },
+  scaleText: { fontSize: 9, fontFamily: "Helvetica Neue" },
   histRow: {
     flexDirection: "row",
     gap: 8,
@@ -535,12 +535,12 @@ const fgStyles = StyleSheet.create({
   histCell: { flex: 1, alignItems: "center" },
   histLabel: {
     fontSize: 9,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.6,
     marginBottom: 4,
   },
-  histValue: { fontSize: 18, fontFamily: "Inter_700Bold", lineHeight: 22 },
-  histClass: { fontSize: 9, fontFamily: "Inter_500Medium", marginTop: 2 },
+  histValue: { fontSize: 18, fontFamily: "Helvetica Neue", lineHeight: 22 },
+  histClass: { fontSize: 9, fontFamily: "Helvetica Neue", marginTop: 2 },
   miniChartWrap: {
     marginBottom: 12,
     paddingTop: 10,
@@ -549,7 +549,7 @@ const fgStyles = StyleSheet.create({
   },
   miniChartLabel: {
     fontSize: 9,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1.2,
     marginBottom: 8,
   },
@@ -568,7 +568,7 @@ const fgStyles = StyleSheet.create({
   },
   miniBarVal: {
     fontSize: 9,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     lineHeight: 11,
   },
   miniBarTrack: {
@@ -588,7 +588,7 @@ const fgStyles = StyleSheet.create({
   },
   miniBarDay: {
     fontSize: 8,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
     textAlign: "center",
     lineHeight: 10,
   },
@@ -602,14 +602,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  heroLabel: { fontSize: 9, letterSpacing: 1.5, fontFamily: "Inter_600SemiBold" },
-  heroValue: { fontSize: 22, fontWeight: "800", marginTop: 6, fontFamily: "Inter_700Bold" },
+  heroLabel: { fontSize: 9, letterSpacing: 1.5, fontFamily: "Helvetica Neue" },
+  heroValue: { fontSize: 22, fontWeight: "800", marginTop: 6, fontFamily: "Helvetica Neue" },
   heroRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
-  heroChange: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  heroChange: { fontSize: 11, fontFamily: "Helvetica Neue" },
   sectionTitle: {
     fontSize: 11,
     letterSpacing: 2,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     marginBottom: 10,
   },
   errorBox: {
@@ -621,7 +621,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 12,
   },
-  errorText: { fontSize: 12, flex: 1, fontFamily: "Inter_500Medium" },
+  errorText: { fontSize: 12, flex: 1, fontFamily: "Helvetica Neue" },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -638,13 +638,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  coinAvatarText: { fontSize: 16, fontWeight: "800", fontFamily: "Inter_700Bold" },
-  coinName: { fontSize: 14, fontWeight: "700", fontFamily: "Inter_700Bold" },
-  coinPair: { fontSize: 10, fontFamily: "Inter_500Medium", marginTop: 2 },
+  coinAvatarText: { fontSize: 16, fontWeight: "800", fontFamily: "Helvetica Neue" },
+  coinName: { fontSize: 14, fontWeight: "700", fontFamily: "Helvetica Neue" },
+  coinPair: { fontSize: 10, fontFamily: "Helvetica Neue", marginTop: 2 },
   rowRight: { alignItems: "flex-end" },
-  price: { fontSize: 14, fontWeight: "700", fontFamily: "Inter_700Bold" },
+  price: { fontSize: 14, fontWeight: "700", fontFamily: "Helvetica Neue" },
   changeRow: { flexDirection: "row", alignItems: "center", gap: 2, marginTop: 2 },
-  change: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  change: { fontSize: 11, fontFamily: "Helvetica Neue" },
   strategyCard: {
     padding: 14,
     borderRadius: 12,
@@ -652,6 +652,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   strategyHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
-  strategyTitle: { fontSize: 14, fontWeight: "700", fontFamily: "Inter_700Bold" },
-  strategyBody: { fontSize: 12, lineHeight: 18, fontFamily: "Inter_400Regular" },
+  strategyTitle: { fontSize: 14, fontWeight: "700", fontFamily: "Helvetica Neue" },
+  strategyBody: { fontSize: 12, lineHeight: 18, fontFamily: "Helvetica Neue" },
 });

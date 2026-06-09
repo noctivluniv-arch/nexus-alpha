@@ -368,7 +368,7 @@ function InfluencerTopicsCard({
           SEDANG DIBICARAKAN TOKOH
         </Text>
         <View style={[styles.infTopicsBadge, { backgroundColor: "#8B5CF622", borderColor: "#8B5CF6" }]}>
-          <Text style={{ color: "#8B5CF6", fontSize: 9, fontFamily: "Inter_700Bold" }}>LIVE</Text>
+          <Text style={{ color: "#8B5CF6", fontSize: 9, fontFamily: "Helvetica Neue" }}>LIVE</Text>
         </View>
       </View>
       <View style={[styles.trendingDivider, { backgroundColor: colors.border, marginBottom: 8 }]} />
@@ -392,12 +392,12 @@ function InfluencerTopicsCard({
                 </Text>
                 <View style={[styles.infTopicSentBadge, { backgroundColor: sent.color + "22", borderColor: sent.color }]}>
                   <Feather name={sent.icon} size={9} color={sent.color} />
-                  <Text style={{ color: sent.color, fontSize: 9, fontFamily: "Inter_700Bold" }}>
+                  <Text style={{ color: sent.color, fontSize: 9, fontFamily: "Helvetica Neue" }}>
                     {topic.sentiment}
                   </Text>
                 </View>
                 <View style={[styles.infTopicCatBadge, { backgroundColor: cc + "22", borderColor: cc }]}>
-                  <Text style={{ color: cc, fontSize: 9, fontFamily: "Inter_600SemiBold" }}>
+                  <Text style={{ color: cc, fontSize: 9, fontFamily: "Helvetica Neue" }}>
                     {topic.category}
                   </Text>
                 </View>
@@ -454,7 +454,7 @@ function MacroCard({ items, colors }: { items: MacroItem[]; colors: any }) {
         <Feather name="globe" size={13} color={MACRO_GREEN} />
         <Text style={[styles.macroTitle, { color: MACRO_GREEN }]}>MAKRO EKONOMI DUNIA</Text>
         <View style={[styles.macroBadge, { backgroundColor: MACRO_GREEN + "22", borderColor: MACRO_GREEN }]}>
-          <Text style={{ color: MACRO_GREEN, fontSize: 9, fontFamily: "Inter_700Bold" }}>LIVE</Text>
+          <Text style={{ color: MACRO_GREEN, fontSize: 9, fontFamily: "Helvetica Neue" }}>LIVE</Text>
         </View>
       </View>
       <View style={[styles.macroDivider, { backgroundColor: MACRO_GREEN_BORDER }]} />
@@ -477,15 +477,15 @@ function MacroCard({ items, colors }: { items: MacroItem[]; colors: any }) {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
                 <View style={[styles.macroCatBadge, { backgroundColor: MACRO_GREEN + "22", borderColor: MACRO_GREEN + "66" }]}>
                   <Feather name={catIcon} size={8} color={MACRO_GREEN} />
-                  <Text style={{ color: MACRO_GREEN, fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.4 }}>{catLabel}</Text>
+                  <Text style={{ color: MACRO_GREEN, fontSize: 9, fontFamily: "Helvetica Neue", letterSpacing: 0.4 }}>{catLabel}</Text>
                 </View>
                 <View style={[styles.macroSentBadge, { backgroundColor: sc + "18", borderColor: sc + "66" }]}>
                   <Feather name={si as any} size={9} color={sc} />
-                  <Text style={{ color: sc, fontSize: 9, fontFamily: "Inter_700Bold" }}>{item.sentiment}</Text>
+                  <Text style={{ color: sc, fontSize: 9, fontFamily: "Helvetica Neue" }}>{item.sentiment}</Text>
                 </View>
                 {isHigh ? (
                   <View style={[styles.macroImpactBadge, { backgroundColor: "#F97316" + "20", borderColor: "#F97316" + "60" }]}>
-                    <Text style={{ color: "#F97316", fontSize: 8, fontFamily: "Inter_700Bold", letterSpacing: 0.5 }}>HIGH IMPACT</Text>
+                    <Text style={{ color: "#F97316", fontSize: 8, fontFamily: "Helvetica Neue", letterSpacing: 0.5 }}>HIGH IMPACT</Text>
                   </View>
                 ) : null}
                 {item.url ? <Feather name="external-link" size={9} color={MACRO_GREEN + "88"} style={{ marginLeft: "auto" }} /> : null}
@@ -963,8 +963,8 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 16,
   },
-  bannerTitle: { fontSize: 12, fontFamily: "Inter_700Bold", letterSpacing: 1 },
-  bannerSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  bannerTitle: { fontSize: 12, fontFamily: "Helvetica Neue", letterSpacing: 1 },
+  bannerSub: { fontSize: 11, fontFamily: "Helvetica Neue", marginTop: 2 },
   loaderBox: {
     padding: 24,
     borderRadius: 12,
@@ -976,7 +976,7 @@ const styles = StyleSheet.create({
   loaderText: {
     fontSize: 11,
     textAlign: "center",
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
   },
   errorBox: {
     flexDirection: "row",
@@ -987,14 +987,14 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 12,
   },
-  errorText: { fontSize: 12, flex: 1, fontFamily: "Inter_500Medium" },
+  errorText: { fontSize: 12, flex: 1, fontFamily: "Helvetica Neue" },
   sectionTitle: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     marginBottom: 10,
   },
-  sectionText: { fontSize: 11, letterSpacing: 1.4, fontFamily: "Inter_700Bold" },
+  sectionText: { fontSize: 11, letterSpacing: 1.4, fontFamily: "Helvetica Neue" },
   aiBuzzBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -1007,7 +1007,7 @@ const styles = StyleSheet.create({
   },
   aiBuzzText: {
     fontSize: 10,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
     flex: 1,
     lineHeight: 14,
   },
@@ -1033,9 +1033,9 @@ const styles = StyleSheet.create({
   faceLetter: {
     color: "#fff",
     fontSize: 17,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
   },
-  influencerName: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  influencerName: { fontSize: 13, fontFamily: "Helvetica Neue" },
   impactBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -1045,7 +1045,7 @@ const styles = StyleSheet.create({
   impactText: {
     color: "#fff",
     fontSize: 9,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.8,
   },
   card: {
@@ -1069,21 +1069,21 @@ const styles = StyleSheet.create({
   },
   xAvatarText: {
     fontSize: 14,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
   },
   xAuthor: {
     fontSize: 12,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     lineHeight: 16,
   },
   xHandle: {
     fontSize: 10,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
     lineHeight: 14,
   },
   xTweet: {
     fontSize: 13,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
     lineHeight: 20,
     marginBottom: 5,
   },
@@ -1098,7 +1098,7 @@ const styles = StyleSheet.create({
   },
   aiBadgeText: {
     fontSize: 8,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.5,
   },
   typeBadge: {
@@ -1110,32 +1110,32 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  typeText: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.8 },
+  typeText: { fontSize: 9, fontFamily: "Helvetica Neue", letterSpacing: 0.8 },
   catBadge: {
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 5,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  catText: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.8 },
+  catText: { fontSize: 9, fontFamily: "Helvetica Neue", letterSpacing: 0.8 },
   sentBadge: {
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 5,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  sentText: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.8 },
-  source: { fontSize: 10, fontFamily: "Inter_500Medium", flex: 1 },
+  sentText: { fontSize: 9, fontFamily: "Helvetica Neue", letterSpacing: 0.8 },
+  source: { fontSize: 10, fontFamily: "Helvetica Neue", flex: 1 },
   title: {
     fontSize: 14,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     lineHeight: 20,
     marginBottom: 6,
   },
   summary: {
     fontSize: 12,
     lineHeight: 18,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
     marginBottom: 8,
   },
   footer: {
@@ -1145,7 +1145,7 @@ const styles = StyleSheet.create({
   },
   readMore: {
     fontSize: 10,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1,
   },
   trendingCol: {
@@ -1168,7 +1168,7 @@ const styles = StyleSheet.create({
   },
   trendingColTitle: {
     fontSize: 12,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1.5,
   },
   trendingLiveDot: {
@@ -1187,7 +1187,7 @@ const styles = StyleSheet.create({
   },
   trendingLiveText: {
     fontSize: 8,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1,
   },
   trendingDivider: {
@@ -1207,14 +1207,14 @@ const styles = StyleSheet.create({
   },
   trendingNum: {
     fontSize: 18,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     lineHeight: 22,
     letterSpacing: -0.5,
     minWidth: 26,
   },
   trendingHeadline: {
     fontSize: 13,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     color: "#FFFFFF",
     lineHeight: 18,
   },
@@ -1232,12 +1232,12 @@ const styles = StyleSheet.create({
   },
   trendingCatText: {
     fontSize: 8,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.8,
   },
   trendingSource: {
     fontSize: 10,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
     color: "#F59E0B99",
     flex: 1,
   },
@@ -1252,7 +1252,7 @@ const styles = StyleSheet.create({
   },
   trendingHotText: {
     fontSize: 8,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.5,
   },
   infTopicsCard: {
@@ -1270,7 +1270,7 @@ const styles = StyleSheet.create({
   },
   infTopicsTitle: {
     fontSize: 11,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.8,
     flex: 1,
   },
@@ -1291,14 +1291,14 @@ const styles = StyleSheet.create({
   },
   infTopicNum: {
     fontSize: 14,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     minWidth: 22,
     lineHeight: 20,
     letterSpacing: -0.5,
   },
   infTopicLabel: {
     fontSize: 13,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     lineHeight: 18,
   },
   infTopicSentBadge: {
@@ -1318,13 +1318,13 @@ const styles = StyleSheet.create({
   },
   infTopicWho: {
     fontSize: 11,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
     lineHeight: 16,
     flexShrink: 1,
   },
   infTopicCount: {
     fontSize: 10,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
     lineHeight: 20,
   },
   macroCard: {
@@ -1342,7 +1342,7 @@ const styles = StyleSheet.create({
   },
   macroTitle: {
     fontSize: 11,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.8,
     flex: 1,
   },
@@ -1368,7 +1368,7 @@ const styles = StyleSheet.create({
   },
   macroNum: {
     fontSize: 13,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     minWidth: 22,
     lineHeight: 20,
     letterSpacing: -0.5,
@@ -1399,12 +1399,12 @@ const styles = StyleSheet.create({
   },
   macroSummary: {
     fontSize: 12,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
     lineHeight: 17,
   },
   macroMeta: {
     fontSize: 10,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
     lineHeight: 14,
   },
 });

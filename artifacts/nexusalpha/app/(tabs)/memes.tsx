@@ -218,7 +218,7 @@ export default function MemesScreen() {
                 color: colors.mutedForeground,
                 marginTop: 12,
                 fontSize: 11,
-                fontFamily: "Inter_500Medium",
+                fontFamily: "Helvetica Neue",
               }}
             >
               {t("memes.searching")}
@@ -299,7 +299,7 @@ export default function MemesScreen() {
                 color: colors.mutedForeground,
                 marginTop: 8,
                 fontSize: 11,
-                fontFamily: "Inter_500Medium",
+                fontFamily: "Helvetica Neue",
               }}
             >
               {t("memes.noNetworkResults")}
@@ -1058,7 +1058,7 @@ function FaceAvatar({
           color: "#FFFFFF",
           fontSize: size * 0.5,
           fontWeight: "900",
-          fontFamily: "Inter_700Bold",
+          fontFamily: "Helvetica Neue",
         }}
       >
         {isTrump ? "T" : "X"}
@@ -1304,7 +1304,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 14,
   },
-  bannerText: { fontSize: 11, flex: 1, fontFamily: "Inter_500Medium" },
+  bannerText: { fontSize: 11, flex: 1, fontFamily: "Helvetica Neue" },
   errorBox: {
     flexDirection: "row",
     alignItems: "center",
@@ -1314,7 +1314,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 12,
   },
-  errorText: { fontSize: 12, flex: 1, fontFamily: "Inter_500Medium" },
+  errorText: { fontSize: 12, flex: 1, fontFamily: "Helvetica Neue" },
   card: {
     padding: 14,
     borderRadius: 14,
@@ -1340,7 +1340,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  avatarText: { fontSize: 16, fontFamily: "Helvetica Neue" },
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1348,7 +1348,7 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 15,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     flexShrink: 1,
   },
   subRow: {
@@ -1358,13 +1358,13 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   dot: { width: 3, height: 3, borderRadius: 2, opacity: 0.5 },
-  symbol: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  price: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  change: { fontSize: 12, fontFamily: "Inter_700Bold", marginTop: 2 },
+  symbol: { fontSize: 11, fontFamily: "Helvetica Neue" },
+  price: { fontSize: 14, fontFamily: "Helvetica Neue" },
+  change: { fontSize: 12, fontFamily: "Helvetica Neue", marginTop: 2 },
   desc: {
     fontSize: 12,
     lineHeight: 18,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
   },
   badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   socialRow: {
@@ -1384,7 +1384,7 @@ const styles = StyleSheet.create({
   },
   socialBtnText: {
     fontSize: 10,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.4,
   },
   badge: {
@@ -1393,7 +1393,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  badgeText: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.8 },
+  badgeText: { fontSize: 9, fontFamily: "Helvetica Neue", letterSpacing: 0.8 },
   influencerBlock: {
     flexDirection: "row",
     alignItems: "center",
@@ -1405,13 +1405,13 @@ const styles = StyleSheet.create({
   influencerLabel: {
     fontSize: 9,
     letterSpacing: 1.2,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     marginBottom: 3,
   },
   influencerReason: {
     fontSize: 11,
     lineHeight: 15,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
   },
   section: {
     padding: 12,
@@ -1421,7 +1421,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 9,
     letterSpacing: 1.2,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     marginBottom: 8,
   },
   kvRow: {
@@ -1432,8 +1432,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "rgba(255,255,255,0.04)",
   },
-  kvKey: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  kvVal: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  kvKey: { fontSize: 11, fontFamily: "Helvetica Neue" },
+  kvVal: { fontSize: 12, fontFamily: "Helvetica Neue" },
   netPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -1447,7 +1447,7 @@ const styles = StyleSheet.create({
   caRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   caText: {
     fontSize: 11,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
     fontVariant: ["tabular-nums"],
   },
   tradeCard: {
@@ -1463,10 +1463,10 @@ const styles = StyleSheet.create({
   },
   tradeTitle: {
     fontSize: 10,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1.2,
   },
-  tfText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  tfText: { fontSize: 10, fontFamily: "Helvetica Neue" },
   actionRow: { flexDirection: "row" },
   actionBadge: {
     flexDirection: "row",
@@ -1479,7 +1479,7 @@ const styles = StyleSheet.create({
   actionText: {
     color: "#0B0E11",
     fontSize: 12,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1,
   },
   tpGrid: { flexDirection: "row", gap: 8 },
@@ -1492,13 +1492,13 @@ const styles = StyleSheet.create({
   tpLabel: {
     fontSize: 9,
     letterSpacing: 1,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
   },
-  tpVal: { fontSize: 12, fontFamily: "Inter_700Bold", marginTop: 2 },
+  tpVal: { fontSize: 12, fontFamily: "Helvetica Neue", marginTop: 2 },
   analysis: {
     fontSize: 11,
     lineHeight: 16,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
   },
   filterStrip: {
     marginBottom: 14,
@@ -1516,7 +1516,7 @@ const styles = StyleSheet.create({
   },
   chipLabel: {
     fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
   },
   chipCount: {
     minWidth: 22,
@@ -1528,7 +1528,7 @@ const styles = StyleSheet.create({
   },
   chipCountText: {
     fontSize: 10,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
   },
   confPill: {
     paddingHorizontal: 8,
@@ -1538,14 +1538,14 @@ const styles = StyleSheet.create({
   },
   confPillText: {
     fontSize: 9,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.5,
   },
   styleHint: {
     flex: 1,
     marginLeft: 10,
     fontSize: 10,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
   },
   rrLine: {
     flexDirection: "row",
@@ -1555,12 +1555,12 @@ const styles = StyleSheet.create({
   },
   rrLabel: {
     fontSize: 9,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1,
   },
   rrValue: {
     fontSize: 11,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
   },
   noTradeBox: {
     padding: 10,
@@ -1570,13 +1570,13 @@ const styles = StyleSheet.create({
   },
   noTradeLabel: {
     fontSize: 9,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1.2,
   },
   noTradeText: {
     fontSize: 11,
     lineHeight: 16,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
   },
   mindsetBox: {
     paddingLeft: 10,
@@ -1586,14 +1586,14 @@ const styles = StyleSheet.create({
   },
   mindsetLabel: {
     fontSize: 9,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1.2,
   },
   mindsetText: {
     fontSize: 11,
     lineHeight: 15,
     fontStyle: "italic",
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
   },
   strategyBox: {
     padding: 10,
@@ -1602,14 +1602,14 @@ const styles = StyleSheet.create({
   },
   strategyTitle: {
     fontSize: 9,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1.2,
     marginBottom: 4,
   },
   strategyText: {
     fontSize: 11,
     lineHeight: 16,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
   },
   statRow: { flexDirection: "row", gap: 8 },
   statCell: {
@@ -1621,9 +1621,9 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 9,
     letterSpacing: 1,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
   },
-  statValue: { fontSize: 11, fontFamily: "Inter_700Bold", marginTop: 2 },
+  statValue: { fontSize: 11, fontFamily: "Helvetica Neue", marginTop: 2 },
   scanSection: {
     padding: 12,
     borderRadius: 8,
@@ -1643,7 +1643,7 @@ const styles = StyleSheet.create({
   },
   chartToggleText: {
     fontSize: 11,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1,
   },
   collapsibleToggle: {
@@ -1658,7 +1658,7 @@ const styles = StyleSheet.create({
   },
   collapsibleTitle: {
     fontSize: 11,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1,
   },
   tfRow: {
@@ -1674,7 +1674,7 @@ const styles = StyleSheet.create({
   },
   tfPillText: {
     fontSize: 10,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.8,
   },
   chartLoading: {
@@ -1696,7 +1696,7 @@ const styles = StyleSheet.create({
   },
   scanTitle: {
     fontSize: 10,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1.2,
     flex: 1,
   },
@@ -1707,13 +1707,13 @@ const styles = StyleSheet.create({
   },
   scanStatusText: {
     fontSize: 9,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.8,
   },
   scanSummary: {
     fontSize: 11,
     lineHeight: 16,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
   },
   scanGrid: {
     flexDirection: "row",
@@ -1728,11 +1728,11 @@ const styles = StyleSheet.create({
   scanCellLabel: {
     fontSize: 9,
     letterSpacing: 0.8,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
   },
   scanCellValue: {
     fontSize: 12,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     marginTop: 2,
   },
   holderRow: {
@@ -1745,12 +1745,12 @@ const styles = StyleSheet.create({
   holderRank: {
     width: 18,
     fontSize: 10,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
   },
   holderAddr: {
     flex: 1,
     fontSize: 11,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
     fontVariant: ["tabular-nums"],
   },
   holderTagPill: {
@@ -1760,12 +1760,12 @@ const styles = StyleSheet.create({
   },
   holderTagText: {
     fontSize: 8,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.5,
   },
   holderPct: {
     fontSize: 11,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     minWidth: 50,
     textAlign: "right",
   },
@@ -1785,7 +1785,7 @@ const styles = StyleSheet.create({
   },
   miTitle: {
     fontSize: 10,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.5,
   },
   miBadge: {
@@ -1808,7 +1808,7 @@ const styles = StyleSheet.create({
   },
   miRowLabel: {
     fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
   },
   miScoreBar: {
     height: 3,
@@ -1823,7 +1823,7 @@ const styles = StyleSheet.create({
   },
   miScore: {
     fontSize: 13,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     minWidth: 28,
     textAlign: "right",
   },
@@ -1839,7 +1839,7 @@ const styles = StyleSheet.create({
   },
   miSignalText: {
     fontSize: 10,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
     flex: 1,
     lineHeight: 14,
   },
@@ -1859,12 +1859,12 @@ const styles = StyleSheet.create({
   },
   egTitle: {
     fontSize: 11,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.3,
   },
   egSubtitle: {
     fontSize: 9,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
     marginTop: 1,
   },
   egScorePill: {
@@ -1876,7 +1876,7 @@ const styles = StyleSheet.create({
   },
   egScoreText: {
     fontSize: 14,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
   },
   egBarBg: {
     height: 4,
@@ -1897,7 +1897,7 @@ const styles = StyleSheet.create({
   },
   egSectionLabel: {
     fontSize: 9,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.8,
     marginBottom: 4,
   },
@@ -1908,7 +1908,7 @@ const styles = StyleSheet.create({
   },
   egSignalText: {
     fontSize: 11,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
     flex: 1,
     lineHeight: 16,
   },
@@ -1923,7 +1923,7 @@ const styles = StyleSheet.create({
   },
   egDisclaimerText: {
     fontSize: 10,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
     flex: 1,
     lineHeight: 14,
   },
@@ -2053,7 +2053,7 @@ function LpLockSection({
           {lp.provider ? (
             <Text style={[styles.scanCellLabel, { color: colors.mutedForeground }]}>
               {t("memes.lpLock.provider")}:{" "}
-              <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold" }}>
+              <Text style={{ color: colors.foreground, fontFamily: "Helvetica Neue" }}>
                 {lp.provider}
               </Text>
             </Text>
@@ -2061,7 +2061,7 @@ function LpLockSection({
           {lp.expiryDate ? (
             <Text style={[styles.scanCellLabel, { color: colors.mutedForeground }]}>
               {t("memes.lpLock.expiry")}:{" "}
-              <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold" }}>
+              <Text style={{ color: colors.foreground, fontFamily: "Helvetica Neue" }}>
                 {formatExpiryDate(lp.expiryDate, t)}
               </Text>
             </Text>
@@ -2132,7 +2132,7 @@ function BurnSection({
                   flex: 1,
                   fontSize: 10,
                   color: colors.mutedForeground,
-                  fontFamily: "Inter_500Medium",
+                  fontFamily: "Helvetica Neue",
                 }}
                 numberOfLines={1}
               >
@@ -2142,7 +2142,7 @@ function BurnSection({
                 style={{
                   fontSize: 10,
                   color: accent,
-                  fontFamily: "Inter_700Bold",
+                  fontFamily: "Helvetica Neue",
                 }}
               >
                 {b.percent.toFixed(2)}%
@@ -2290,7 +2290,7 @@ function TopHoldersSection({
         style={[styles.scanCellLabel, { color: colors.mutedForeground }]}
       >
         {t("memes.holders.concentration")}:{" "}
-        <Text style={{ color: concAccent, fontFamily: "Inter_700Bold" }}>
+        <Text style={{ color: concAccent, fontFamily: "Helvetica Neue" }}>
           {h.concentrationTop10.toFixed(1)}%
         </Text>
         {h.concentrationTop10 > 50 ? (
@@ -2528,7 +2528,7 @@ function PriceChartSection({
               <Text
                 style={{
                   color: positive ? colors.success : colors.danger,
-                  fontFamily: "Inter_700Bold",
+                  fontFamily: "Helvetica Neue",
                   fontSize: 12,
                 }}
               >
@@ -2588,7 +2588,7 @@ function PriceChartSection({
                     style={{
                       color: colors.mutedForeground,
                       fontSize: 11,
-                      fontFamily: "Inter_400Regular",
+                      fontFamily: "Helvetica Neue",
                     }}
                   >
                     {t("memes.chart.loading")}
@@ -2673,7 +2673,7 @@ function PriceChartSection({
                   style={{
                     color: colors.mutedForeground,
                     fontSize: 9,
-                    fontFamily: "Inter_400Regular",
+                    fontFamily: "Helvetica Neue",
                     textAlign: "right",
                     letterSpacing: 0.5,
                   }}
@@ -2705,7 +2705,7 @@ function ChartStat({
           color: "#6B7280",
           fontSize: 9,
           letterSpacing: 0.8,
-          fontFamily: "Inter_600SemiBold",
+          fontFamily: "Helvetica Neue",
           marginBottom: 2,
         }}
       >
@@ -2715,7 +2715,7 @@ function ChartStat({
         style={{
           color,
           fontSize: 12,
-          fontFamily: "Inter_700Bold",
+          fontFamily: "Helvetica Neue",
         }}
         numberOfLines={1}
       >
@@ -3016,7 +3016,7 @@ function ChartCanvas({
         <Text
           style={{
             color: signalColor,
-            fontFamily: "Inter_700Bold",
+            fontFamily: "Helvetica Neue",
             fontSize: 10,
             letterSpacing: 0.5,
           }}
@@ -3027,7 +3027,7 @@ function ChartCanvas({
           <Text
             style={{
               color: textColor,
-              fontFamily: "Inter_400Regular",
+              fontFamily: "Helvetica Neue",
               fontSize: 9,
               marginLeft: "auto",
             }}
@@ -3317,7 +3317,7 @@ function LegendDot({
         style={{
           color: textColor,
           fontSize: 9,
-          fontFamily: "Inter_400Regular",
+          fontFamily: "Helvetica Neue",
         }}
       >
         {label}
@@ -3438,13 +3438,13 @@ function MemeIndicatorsSection({ coin, colors }: { coin: MemeCoin; colors: any }
         <Text style={[styles.miTitle, { color: "#6366F1" }]}>INDIKATOR MEME KHUSUS</Text>
         <View style={{ flexDirection: "row", gap: 4, marginLeft: "auto", alignItems: "center" }}>
           <View style={[styles.miBadge, { backgroundColor: viralColor + "22", borderColor: viralColor }]}>
-            <Text style={{ color: viralColor, fontSize: 8, fontFamily: "Inter_700Bold" }}>{viral}</Text>
+            <Text style={{ color: viralColor, fontSize: 8, fontFamily: "Helvetica Neue" }}>{viral}</Text>
           </View>
           <View style={[styles.miBadge, { backgroundColor: organicColor + "22", borderColor: organicColor }]}>
-            <Text style={{ color: organicColor, fontSize: 8, fontFamily: "Inter_700Bold" }}>{organic}</Text>
+            <Text style={{ color: organicColor, fontSize: 8, fontFamily: "Helvetica Neue" }}>{organic}</Text>
           </View>
           <View style={[styles.miBadge, { backgroundColor: manipColor + "22", borderColor: manipColor }]}>
-            <Text style={{ color: manipColor, fontSize: 8, fontFamily: "Inter_700Bold" }}>{manip}</Text>
+            <Text style={{ color: manipColor, fontSize: 8, fontFamily: "Helvetica Neue" }}>{manip}</Text>
           </View>
           <Feather name={expanded ? "chevron-up" : "chevron-down"} size={13} color="#6366F188" />
         </View>
@@ -3524,10 +3524,10 @@ function MemeIndicatorRow({
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text style={[styles.miRowLabel, { color: colors.foreground }]}>{label}</Text>
             <View style={[styles.miBadge, { backgroundColor: badgeColor + "22", borderColor: badgeColor }]}>
-              <Text style={{ color: badgeColor, fontSize: 9, fontFamily: "Inter_700Bold" }}>{badge}</Text>
+              <Text style={{ color: badgeColor, fontSize: 9, fontFamily: "Helvetica Neue" }}>{badge}</Text>
             </View>
             {extra ? (
-              <Text style={{ color: colors.mutedForeground, fontSize: 9, fontFamily: "Inter_500Medium" }}>
+              <Text style={{ color: colors.mutedForeground, fontSize: 9, fontFamily: "Helvetica Neue" }}>
                 {extra}
               </Text>
             ) : null}
@@ -3626,7 +3626,7 @@ function WatchlistWarningsSection({
                   color: colors.foreground,
                   fontSize: 12,
                   lineHeight: 17,
-                  fontFamily: "Inter_400Regular",
+                  fontFamily: "Helvetica Neue",
                 }}
               >
                 {display}
@@ -3731,7 +3731,7 @@ function SmartWalletsSection({
       )}
       <Text style={[styles.scanSummary, { color: colors.mutedForeground }]}>
         {t("memes.smart.summary")}{" "}
-        <Text style={{ color: colors.success, fontFamily: "Inter_700Bold" }}>
+        <Text style={{ color: colors.success, fontFamily: "Helvetica Neue" }}>
           {lockedCount}
         </Text>{" "}
         {t("memes.smart.lockedCount")}
@@ -3795,7 +3795,7 @@ function SmartWalletsSection({
                 style={{
                   fontSize: 10,
                   color: colors.mutedForeground,
-                  fontFamily: "Inter_400Regular",
+                  fontFamily: "Helvetica Neue",
                   marginTop: 2,
                   marginLeft: 24,
                   lineHeight: 14,

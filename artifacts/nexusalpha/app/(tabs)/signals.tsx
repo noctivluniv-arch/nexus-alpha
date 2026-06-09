@@ -279,7 +279,7 @@ export default function SignalsScreen() {
                     }}
                   >
                     <Feather name="cpu" size={10} color="#F59E0B" />
-                    <Text style={{ color: "#F59E0B", fontSize: 10, fontFamily: "Inter_600SemiBold" }}>
+                    <Text style={{ color: "#F59E0B", fontSize: 10, fontFamily: "Helvetica Neue" }}>
                       MODE TEKNIKAL
                     </Text>
                   </View>
@@ -1253,7 +1253,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 10,
     letterSpacing: 1.5,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
     marginBottom: 8,
   },
   pill: {
@@ -1262,7 +1262,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  pillText: { fontSize: 12, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
+  pillText: { fontSize: 12, fontFamily: "Helvetica Neue", letterSpacing: 0.5 },
   cta: {
     flexDirection: "row",
     alignItems: "center",
@@ -1272,7 +1272,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
   },
-  ctaText: { fontSize: 13, fontFamily: "Inter_700Bold", letterSpacing: 1 },
+  ctaText: { fontSize: 13, fontFamily: "Helvetica Neue", letterSpacing: 1 },
   discBox: {
     flexDirection: "row",
     gap: 8,
@@ -1286,7 +1286,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     flex: 1,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
   },
   errorBox: {
     flexDirection: "row",
@@ -1297,7 +1297,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 12,
   },
-  errorText: { fontSize: 12, flex: 1, fontFamily: "Inter_500Medium" },
+  errorText: { fontSize: 12, flex: 1, fontFamily: "Helvetica Neue" },
   loaderBox: {
     padding: 24,
     borderRadius: 12,
@@ -1308,7 +1308,7 @@ const styles = StyleSheet.create({
   loaderText: {
     fontSize: 11,
     textAlign: "center",
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
   },
   signalCard: {
     padding: 16,
@@ -1321,8 +1321,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 10,
   },
-  signalPair: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  signalStyle: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2 },
+  signalPair: { fontSize: 18, fontFamily: "Helvetica Neue" },
+  signalStyle: { fontSize: 11, fontFamily: "Helvetica Neue", marginTop: 2 },
   sideBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -1332,7 +1332,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
   },
-  sideText: { fontSize: 12, fontFamily: "Inter_700Bold", letterSpacing: 1 },
+  sideText: { fontSize: 12, fontFamily: "Helvetica Neue", letterSpacing: 1 },
   metaRow: { flexDirection: "row", gap: 8, marginBottom: 14, flexWrap: "wrap" },
   metaPill: {
     flexDirection: "row",
@@ -1343,7 +1343,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  metaText: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.8 },
+  metaText: { fontSize: 10, fontFamily: "Helvetica Neue", letterSpacing: 0.8 },
   noTradeBox: {
     padding: 12,
     borderRadius: 10,
@@ -1358,13 +1358,13 @@ const styles = StyleSheet.create({
   },
   noTradeTitle: {
     fontSize: 11,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1,
   },
   noTradeText: {
     fontSize: 12,
     lineHeight: 18,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
   },
   confidenceBox: { marginBottom: 14 },
   confLabelRow: {
@@ -1376,18 +1376,18 @@ const styles = StyleSheet.create({
   minLabel: {
     fontSize: 9,
     letterSpacing: 1.5,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
   },
   confThreshold: {
     fontSize: 9,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.8,
   },
   bar: { height: 6, borderRadius: 3, overflow: "hidden" },
   barFill: { height: "100%", borderRadius: 3 },
   confValue: {
     fontSize: 13,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     marginTop: 4,
     textAlign: "right",
   },
@@ -1407,9 +1407,9 @@ const styles = StyleSheet.create({
   scoreTitle: {
     fontSize: 9,
     letterSpacing: 1.5,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
   },
-  scoreTotalVal: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  scoreTotalVal: { fontSize: 13, fontFamily: "Helvetica Neue" },
   scoreRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1417,7 +1417,7 @@ const styles = StyleSheet.create({
   },
   scoreLabel: {
     fontSize: 9,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.8,
     width: 72,
   },
@@ -1426,7 +1426,7 @@ const styles = StyleSheet.create({
   scoreBarFill: { height: "100%", borderRadius: 2 },
   scoreVal: {
     fontSize: 9,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     width: 32,
     textAlign: "right",
   },
@@ -1446,9 +1446,9 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 9,
     letterSpacing: 1.2,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
   },
-  statValue: { fontSize: 13, fontFamily: "Inter_700Bold", marginTop: 2 },
+  statValue: { fontSize: 13, fontFamily: "Helvetica Neue", marginTop: 2 },
   spotBox: {
     flexDirection: "row",
     alignItems: "center",
@@ -1461,18 +1461,18 @@ const styles = StyleSheet.create({
   },
   spotLabel: {
     fontSize: 9,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1,
     flex: 1,
   },
   spotValue: {
     fontSize: 12,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
   },
   tpLabel: {
     fontSize: 9,
     letterSpacing: 1.5,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
     marginBottom: 6,
   },
   tpRow: {
@@ -1484,10 +1484,10 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     gap: 8,
   },
-  tpIdx: { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 1 },
+  tpIdx: { fontSize: 11, fontFamily: "Helvetica Neue", letterSpacing: 1 },
   tpVal: {
     fontSize: 13,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     flex: 1,
   },
   rrPill: {
@@ -1496,7 +1496,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  rrText: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
+  rrText: { fontSize: 9, fontFamily: "Helvetica Neue", letterSpacing: 0.5 },
   confluenceRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -1515,7 +1515,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     lineHeight: 17,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
   },
   reasonBox: {
     padding: 12,
@@ -1525,10 +1525,10 @@ const styles = StyleSheet.create({
   reasonTitle: {
     fontSize: 10,
     letterSpacing: 1.5,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     marginBottom: 6,
   },
-  reasonText: { fontSize: 12, lineHeight: 18, fontFamily: "Inter_400Regular" },
+  reasonText: { fontSize: 12, lineHeight: 18, fontFamily: "Helvetica Neue" },
   scenarioBox: {
     flex: 1,
     minWidth: 140,
@@ -1545,11 +1545,11 @@ const styles = StyleSheet.create({
   scenarioTitle: {
     fontSize: 9,
     letterSpacing: 1.2,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
   },
   scenarioPrice: {
     fontSize: 16,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     marginBottom: 4,
   },
   scenarioRow: {
@@ -1560,12 +1560,12 @@ const styles = StyleSheet.create({
   },
   scenarioMeta: {
     fontSize: 10,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
   },
   scenarioCondition: {
     fontSize: 11,
     lineHeight: 15,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
   },
   baseCaseBox: {
     flexDirection: "row",
@@ -1579,17 +1579,17 @@ const styles = StyleSheet.create({
   baseCaseLabel: {
     fontSize: 9,
     letterSpacing: 1.2,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     marginBottom: 3,
   },
   baseCaseText: {
     fontSize: 12,
     lineHeight: 17,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
   },
   validUntil: {
     fontSize: 10,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
     textAlign: "center",
     marginTop: 12,
   },
@@ -1601,7 +1601,7 @@ const styles = StyleSheet.create({
   },
   snapshotText: {
     fontSize: 10,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
     lineHeight: 15,
   },
   scalpCard: {
@@ -1623,7 +1623,7 @@ const styles = StyleSheet.create({
   },
   scalpTitle: {
     fontSize: 11,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 1.2,
   },
   scalpSideBadge: {
@@ -1634,7 +1634,7 @@ const styles = StyleSheet.create({
   },
   scalpSideText: {
     fontSize: 10,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.8,
   },
   scalpGrid: {
@@ -1652,14 +1652,14 @@ const styles = StyleSheet.create({
   },
   scalpFieldLabel: {
     fontSize: 9,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.5,
     textTransform: "uppercase",
     marginBottom: 3,
   },
   scalpFieldValue: {
     fontSize: 12,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
   },
   scalpTriggerBox: {
     marginTop: 10,
@@ -1669,19 +1669,19 @@ const styles = StyleSheet.create({
   },
   scalpTriggerLabel: {
     fontSize: 9,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.5,
     textTransform: "uppercase",
     marginBottom: 4,
   },
   scalpTriggerText: {
     fontSize: 11,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
     lineHeight: 16,
   },
   scalpTpLabel: {
     fontSize: 9,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
@@ -1696,14 +1696,14 @@ const styles = StyleSheet.create({
   },
   scalpTpIdx: {
     fontSize: 10,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.8,
     minWidth: 26,
   },
   scalpTpVal: {
     flex: 1,
     fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
   },
   scalpRrPill: {
     paddingHorizontal: 6,
@@ -1713,12 +1713,12 @@ const styles = StyleSheet.create({
   },
   scalpRrText: {
     fontSize: 9,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.5,
   },
   scalpNoteText: {
     fontSize: 11,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Helvetica Neue",
     lineHeight: 16,
     fontStyle: "italic",
   },

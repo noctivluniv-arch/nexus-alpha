@@ -140,14 +140,14 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontStyle: "italic",
     letterSpacing: -0.5,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
   },
   subtitle: {
     fontSize: 9,
     fontWeight: "600",
     letterSpacing: 2,
     marginTop: 2,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Helvetica Neue",
   },
   byline: {
     fontSize: 9,
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginTop: 1,
     opacity: 0.7,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Helvetica Neue",
   },
   actions: {
     flexDirection: "row",
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   },
   langText: {
     fontSize: 10,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Helvetica Neue",
     letterSpacing: 0.6,
   },
   refresh: {
