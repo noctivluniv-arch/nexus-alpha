@@ -18,6 +18,12 @@ import {
   detectRsiDivergence,
   aggregateCandles,
   bosLevel,
+  vwap,
+  ichimoku,
+  waveTrend,
+  pivotPoints,
+  orderFlowImbalance,
+  liquidationLevels,
 } from "../lib/indicators";
 import {
 computeEnhancedIndicators,
@@ -783,6 +789,23 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
     );
 
     bos = bosLevel(candles4h.highs, candles4h.lows, candles4h.closes, 20);
+
+    // New indicators
+    const vwapVal = vwap(daily.highs, daily.lows, daily.closes, daily.volumes);
+    const ichimokuVal = ichimoku(daily.highs, daily.lows, daily.closes);
+    const waveTrendVal = waveTrend(candles4h.highs, candles4h.lows, candles4h.closes);
+    const dailyHighPrev = daily.highs[daily.highs.length - 2] ?? daily.highs[daily.highs.length - 1];
+    const dailyLowPrev = daily.lows[daily.lows.length - 2] ?? daily.lows[daily.lows.length - 1];
+    const dailyClosePrev = daily.closes[daily.closes.length - 2] ?? daily.closes[daily.closes.length - 1];
+    const pivots = pivotPoints(dailyHighPrev, dailyLowPrev, dailyClosePrev);
+    const ofi = orderFlowImbalance(
+      daily.closes.map((c, i) => i === 0 ? c : daily.closes[i-1]),
+      daily.closes,
+      daily.volumes,
+      20
+    );
+    const liqLevels = liquidationLevels(daily.closes, daily.highs, daily.lows, livePrice, 10);
+
     const a14val = atr(daily.highs, daily.lows, daily.closes, 14);
     const enhanced = computeEnhancedIndicators({
        hourly: hourlyData,
@@ -804,7 +827,33 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
 1W Candles available: ${candlesWeek.closes.length}
 ATR(14) daily: ${a14?.toFixed(4) ?? "N/A"}
 Fibonacci (30d range): 0.236=$${fib["0.236"].toFixed(2)} 0.382=$${fib["0.382"].toFixed(2)} 0.5=$${fib["0.5"].toFixed(2)} 0.618=$${fib["0.618"].toFixed(2)} 0.786=$${fib["0.786"].toFixed(2)}
-Market Context: ETF inflows positive, BTC holding key levels
+
+--- VWAP ---
+VWAP: ${vwapVal ? `$${vwapVal.vwap.toFixed(2)} | Upper Band: $${vwapVal.upperBand.toFixed(2)} | Lower Band: $${vwapVal.lowerBand.toFixed(2)} | Price vs VWAP: ${livePrice > vwapVal.vwap ? "ABOVE" : "BELOW"}` : "N/A"}
+
+--- ICHIMOKU CLOUD (Daily) ---
+${ichimokuVal ? `Tenkan: $${ichimokuVal.tenkan?.toFixed(2) ?? "N/A"} | Kijun: $${ichimokuVal.kijun?.toFixed(2) ?? "N/A"}
+Senkou A: $${ichimokuVal.senkouA?.toFixed(2) ?? "N/A"} | Senkou B: $${ichimokuVal.senkouB?.toFixed(2) ?? "N/A"}
+Cloud Top: $${ichimokuVal.cloudTop?.toFixed(2) ?? "N/A"} | Cloud Bottom: $${ichimokuVal.cloudBottom?.toFixed(2) ?? "N/A"}
+Price vs Cloud: ${ichimokuVal.priceVsCloud} | Ichimoku Trend: ${ichimokuVal.trend}` : "N/A"}
+
+--- WAVETREND OSCILLATOR / MARKET CIPHER B (4H) ---
+${waveTrendVal ? `WT1: ${waveTrendVal.wt1?.toFixed(2) ?? "N/A"} | WT2: ${waveTrendVal.wt2?.toFixed(2) ?? "N/A"}
+Cross: ${waveTrendVal.cross} | Zone: ${waveTrendVal.zone}` : "N/A"}
+
+--- PIVOT POINTS (Daily) ---
+PP: $${pivots.pp.toFixed(2)} | R1: $${pivots.r1.toFixed(2)} | R2: $${pivots.r2.toFixed(2)} | R3: $${pivots.r3.toFixed(2)}
+S1: $${pivots.s1.toFixed(2)} | S2: $${pivots.s2.toFixed(2)} | S3: $${pivots.s3.toFixed(2)}
+
+--- ORDER FLOW IMBALANCE (20D) ---
+${ofi ? `Buy Pressure: ${ofi.buyPressure.toFixed(1)}% | Sell Pressure: ${ofi.sellPressure.toFixed(1)}% | Imbalance: ${(ofi.imbalance * 100).toFixed(1)}% | Bias: ${ofi.bias}` : "N/A"}
+
+--- LIQUIDATION HEATMAP LEVELS ---
+Long Liq Cluster: $${liqLevels.longLiqLevel.toFixed(0)} (${liqLevels.densityBelow})
+Short Liq Cluster: $${liqLevels.shortLiqLevel.toFixed(0)} (${liqLevels.densityAbove})
+
+--- CVD & STOCHRSI (Enhanced) ---
+${enhanced.marketSection}
 `.trim();
   }
 

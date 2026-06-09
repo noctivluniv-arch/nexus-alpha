@@ -288,3 +288,206 @@ export function bosLevel(
   if (current < prevLow) return { direction: "BEARISH", price: prevLow };
   return { direction: "NONE", price: 0 };
 }
+
+// ─── VWAP ────────────────────────────────────────────────────────────────────
+export function vwap(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  volumes: number[],
+): { vwap: number; upperBand: number; lowerBand: number } | null {
+  if (closes.length < 2) return null;
+  let cumTPV = 0, cumVol = 0;
+  const tpvArr: number[] = [];
+  for (let i = 0; i < closes.length; i++) {
+    const tp = (highs[i] + lows[i] + closes[i]) / 3;
+    cumTPV += tp * volumes[i];
+    cumVol += volumes[i];
+    tpvArr.push(tp);
+  }
+  if (cumVol === 0) return null;
+  const vwapVal = cumTPV / cumVol;
+  // Standard deviation bands
+  const mean = cumTPV / cumVol;
+  let variance = 0;
+  for (let i = 0; i < tpvArr.length; i++) {
+    variance += volumes[i] * Math.pow(tpvArr[i] - mean, 2);
+  }
+  const std = Math.sqrt(variance / cumVol);
+  return { vwap: vwapVal, upperBand: vwapVal + 2 * std, lowerBand: vwapVal - 2 * std };
+}
+
+// ─── Ichimoku Cloud ───────────────────────────────────────────────────────────
+export function ichimoku(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+): {
+  tenkan: number | null;
+  kijun: number | null;
+  senkouA: number | null;
+  senkouB: number | null;
+  chikou: number | null;
+  cloudTop: number | null;
+  cloudBottom: number | null;
+  priceVsCloud: "ABOVE" | "BELOW" | "INSIDE";
+  trend: "BULLISH" | "BEARISH" | "NEUTRAL";
+} | null {
+  if (closes.length < 52) return null;
+  const mid = (arr: number[], start: number, end: number) => {
+    const slice = arr.slice(start, end);
+    return (Math.max(...slice) + Math.min(...slice)) / 2;
+  };
+  const n = closes.length;
+  const tenkan = mid(highs.concat(lows), n - 9, n) !== mid(highs.concat(lows), n - 9, n)
+    ? null
+    : (Math.max(...highs.slice(n - 9)) + Math.min(...lows.slice(n - 9))) / 2;
+  const kijun = (Math.max(...highs.slice(n - 26)) + Math.min(...lows.slice(n - 26))) / 2;
+  const senkouA = tenkan !== null ? (tenkan + kijun) / 2 : null;
+  const senkouB = (Math.max(...highs.slice(n - 52)) + Math.min(...lows.slice(n - 52))) / 2;
+  const chikou = closes[n - 1];
+  const cloudTop = senkouA !== null && senkouB !== null ? Math.max(senkouA, senkouB) : null;
+  const cloudBottom = senkouA !== null && senkouB !== null ? Math.min(senkouA, senkouB) : null;
+  const price = closes[n - 1];
+  let priceVsCloud: "ABOVE" | "BELOW" | "INSIDE" = "INSIDE";
+  if (cloudTop !== null && cloudBottom !== null) {
+    if (price > cloudTop) priceVsCloud = "ABOVE";
+    else if (price < cloudBottom) priceVsCloud = "BELOW";
+  }
+  const trend: "BULLISH" | "BEARISH" | "NEUTRAL" =
+    priceVsCloud === "ABOVE" && tenkan !== null && kijun !== null && tenkan > kijun
+      ? "BULLISH"
+      : priceVsCloud === "BELOW" && tenkan !== null && kijun !== null && tenkan < kijun
+      ? "BEARISH"
+      : "NEUTRAL";
+  return { tenkan, kijun, senkouA, senkouB, chikou, cloudTop, cloudBottom, priceVsCloud, trend };
+}
+
+// ─── WaveTrend Oscillator (Market Cipher B) ───────────────────────────────────
+export function waveTrend(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  n1 = 10,
+  n2 = 21,
+): { wt1: number | null; wt2: number | null; cross: "BULLISH" | "BEARISH" | "NONE"; zone: "OVERBOUGHT" | "OVERSOLD" | "NEUTRAL" } | null {
+  if (closes.length < n2 + 4) return null;
+  const hlc3 = closes.map((c, i) => (highs[i] + lows[i] + c) / 3);
+  const k = 2 / (n1 + 1);
+  // EMA of hlc3
+  let ema1 = hlc3.slice(0, n1).reduce((a, b) => a + b, 0) / n1;
+  const ema1Arr: number[] = new Array(n1 - 1).fill(NaN);
+  ema1Arr.push(ema1);
+  for (let i = n1; i < hlc3.length; i++) {
+    ema1 = hlc3[i] * k + ema1 * (1 - k);
+    ema1Arr.push(ema1);
+  }
+  // EMA of abs(hlc3 - ema1)
+  const diff = hlc3.map((v, i) => Math.abs(v - (ema1Arr[i] ?? v)));
+  let ema2 = diff.slice(0, n1).reduce((a, b) => a + b, 0) / n1;
+  const ema2Arr: number[] = new Array(n1 - 1).fill(NaN);
+  ema2Arr.push(ema2);
+  for (let i = n1; i < diff.length; i++) {
+    ema2 = diff[i] * k + ema2 * (1 - k);
+    ema2Arr.push(ema2);
+  }
+  const ci = hlc3.map((v, i) => {
+    const e2 = ema2Arr[i];
+    if (!e2 || isNaN(e2)) return 0;
+    return (v - (ema1Arr[i] ?? v)) / (0.015 * e2);
+  });
+  // EMA of ci = wt1
+  const k2 = 2 / (n2 + 1);
+  let wt1val = ci.slice(0, n2).reduce((a, b) => a + b, 0) / n2;
+  const wt1Arr: number[] = new Array(n2 - 1).fill(NaN);
+  wt1Arr.push(wt1val);
+  for (let i = n2; i < ci.length; i++) {
+    wt1val = ci[i] * k2 + wt1val * (1 - k2);
+    wt1Arr.push(wt1val);
+  }
+  // wt2 = SMA(wt1, 4)
+  const wt1Last4 = wt1Arr.slice(-4).filter(v => !isNaN(v));
+  const wt2val = wt1Last4.length === 4 ? wt1Last4.reduce((a, b) => a + b, 0) / 4 : null;
+  const wt1Final = wt1Arr[wt1Arr.length - 1];
+  const wt1Prev = wt1Arr[wt1Arr.length - 2];
+  const wt2Prev = wt1Arr.slice(-5, -1).filter(v => !isNaN(v));
+  const wt2PrevVal = wt2Prev.length === 4 ? wt2Prev.reduce((a, b) => a + b, 0) / 4 : null;
+  let cross: "BULLISH" | "BEARISH" | "NONE" = "NONE";
+  if (wt2val !== null && wt2PrevVal !== null) {
+    if (wt1Prev < wt2PrevVal && wt1Final > wt2val) cross = "BULLISH";
+    else if (wt1Prev > wt2PrevVal && wt1Final < wt2val) cross = "BEARISH";
+  }
+  const zone: "OVERBOUGHT" | "OVERSOLD" | "NEUTRAL" =
+    wt1Final > 53 ? "OVERBOUGHT" : wt1Final < -53 ? "OVERSOLD" : "NEUTRAL";
+  return { wt1: isNaN(wt1Final) ? null : wt1Final, wt2: wt2val, cross, zone };
+}
+
+// ─── Pivot Points (Classic) ───────────────────────────────────────────────────
+export function pivotPoints(
+  prevHigh: number,
+  prevLow: number,
+  prevClose: number,
+): { pp: number; r1: number; r2: number; r3: number; s1: number; s2: number; s3: number } {
+  const pp = (prevHigh + prevLow + prevClose) / 3;
+  const r1 = 2 * pp - prevLow;
+  const r2 = pp + (prevHigh - prevLow);
+  const r3 = prevHigh + 2 * (pp - prevLow);
+  const s1 = 2 * pp - prevHigh;
+  const s2 = pp - (prevHigh - prevLow);
+  const s3 = prevLow - 2 * (prevHigh - pp);
+  return { pp, r1, r2, r3, s1, s2, s3 };
+}
+
+// ─── Order Flow Imbalance ─────────────────────────────────────────────────────
+export function orderFlowImbalance(
+  opens: number[],
+  closes: number[],
+  volumes: number[],
+  period = 20,
+): { buyPressure: number; sellPressure: number; imbalance: number; bias: "BUY" | "SELL" | "NEUTRAL" } | null {
+  if (closes.length < period) return null;
+  const slice = closes.slice(-period);
+  const openSlice = opens.slice(-period);
+  const volSlice = volumes.slice(-period);
+  let buyVol = 0, sellVol = 0;
+  for (let i = 0; i < slice.length; i++) {
+    if (slice[i] >= openSlice[i]) buyVol += volSlice[i];
+    else sellVol += volSlice[i];
+  }
+  const total = buyVol + sellVol;
+  if (total === 0) return null;
+  const imbalance = (buyVol - sellVol) / total;
+  return {
+    buyPressure: (buyVol / total) * 100,
+    sellPressure: (sellVol / total) * 100,
+    imbalance,
+    bias: imbalance > 0.1 ? "BUY" : imbalance < -0.1 ? "SELL" : "NEUTRAL",
+  };
+}
+
+// ─── Liquidation Heatmap Levels ───────────────────────────────────────────────
+export function liquidationLevels(
+  closes: number[],
+  highs: number[],
+  lows: number[],
+  currentPrice: number,
+  leverage = 10,
+): { longLiqLevel: number; shortLiqLevel: number; densityAbove: string; densityBelow: string } {
+  // Estimate liquidation clusters based on recent swing levels
+  const n = Math.min(closes.length, 50);
+  const recentHighs = highs.slice(-n);
+  const recentLows = lows.slice(-n);
+  const avgHigh = recentHighs.reduce((a, b) => a + b, 0) / n;
+  const avgLow = recentLows.reduce((a, b) => a + b, 0) / n;
+  // Long liq level: price where avg long position (entered near recent low) gets liquidated
+  const longLiqLevel = avgLow * (1 - 1 / leverage);
+  // Short liq level: price where avg short position (entered near recent high) gets liquidated
+  const shortLiqLevel = avgHigh * (1 + 1 / leverage);
+  const densityAbove = currentPrice < shortLiqLevel
+    ? `High short liq cluster ~$${shortLiqLevel.toFixed(0)}`
+    : "Above short liq zone";
+  const densityBelow = currentPrice > longLiqLevel
+    ? `High long liq cluster ~$${longLiqLevel.toFixed(0)}`
+    : "Below long liq zone";
+  return { longLiqLevel, shortLiqLevel, densityAbove, densityBelow };
+}
