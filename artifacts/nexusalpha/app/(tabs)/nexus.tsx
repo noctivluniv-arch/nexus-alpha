@@ -284,7 +284,7 @@ export default function NexusScreen() {
                       },
                     ]}
                   >
-                    <Feather
+                    <WebIcon
                       name={isLong ? "arrow-down-right" : "arrow-up-right"}
                       size={11}
                       color={sideColor}
