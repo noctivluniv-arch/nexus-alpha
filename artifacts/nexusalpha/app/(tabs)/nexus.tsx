@@ -7,7 +7,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { WebIcon } from "@/components/WebIcon";
 
 import { Header } from "@/components/Header";
 import { useColors } from "@/hooks/useColors";
@@ -98,7 +97,7 @@ export default function NexusScreen() {
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
-          <WebIcon name="anchor" size={18} color={colors.primary} />
+          
           <View style={{ flex: 1 }}>
             <Text style={[styles.bannerTitle, { color: colors.foreground }]}>
               {t("nexus.banner.title")}
@@ -225,7 +224,7 @@ export default function NexusScreen() {
               { backgroundColor: "#2A1A1F", borderColor: colors.danger },
             ]}
           >
-            <WebIcon name="alert-triangle" size={16} color={colors.danger} />
+            
             <Text style={[styles.errorText, { color: colors.danger }]}>
               {error}
             </Text>
@@ -284,11 +283,7 @@ export default function NexusScreen() {
                       },
                     ]}
                   >
-                    <WebIcon
-                      name={isLong ? "arrow-down-right" : "arrow-up-right"}
-                      size={11}
-                      color={sideColor}
-                    />
+                    
                     <Text style={[styles.typeLabel, { color: sideColor }]}>
                       {sideLabel}
                     </Text>

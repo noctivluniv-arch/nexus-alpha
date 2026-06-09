@@ -9,7 +9,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { WebIcon } from "@/components/WebIcon";
 
 import { Header } from "@/components/Header";
 import { useColors } from "@/hooks/useColors";
@@ -213,7 +212,7 @@ export default function NewsScreen() {
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
-          <WebIcon name="globe" size={18} color={colors.cyan} />
+          
           <View style={{ flex: 1 }}>
             <Text style={[styles.bannerTitle, { color: colors.foreground }]}>
               {t("news.banner.title")}
@@ -249,7 +248,7 @@ export default function NewsScreen() {
               { backgroundColor: "#2A1A1F", borderColor: colors.danger },
             ]}
           >
-            <WebIcon name="alert-triangle" size={16} color={colors.danger} />
+            
             <Text style={[styles.errorText, { color: colors.danger }]}>
               {error}
             </Text>
@@ -291,7 +290,7 @@ export default function NewsScreen() {
                 { backgroundColor: colors.cyan + "12", borderColor: colors.cyan + "44" },
               ]}
             >
-              <WebIcon name="cpu" size={11} color={colors.cyan} />
+              
               <Text style={[styles.aiBuzzText, { color: colors.cyan }]}>
                 {t("news.aiBuzzNote")}
               </Text>
@@ -363,7 +362,7 @@ function InfluencerTopicsCard({
       ]}
     >
       <View style={styles.infTopicsHeader}>
-        <WebIcon name="users" size={13} color="#8B5CF6" />
+        
         <Text style={[styles.infTopicsTitle, { color: "#8B5CF6" }]}>
           SEDANG DIBICARAKAN TOKOH
         </Text>
@@ -391,7 +390,7 @@ function InfluencerTopicsCard({
                   {topic.label}
                 </Text>
                 <View style={[styles.infTopicSentBadge, { backgroundColor: sent.color + "22", borderColor: sent.color }]}>
-                  <WebIcon name={sent.icon} size={9} color={sent.color} />
+                  
                   <Text style={{ color: sent.color, fontSize: 9, fontFamily: "Helvetica Neue" }}>
                     {topic.sentiment}
                   </Text>
@@ -401,11 +400,11 @@ function InfluencerTopicsCard({
                     {topic.category}
                   </Text>
                 </View>
-                <WebIcon name="external-link" size={9} color="#8B5CF688" style={{ marginLeft: "auto" }} />
+                
               </View>
               {topic.influencers && topic.influencers.length > 0 ? (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>
-                  <WebIcon name="message-circle" size={10} color={colors.mutedForeground} style={{ marginTop: 1 }} />
+                  
                   <Text style={[styles.infTopicWho, { color: colors.mutedForeground }]}>
                     {topic.influencers.slice(0, 4).join(", ")}
                     {topic.influencers.length > 4 ? ` +${topic.influencers.length - 4}` : ""}
@@ -451,7 +450,7 @@ function MacroCard({ items, colors }: { items: MacroItem[]; colors: any }) {
     <View style={[styles.macroCard, { backgroundColor: MACRO_GREEN_DIM, borderColor: MACRO_GREEN_BORDER }]}>
       {/* Header */}
       <View style={styles.macroHeader}>
-        <WebIcon name="globe" size={13} color={MACRO_GREEN} />
+        
         <Text style={[styles.macroTitle, { color: MACRO_GREEN }]}>MAKRO EKONOMI DUNIA</Text>
         <View style={[styles.macroBadge, { backgroundColor: MACRO_GREEN + "22", borderColor: MACRO_GREEN }]}>
           <Text style={{ color: MACRO_GREEN, fontSize: 9, fontFamily: "Helvetica Neue" }}>LIVE</Text>
@@ -476,11 +475,11 @@ function MacroCard({ items, colors }: { items: MacroItem[]; colors: any }) {
               {/* Category badge row */}
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
                 <View style={[styles.macroCatBadge, { backgroundColor: MACRO_GREEN + "22", borderColor: MACRO_GREEN + "66" }]}>
-                  <WebIcon name={catIcon} size={8} color={MACRO_GREEN} />
+                  
                   <Text style={{ color: MACRO_GREEN, fontSize: 9, fontFamily: "Helvetica Neue", letterSpacing: 0.4 }}>{catLabel}</Text>
                 </View>
                 <View style={[styles.macroSentBadge, { backgroundColor: sc + "18", borderColor: sc + "66" }]}>
-                  <WebIcon name={si as any} size={9} color={sc} />
+                  
                   <Text style={{ color: sc, fontSize: 9, fontFamily: "Helvetica Neue" }}>{item.sentiment}</Text>
                 </View>
                 {isHigh ? (
@@ -488,7 +487,7 @@ function MacroCard({ items, colors }: { items: MacroItem[]; colors: any }) {
                     <Text style={{ color: "#F97316", fontSize: 8, fontFamily: "Helvetica Neue", letterSpacing: 0.5 }}>HIGH IMPACT</Text>
                   </View>
                 ) : null}
-                {item.url ? <WebIcon name="external-link" size={9} color={MACRO_GREEN + "88"} style={{ marginLeft: "auto" }} /> : null}
+                {item.url ?  : null}
               </View>
               {/* Title */}
               <Text style={[styles.macroSummary, { color: colors.foreground }]} numberOfLines={2}>{item.title}</Text>
@@ -521,7 +520,7 @@ function TrendingColumn({
       {/* Header */}
       <View style={styles.trendingColHeader}>
         <View style={styles.trendingColHeaderLeft}>
-          <WebIcon name="zap" size={14} color={GOLD} />
+          
           <Text style={[styles.trendingColTitle, { color: GOLD }]}>
             {t("news.trendingSection")}
           </Text>
@@ -557,7 +556,7 @@ function TrendingColumn({
                 <Text style={[styles.trendingHeadline, { flex: 1 }]} numberOfLines={2}>
                   {item.title}
                 </Text>
-                {item.url ? <WebIcon name="external-link" size={10} color={GOLD + "99"} style={{ marginTop: 3 }} /> : null}
+                {item.url ?  : null}
               </View>
               <View style={styles.trendingMeta}>
                 <View
@@ -578,7 +577,7 @@ function TrendingColumn({
                 </Text>
                 {item.impact === "HIGH" ? (
                   <View style={[styles.trendingHotBadge, { backgroundColor: "#EF444422", borderColor: "#EF4444" }]}>
-                    <WebIcon name="trending-up" size={8} color="#EF4444" />
+                    
                     <Text style={[styles.trendingHotText, { color: "#EF4444" }]}>HOT</Text>
                   </View>
                 ) : null}
@@ -604,7 +603,7 @@ function TrendingColumnSkeleton() {
     >
       <View style={styles.trendingColHeader}>
         <View style={styles.trendingColHeaderLeft}>
-          <WebIcon name="zap" size={14} color={GOLD} />
+          
           <Text style={[styles.trendingColTitle, { color: GOLD }]}>
             TRENDING SEKARANG
           </Text>
@@ -641,7 +640,7 @@ function SectionTitle({
 }) {
   return (
     <View style={styles.sectionTitle}>
-      <WebIcon name={icon} size={13} color={color} />
+      
       <Text style={[styles.sectionText, { color }]}>{text}</Text>
     </View>
   );
@@ -743,7 +742,7 @@ function InfluencerCard({
           </Text>
         </View>
         <View style={{ flex: 1 }} />
-        <WebIcon name="external-link" size={12} color={accent} />
+        
         <Text style={[styles.readMore, { color: accent }]}>
           {item.sourceType === "X" ? t("news.openTweet") : t("news.openArticle")}
         </Text>
@@ -805,7 +804,7 @@ function XBuzzCard({
             { backgroundColor: colors.cyan + "22", borderColor: colors.cyan },
           ]}
         >
-          <WebIcon name="cpu" size={8} color={colors.cyan} />
+          
           <Text style={[styles.aiBadgeText, { color: colors.cyan }]}>AI</Text>
         </View>
       </View>
@@ -887,11 +886,7 @@ function NewsCard({
             },
           ]}
         >
-          <Feather
-            name={isX ? "message-circle" : "rss"}
-            size={10}
-            color={isX ? colors.cyan : colors.mutedForeground}
-          />
+          
           <Text
             style={[
               styles.typeText,

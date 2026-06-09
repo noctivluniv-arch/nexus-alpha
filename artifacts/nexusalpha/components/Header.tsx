@@ -1,6 +1,5 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { WebIcon } from "@/components/WebIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
@@ -110,11 +109,7 @@ export function Header({ onRefresh, refreshing }: HeaderProps) {
               },
             ]}
           >
-            <Feather
-              name="refresh-cw"
-              size={18}
-              color={refreshing ? colors.primary : colors.mutedForeground}
-            />
+            
           </Pressable>
         ) : null}
       </View>

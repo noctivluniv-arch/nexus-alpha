@@ -7,7 +7,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { WebIcon } from "@/components/WebIcon";
 
 import { Header } from "@/components/Header";
 import { useColors } from "@/hooks/useColors";
@@ -189,7 +188,7 @@ export default function SignalsScreen() {
             },
           ]}
         >
-          <WebIcon name="zap" size={16} color={colors.primaryForeground} />
+          
           <Text style={[styles.ctaText, { color: colors.primaryForeground }]}>
             {loading ? t("signals.cta.loading") : t("signals.cta.generate")}
           </Text>
@@ -201,7 +200,7 @@ export default function SignalsScreen() {
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
-          <WebIcon name="cpu" size={14} color={colors.cyan} />
+          
           <Text style={[styles.discText, { color: colors.mutedForeground }]}>
             {t("signals.disclaimer")}
           </Text>
@@ -214,7 +213,7 @@ export default function SignalsScreen() {
               { backgroundColor: "#2A1A1F", borderColor: colors.danger },
             ]}
           >
-            <WebIcon name="alert-triangle" size={16} color={colors.danger} />
+            
             <Text style={[styles.errorText, { color: colors.danger }]}>
               {error}
             </Text>
@@ -278,7 +277,7 @@ export default function SignalsScreen() {
                       gap: 4,
                     }}
                   >
-                    <WebIcon name="cpu" size={10} color="#F59E0B" />
+                    
                     <Text style={{ color: "#F59E0B", fontSize: 10, fontFamily: "Helvetica Neue" }}>
                       MODE TEKNIKAL
                     </Text>
@@ -294,17 +293,7 @@ export default function SignalsScreen() {
                   },
                 ]}
               >
-                <Feather
-                  name={
-                    signal.noTrade
-                      ? "slash"
-                      : signal.side === "BUY"
-                        ? "arrow-up"
-                        : "arrow-down"
-                  }
-                  size={14}
-                  color={sideColor}
-                />
+                
                 <Text style={[styles.sideText, { color: sideColor }]}>
                   {signal.side}
                 </Text>
@@ -323,11 +312,7 @@ export default function SignalsScreen() {
                   },
                 ]}
               >
-                <Feather
-                  name="trending-up"
-                  size={11}
-                  color={structColor(signal.marketStructure)}
-                />
+                
                 <Text
                   style={[
                     styles.metaText,
@@ -347,7 +332,7 @@ export default function SignalsScreen() {
                     },
                   ]}
                 >
-                  <WebIcon name="target" size={11} color={colors.primary} />
+                  
                   <Text style={[styles.metaText, { color: colors.primary }]}>
                     R:R {signal.riskReward}
                   </Text>
@@ -363,7 +348,7 @@ export default function SignalsScreen() {
                     },
                   ]}
                 >
-                  <WebIcon name="clock" size={11} color={colors.cyan} />
+                  
                   <Text style={[styles.metaText, { color: colors.cyan }]}>
                     {signal.timeframe}
                   </Text>
@@ -383,11 +368,7 @@ export default function SignalsScreen() {
                 ]}
               >
                 <View style={styles.noTradeHeader}>
-                  <Feather
-                    name="alert-circle"
-                    size={16}
-                    color={colors.danger}
-                  />
+                  
                   <Text
                     style={[styles.noTradeTitle, { color: colors.danger }]}
                   >
@@ -524,7 +505,7 @@ export default function SignalsScreen() {
                   },
                 ]}
               >
-                <WebIcon name="star" size={11} color={colors.primary} />
+                
                 <Text
                   style={[styles.spotLabel, { color: colors.mutedForeground }]}
                 >
@@ -624,7 +605,7 @@ export default function SignalsScreen() {
                           { backgroundColor: colors.success },
                         ]}
                       >
-                        <WebIcon name="check" size={10} color="#000" />
+                        
                       </View>
                       <Text
                         style={[
@@ -732,11 +713,7 @@ export default function SignalsScreen() {
                     ]}
                   >
                     <View style={styles.scenarioHeader}>
-                      <Feather
-                        name="trending-down"
-                        size={12}
-                        color={colors.danger}
-                      />
+                      
                       <Text
                         style={[
                           styles.scenarioTitle,
@@ -755,11 +732,7 @@ export default function SignalsScreen() {
                       {signal.priceScenarios.bearishTarget}
                     </Text>
                     <View style={styles.scenarioRow}>
-                      <Feather
-                        name="clock"
-                        size={10}
-                        color={colors.mutedForeground}
-                      />
+                      
                       <Text
                         style={[
                           styles.scenarioMeta,
@@ -790,11 +763,7 @@ export default function SignalsScreen() {
                     ]}
                   >
                     <View style={styles.scenarioHeader}>
-                      <Feather
-                        name="trending-up"
-                        size={12}
-                        color={colors.success}
-                      />
+                      
                       <Text
                         style={[
                           styles.scenarioTitle,
@@ -813,11 +782,7 @@ export default function SignalsScreen() {
                       {signal.priceScenarios.bullishTarget}
                     </Text>
                     <View style={styles.scenarioRow}>
-                      <Feather
-                        name="clock"
-                        size={10}
-                        color={colors.mutedForeground}
-                      />
+                      
                       <Text
                         style={[
                           styles.scenarioMeta,
@@ -849,11 +814,7 @@ export default function SignalsScreen() {
                       },
                     ]}
                   >
-                    <Feather
-                      name="target"
-                      size={11}
-                      color={colors.primary}
-                    />
+                    
                     <View style={{ flex: 1 }}>
                       <Text
                         style={[
@@ -1073,7 +1034,7 @@ function ScalpingPlanCard({
     >
       <View style={styles.scalpHeader}>
         <View style={styles.scalpHeaderLeft}>
-          <WebIcon name="zap" size={13} color={accent} />
+          
           <Text style={[styles.scalpTitle, { color: accent }]}>
             {t("signals.scalp.title")}
           </Text>

@@ -1,4 +1,3 @@
-import { WebIcon } from "@/components/WebIcon";
 import { reloadAppAsync } from "expo";
 import React, { useState } from "react";
 import {
@@ -64,7 +63,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
             },
           ]}
         >
-          <WebIcon name="alert-circle" size={20} color={colors.foreground} />
+          
         </Pressable>
       ) : null}
 
@@ -131,7 +130,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
                     { opacity: pressed ? 0.6 : 1 },
                   ]}
                 >
-                  <WebIcon name="x" size={24} color={colors.foreground} />
+                  
                 </Pressable>
               </View>
 
