@@ -3,10 +3,11 @@
     cd artifacts/nexusalpha && \
     pnpm install --no-frozen-lockfile && \
     pnpm exec expo export --platform web --clear && \
-    mkdir -p dist/assets && \
-    find ../../node_modules/.pnpm -name "Inter_*.ttf" -exec cp {} dist/assets/ \; && \
-    find ../../node_modules/.pnpm -name "Feather.*.ttf" -exec cp {} dist/assets/ \; || \
-    find ../../node_modules/.pnpm -name "Feather.ttf" -exec cp {} dist/assets/ \;
+    cp ../../node_modules/.pnpm/@expo-google-fonts+inter@0.4.2/node_modules/@expo-google-fonts/inter/400Regular/Inter_400Regular.51b6ad87261f18b6433ec52871ddfabc.ttf dist/assets/ && \
+    cp ../../node_modules/.pnpm/@expo-google-fonts+inter@0.4.2/node_modules/@expo-google-fonts/inter/500Medium/Inter_500Medium.137ab18bace28dd0bd83eb3b8ed2bc54.ttf dist/assets/ && \
+    cp ../../node_modules/.pnpm/@expo-google-fonts+inter@0.4.2/node_modules/@expo-google-fonts/inter/600SemiBold/Inter_600SemiBold.a5f35888d2da465de352e0dcfaf33324.ttf dist/assets/ && \
+    cp ../../node_modules/.pnpm/@expo-google-fonts+inter@0.4.2/node_modules/@expo-google-fonts/inter/700Bold/Inter_700Bold.6e237de4f1f413afa2fcc45c77ac343a.ttf dist/assets/ && \
+    cp ../../node_modules/.pnpm/@expo+vector-icons@15.1.1_expo-font@14.0.11_expo@54.0.35_react-native@0.81.5_@babel+cor_ea21a31c16ca689fa29d8bad8138075b/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Feather.ca4b48e04dc1ce10bfbddb262c8b835f.ttf dist/assets/
   """
   publish = "artifacts/nexusalpha/dist"
 
