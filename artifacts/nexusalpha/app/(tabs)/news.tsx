@@ -154,8 +154,9 @@ export default function NewsScreen() {
         ? colors.danger
         : colors.mutedForeground;
 
-  const influencerItems = items.filter((i) => i.isInfluencer);
-  const newsItems = items.filter((i) => i.sourceType === "NEWS");
+  const trendingIds = new Set(trendingHeadlines.map((i) => i.id));
+  const influencerItems = items.filter((i) => i.isInfluencer && !trendingIds.has(i.id));
+  const newsItems = items.filter((i) => i.sourceType === "NEWS" && !trendingIds.has(i.id));
 
   // Top 5 trending headlines: HIGH impact first, then MEDIUM
   const trendingHeadlines = [...newsItems]
