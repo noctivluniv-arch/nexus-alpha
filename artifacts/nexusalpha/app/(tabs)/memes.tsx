@@ -3466,9 +3466,7 @@ function MemeIndicatorRow({
                 {extra}
               </Text>
             ) : null}
-            {signals.length > 0 ? (
-              
-            ) : null}
+            {null}
           </View>
           {score !== undefined ? (
             <View style={styles.miScoreBar}>
