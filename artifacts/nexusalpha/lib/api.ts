@@ -64,18 +64,17 @@ export const api = {
     }));
   },
 
-  async getNexusFeed(): Promise<{
-    alerts: WhaleAlert[];
-    derivatives: NexusFeed["derivatives"];
-    totalLiquidatedUsd24h: number;
-    longsLiquidatedUsd: number;
-    shortsLiquidatedUsd: number;
-  }> {
-    const feed = await jsonFetch<NexusFeed>(`/api/whales/feed`);
+  async getNexusFeed(): Promise<any> {
+    const feed = await jsonFetch<any>(`/api/whales/feed`);
     return {
-      alerts: feed.alerts.map((a, idx) => ({
+      ...feed,
+      alerts: (feed.alerts ?? []).map((a: any, idx: number) => ({
         ...a,
         id: `${a.timestamp}-${idx}`,
+      })),
+      whales: (feed.whales ?? []).map((a: any, idx: number) => ({
+        ...a,
+        id: `whale-${a.timestamp}-${idx}`,
       })),
       derivatives: feed.derivatives,
       totalLiquidatedUsd24h: feed.totalLiquidatedUsd24h,
