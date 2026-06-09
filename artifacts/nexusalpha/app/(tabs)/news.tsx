@@ -154,17 +154,19 @@ export default function NewsScreen() {
         ? colors.danger
         : colors.mutedForeground;
 
-  const trendingIds = new Set(trendingHeadlines.map((i) => i.id));
-  const influencerItems = items.filter((i) => i.isInfluencer && !trendingIds.has(i.id));
-  const newsItems = items.filter((i) => i.sourceType === "NEWS" && !trendingIds.has(i.id));
+  const allNewsItems = items.filter((i) => i.sourceType === "NEWS");
 
   // Top 5 trending headlines: HIGH impact first, then MEDIUM
-  const trendingHeadlines = [...newsItems]
+  const trendingHeadlines = [...allNewsItems]
     .sort((a, b) => {
       const impOrder: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
       return impOrder[a.impact] - impOrder[b.impact];
     })
     .slice(0, 5);
+
+  const trendingIds = new Set(trendingHeadlines.map((i) => i.id));
+  const influencerItems = items.filter((i) => i.isInfluencer && !trendingIds.has(i.id));
+  const newsItems = allNewsItems.filter((i) => !trendingIds.has(i.id));
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
