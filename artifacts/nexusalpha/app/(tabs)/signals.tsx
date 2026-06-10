@@ -490,12 +490,7 @@ export default function SignalsScreen() {
                   colors={colors}
                   valueColor={colors.danger}
                 />
-                <Stat
-                  label={t("signals.longTarget")}
-                  value={`${signal.longTermTarget}`}
-                  colors={colors}
-                  valueColor={colors.success}
-                />
+
                 <Stat
                   label={t("signals.support")}
                   value={`${signal.keySupport}`}
@@ -511,31 +506,7 @@ export default function SignalsScreen() {
               </View>
             ) : null}
 
-            {/* Spot entry (always shown) */}
-            {signal.spotEntry &&
-            !["n/a", "na", "none", "tidak ada", "tidak tersedia"].includes(
-              signal.spotEntry.trim().toLowerCase(),
-            ) ? (
-              <View
-                style={[
-                  styles.spotBox,
-                  {
-                    backgroundColor: colors.primary + "0D",
-                    borderColor: colors.primary + "33",
-                  },
-                ]}
-              >
-                
-                <Text
-                  style={[styles.spotLabel, { color: colors.mutedForeground }]}
-                >
-                  {t("signals.spotEntryZone")}
-                </Text>
-                <Text style={[styles.spotValue, { color: colors.primary }]}>
-                  {signal.spotEntry}
-                </Text>
-              </View>
-            ) : null}
+
 
             {/* Spot Accumulation Zone */}
             {signal.spotAccumulation && (
