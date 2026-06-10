@@ -5,6 +5,7 @@ import aiRouter from "./ai";
 import newsRouter from "./news";
 import memesRouter from "./memes";
 import whalesRouter from "./whales";
+import telegramRouter from "./telegram";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(aiRouter);
 router.use(newsRouter);
 router.use(memesRouter);
 router.use(whalesRouter);
+router.use("/telegram", telegramRouter);
 
 export default router;

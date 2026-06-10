@@ -41,6 +41,31 @@ export default function SignalsScreen() {
   const [signal, setSignal] = useState<TradingSignal | null>(initialSignal);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tgSending, setTgSending] = useState(false);
+  const [tgSent, setTgSent] = useState(false);
+  const TELEGRAM_CHAT_ID = "305425021";
+
+  const sendToTelegram = async () => {
+    if (!signal || tgSending) return;
+    setTgSending(true);
+    setTgSent(false);
+    try {
+      const res = await fetch(`${api.baseUrl}/telegram/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId: TELEGRAM_CHAT_ID, signal }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTgSent(true);
+        setTimeout(() => setTgSent(false), 3000);
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setTgSending(false);
+    }
+  };
   const requestIdRef = useRef(0);
 
   // When language changes, drop the current signal — its narrative text is
@@ -551,7 +576,7 @@ export default function SignalsScreen() {
                             { color: colors.foreground },
                           ]}
                         >
-                          ${formatNumber(tp, 2)}
+                          {tp.startsWith("$") ? tp : `$${formatNumber(tp, 2)}`}
                         </Text>
                         {rrTag ? (
                           <View
@@ -579,6 +604,27 @@ export default function SignalsScreen() {
                 </View>
               </View>
             ) : null}
+
+            {/* Send to Telegram */}
+            {!signal.noTrade && (
+              <Pressable
+                onPress={sendToTelegram}
+                disabled={tgSending}
+                style={[
+                  styles.tgBtn,
+                  {
+                    backgroundColor: tgSent
+                      ? colors.success + "22"
+                      : "rgba(41,182,246,0.12)",
+                    borderColor: tgSent ? colors.success : "#29b6f6",
+                  },
+                ]}
+              >
+                <Text style={[styles.tgBtnText, { color: tgSent ? colors.success : "#29b6f6" }]}>
+                  {tgSending ? "⏳ Sending..." : tgSent ? "✅ Sent to Telegram!" : "📨 Send Signal to Telegram"}
+                </Text>
+              </Pressable>
+            )}
 
             {/* Leverage & Risk Calculator */}
             {!signal.noTrade && (
@@ -1981,5 +2027,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Helvetica Neue",
     lineHeight: 16,
+  },
+  tgBtn: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  tgBtnText: {
+    fontSize: 13,
+    fontFamily: "Helvetica Neue",
+    fontWeight: "600",
+    letterSpacing: 0.4,
   },
 });
