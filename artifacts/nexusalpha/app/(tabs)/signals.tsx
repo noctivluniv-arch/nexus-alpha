@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
@@ -578,6 +579,11 @@ export default function SignalsScreen() {
                 </View>
               </View>
             ) : null}
+
+            {/* Leverage & Risk Calculator */}
+            {!signal.noTrade && (
+              <LeverageCalculator signal={signal} colors={colors} />
+            )}
 
             {/* Scalping Plan (short-term sniper plan from Gemini) */}
             {signal.scalpingPlan ? (
@@ -1210,6 +1216,187 @@ function ScalpField({
   );
 }
 
+
+// ─── Leverage & Risk Calculator ──────────────────────────────────────────────
+function LeverageCalculator({
+  signal,
+  colors,
+}: {
+  signal: TradingSignal;
+  colors: any;
+}) {
+  const t = useT();
+  const LEVERAGE_OPTIONS = [3, 5, 10, 20, 50, 100];
+  const [leverage, setLeverage] = React.useState(10);
+  const [capital, setCapital] = React.useState("100");
+
+  const entryPrice = parseFloat(
+    (signal.entryPrice ?? signal.entryRange ?? "0").replace(/[^0-9.]/g, "")
+  );
+  const slPrice = parseFloat(
+    (signal.stopLoss ?? "0").replace(/[^0-9.]/g, "")
+  );
+  const tpPrices = (signal.takeProfit ?? []).map((tp: string) =>
+    parseFloat(tp.replace(/[^0-9.]/g, ""))
+  );
+  const isShort = signal.side === "SELL";
+  const capitalNum = parseFloat(capital) || 0;
+  const margin = capitalNum;
+  const positionSize = margin * leverage;
+  const qty = entryPrice > 0 ? positionSize / entryPrice : 0;
+
+  // Liquidation price
+  const liqPrice = entryPrice > 0
+    ? isShort
+      ? entryPrice * (1 + 1 / leverage)
+      : entryPrice * (1 - 1 / leverage)
+    : 0;
+
+  // PnL calculations
+  const calcPnl = (targetPrice: number) => {
+    if (!entryPrice || !targetPrice) return 0;
+    const priceDiff = isShort
+      ? entryPrice - targetPrice
+      : targetPrice - entryPrice;
+    return (priceDiff / entryPrice) * positionSize;
+  };
+
+  const slPnl = calcPnl(slPrice);
+  const slPct = capitalNum > 0 ? (slPnl / capitalNum) * 100 : 0;
+
+  return (
+    <View
+      style={[
+        styles.leverageCard,
+        { backgroundColor: "rgba(255,255,255,0.03)", borderColor: colors.border },
+      ]}
+    >
+      {/* Header */}
+      <Text style={[styles.leverageTitle, { color: colors.mutedForeground }]}>
+        LEVERAGE & RISK CALCULATOR
+      </Text>
+
+      {/* Capital Input */}
+      <View style={styles.leverageInputRow}>
+        <Text style={[styles.leverageLabel, { color: colors.mutedForeground }]}>
+          MODAL (USDT)
+        </Text>
+        <TextInput
+          style={[
+            styles.leverageInput,
+            { color: colors.foreground, borderColor: colors.border, backgroundColor: "rgba(255,255,255,0.05)" },
+          ]}
+          value={capital}
+          onChangeText={setCapital}
+          keyboardType="numeric"
+          placeholder="100"
+          placeholderTextColor={colors.mutedForeground}
+        />
+      </View>
+
+      {/* Leverage Selector */}
+      <Text style={[styles.leverageLabel, { color: colors.mutedForeground, marginBottom: 8 }]}>
+        PILIH LEVERAGE
+      </Text>
+      <View style={styles.leverageBtnRow}>
+        {LEVERAGE_OPTIONS.map((lv) => (
+          <Pressable
+            key={lv}
+            onPress={() => setLeverage(lv)}
+            style={[
+              styles.leverageBtn,
+              {
+                backgroundColor: leverage === lv ? colors.primary + "33" : "rgba(255,255,255,0.05)",
+                borderColor: leverage === lv ? colors.primary : colors.border,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.leverageBtnText,
+                { color: leverage === lv ? colors.primary : colors.mutedForeground },
+              ]}
+            >
+              {lv}x
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {/* Summary Grid */}
+      <View style={styles.leverageGrid}>
+        <View style={[styles.leverageStatBox, { borderColor: colors.border }]}>
+          <Text style={[styles.leverageStatLabel, { color: colors.mutedForeground }]}>POSISI SIZE</Text>
+          <Text style={[styles.leverageStatVal, { color: colors.foreground }]}>
+            ${positionSize.toFixed(2)}
+          </Text>
+        </View>
+        <View style={[styles.leverageStatBox, { borderColor: colors.border }]}>
+          <Text style={[styles.leverageStatLabel, { color: colors.mutedForeground }]}>QTY</Text>
+          <Text style={[styles.leverageStatVal, { color: colors.foreground }]}>
+            {qty.toFixed(4)}
+          </Text>
+        </View>
+        <View style={[styles.leverageStatBox, { borderColor: colors.danger + "99" }]}>
+          <Text style={[styles.leverageStatLabel, { color: colors.mutedForeground }]}>LIQUIDASI</Text>
+          <Text style={[styles.leverageStatVal, { color: colors.danger }]}>
+            ${liqPrice.toFixed(2)}
+          </Text>
+        </View>
+        <View style={[styles.leverageStatBox, { borderColor: colors.danger + "99" }]}>
+          <Text style={[styles.leverageStatLabel, { color: colors.mutedForeground }]}>LOSS @ SL</Text>
+          <Text style={[styles.leverageStatVal, { color: colors.danger }]}>
+            ${Math.abs(slPnl).toFixed(2)} ({Math.abs(slPct).toFixed(1)}%)
+          </Text>
+        </View>
+      </View>
+
+      {/* TP PnL Rows */}
+      {tpPrices.length > 0 && (
+        <View style={{ marginTop: 12, gap: 6 }}>
+          <Text style={[styles.leverageLabel, { color: colors.mutedForeground, marginBottom: 4 }]}>
+            ESTIMASI PROFIT PER TP
+          </Text>
+          {tpPrices.map((tp, i) => {
+            const pnl = calcPnl(tp);
+            const pct = capitalNum > 0 ? (pnl / capitalNum) * 100 : 0;
+            const rr = signal.takeProfitRR?.[i] ?? `1:${(i + 1) * 1.5}`;
+            return (
+              <View
+                key={i}
+                style={[
+                  styles.leverageTpRow,
+                  { backgroundColor: colors.success + "10", borderColor: colors.success + "33" },
+                ]}
+              >
+                <Text style={[styles.leverageTpIdx, { color: colors.success }]}>TP{i + 1}</Text>
+                <Text style={[styles.leverageTpPrice, { color: colors.foreground }]}>
+                  ${tp.toFixed(2)}
+                </Text>
+                <Text style={[styles.leverageTpPnl, { color: colors.success }]}>
+                  +${pnl.toFixed(2)} (+{pct.toFixed(1)}%)
+                </Text>
+                <View style={[styles.rrPill, { backgroundColor: colors.success + "22", borderColor: colors.success + "55" }]}>
+                  <Text style={[styles.rrText, { color: colors.success }]}>{rr}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
+      {/* Warning for high leverage */}
+      {leverage >= 20 && (
+        <View style={[styles.leverageWarning, { backgroundColor: colors.danger + "15", borderColor: colors.danger + "44" }]}>
+          <Text style={[styles.leverageWarningText, { color: colors.danger }]}>
+            ⚠ Leverage {leverage}x sangat berisiko tinggi. Liquidasi hanya {(100 / leverage).toFixed(1)}% pergerakan harga. Gunakan hanya jika berpengalaman.
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   label: {
     fontSize: 10,
@@ -1682,5 +1869,117 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica Neue",
     lineHeight: 16,
     fontStyle: "italic",
+  },
+  leverageCard: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 14,
+    marginBottom: 16,
+  },
+  leverageTitle: {
+    fontSize: 11,
+    fontFamily: "Helvetica Neue",
+    letterSpacing: 1.2,
+    marginBottom: 12,
+  },
+  leverageInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  leverageLabel: {
+    fontSize: 9,
+    fontFamily: "Helvetica Neue",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  leverageInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 14,
+    fontFamily: "Helvetica Neue",
+    minWidth: 100,
+    textAlign: "right",
+  },
+  leverageBtnRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 14,
+    flexWrap: "wrap",
+  },
+  leverageBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  leverageBtnText: {
+    fontSize: 12,
+    fontFamily: "Helvetica Neue",
+    fontWeight: "600",
+  },
+  leverageGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  leverageStatBox: {
+    flexBasis: "47%",
+    flexGrow: 1,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(255,255,255,0.02)",
+  },
+  leverageStatLabel: {
+    fontSize: 9,
+    fontFamily: "Helvetica Neue",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    marginBottom: 4,
+  },
+  leverageStatVal: {
+    fontSize: 13,
+    fontFamily: "Helvetica Neue",
+    fontWeight: "600",
+  },
+  leverageTpRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  leverageTpIdx: {
+    fontSize: 10,
+    fontFamily: "Helvetica Neue",
+    letterSpacing: 0.8,
+    minWidth: 26,
+  },
+  leverageTpPrice: {
+    fontSize: 11,
+    fontFamily: "Helvetica Neue",
+    flex: 1,
+  },
+  leverageTpPnl: {
+    fontSize: 11,
+    fontFamily: "Helvetica Neue",
+    fontWeight: "600",
+  },
+  leverageWarning: {
+    marginTop: 12,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  leverageWarningText: {
+    fontSize: 11,
+    fontFamily: "Helvetica Neue",
+    lineHeight: 16,
   },
 });
