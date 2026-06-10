@@ -632,7 +632,7 @@ function buildFallbackSignal(params: {
       : `Setup invalidated on a close below $${sl.toFixed(2)}`,
     confluences: [
       id ? `EMA stack: harga ${aboveEma200 ? "di atas" : "di bawah"} EMA200` : `EMA stack: price ${aboveEma200 ? "above" : "below"} EMA200`,
-      id ? `RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"} — ${rsiNeutral ? "zona netral" : "perlu perhatian"}` : `RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"} — ${rsiNeutral ? "neutral zone" : "watch closely"}`,
+      id ? `RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"} — ${rsiOversold ? "oversold-potensi reversal" : rsiOverbought ? "overbought-potensi koreksi" : rsiBullZone ? "zona bullish" : rsiBearZone ? "zona bearish" : "netral"}` : `RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"} — ${rsiOversold ? "oversold-reversal potential" : rsiOverbought ? "overbought-correction potential" : rsiBullZone ? "bull zone" : rsiBearZone ? "bear zone" : "neutral"}`,
       id ? `MACD 4H histogram: ${macdBull ? "positif (bullish)" : "negatif (bearish)"}` : `MACD 4H histogram: ${macdBull ? "positive (bullish)" : "negative (bearish)"}`,
       id ? `EMA 20/50: ${ema20AboveEma50 ? "bullish crossover" : "belum crossover"}` : `EMA 20/50: ${ema20AboveEma50 ? "bullish alignment" : "not aligned yet"}`,
     ],
