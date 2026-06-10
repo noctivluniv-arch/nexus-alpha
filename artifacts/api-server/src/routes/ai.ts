@@ -224,7 +224,7 @@ AUTOMATIC REJECT — output NO_TRADE if ANY of these apply:
 - Volume < 0.7x 30-day average
 - Score < 65 total
 
-If confidence < 65, output signal = "NO_TRADE". Never force trades. Patience is a trading edge. A missed trade costs nothing. A bad trade can cost everything.`;
+If confidence < 58, output signal = "NO_TRADE". IMPORTANT: In bearish market conditions (price below EMA200, MACD bearish, RSI < 50), actively look for SELL signals — do NOT default to NO_TRADE just because it is bearish. A SELL signal in a downtrend is a valid and profitable trade. Never force trades against the trend. Patience is a trading edge.`;
 
 function buildMarketDataBlock(params: {
   pair: string;
@@ -323,7 +323,7 @@ const LAYER_3 = `Analyze the market data above. Step by step:
 3. Momentum: RSI+MACD+Stoch agreement? Divergence? Volume confirmation?
 4. Sentiment: does derivatives data (funding, OI, L/S ratio) support signal?
 5. Risk: logical stop (structural), R:R >= 1:2, invalidation conditions?
-6. Verdict: score each factor, output NO_TRADE if total < 65.
+6. Verdict: score each factor, output NO_TRADE if total < 58. For SELL signals the threshold is 62 — bearish confluence must be clear.
 Think like smart money, be contrarian at sentiment extremes.`;
 
 const LAYER_4 = `FINAL VALIDATION — reject (NO_TRADE) if ANY:
@@ -524,21 +524,68 @@ function buildFallbackSignal(params: {
   const id = lang === "id";
 
   const aboveEma200 = ema200 != null && p > ema200;
+  const belowEma200 = ema200 != null && p < ema200;
   const ema20AboveEma50 = ema20 != null && ema50 != null && ema20 > ema50;
-  const rsiNeutral = rsi1d != null && rsi1d > 40 && rsi1d < 70;
+  const ema20BelowEma50 = ema20 != null && ema50 != null && ema20 < ema50;
   const macdBull = macd4h != null && macd4h.histogram > 0;
+  const macdBear = macd4h != null && macd4h.histogram < 0;
 
-  let score = 50;
-  if (aboveEma200) score += 15;
-  if (ema20AboveEma50) score += 10;
-  if (rsiNeutral) score += 10;
-  if (macdBull) score += 10;
+  // RSI conditions
+  const rsiOversold  = rsi1d != null && rsi1d < 35;   // potential long reversal
+  const rsiOverbought= rsi1d != null && rsi1d > 68;   // potential short
+  const rsiBullZone  = rsi1d != null && rsi1d >= 45 && rsi1d <= 68;
+  const rsiBearZone  = rsi1d != null && rsi1d >= 35 && rsi1d < 50;
+  const rsi4hOversold   = rsi4h != null && rsi4h < 35;
+  const rsi4hOverbought = rsi4h != null && rsi4h > 68;
+
+  // ── LONG score ──────────────────────────────────────────────────────────
+  let longScore = 40;
+  if (aboveEma200)      longScore += 18;   // price above EMA200 = bullish structure
+  if (ema20AboveEma50)  longScore += 10;   // short EMA above long EMA = momentum up
+  if (macdBull)         longScore += 10;   // MACD histogram positive
+  if (rsiBullZone)      longScore += 8;    // RSI in healthy bull zone
+  if (rsiOversold)      longScore += 12;   // oversold = bounce potential
+  if (rsi4hOversold)    longScore += 7;    // 4H also oversold = stronger signal
+  if (trend4h === "BULLISH") longScore += 10;
+  if (trend4h === "BEARISH") longScore -= 15; // strong penalty for counter-trend long
+
+  // ── SHORT score ─────────────────────────────────────────────────────────
+  let shortScore = 40;
+  if (belowEma200)      shortScore += 18;  // price below EMA200 = bearish structure
+  if (ema20BelowEma50)  shortScore += 10;  // short EMA below long EMA = momentum down
+  if (macdBear)         shortScore += 10;  // MACD histogram negative
+  if (rsiBearZone)      shortScore += 8;   // RSI in bear zone
+  if (rsiOverbought)    shortScore += 12;  // overbought = rejection potential
+  if (rsi4hOverbought)  shortScore += 7;   // 4H also overbought = stronger signal
+  if (trend4h === "BEARISH") shortScore += 10;
+  if (trend4h === "BULLISH") shortScore -= 15; // strong penalty for counter-trend short
+
+  // ── Determine side ──────────────────────────────────────────────────────
+  // SELL signal needs stronger confirmation to avoid false shorts
+  const LONG_THRESHOLD  = 58;
+  const SHORT_THRESHOLD = 62;
 
   let side: "BUY" | "SELL" | "NO_TRADE" = "NO_TRADE";
-  if (score >= 70 && trend4h !== "BEARISH") side = "BUY";
-  else if (score < 40 || trend4h === "BEARISH") side = "SELL";
+  let score = 50;
+  if (longScore >= LONG_THRESHOLD && longScore > shortScore) {
+    side = "BUY";
+    score = Math.min(longScore, 88);
+  } else if (shortScore >= SHORT_THRESHOLD && shortScore > longScore) {
+    side = "SELL";
+    score = Math.min(shortScore, 88);
+  } else {
+    // No clear signal — take the higher of the two as confidence indicator
+    score = Math.max(longScore, shortScore);
+  }
 
-  const sl = side === "BUY" ? sup1 : res1;
+  // ── ATR-based Stop Loss (more accurate than fixed %) ───────────────────
+  // Estimate ATR as 1.5% of price if no ATR data available
+  const estimatedAtr = p * 0.015;
+  const atrMultiplier = 1.8;
+  const slLong  = Math.min(sup1, p - estimatedAtr * atrMultiplier);
+  const slShort = Math.max(res1, p + estimatedAtr * atrMultiplier);
+  const sl = side === "BUY" ? slLong : side === "SELL" ? slShort : sup1;
+
   const riskAmt = Math.abs(p - sl) || p * 0.02;
   const tp1 = side === "BUY" ? p + riskAmt * 1.5 : p - riskAmt * 1.5;
   const tp2 = side === "BUY" ? p + riskAmt * 2.5 : p - riskAmt * 2.5;
@@ -561,12 +608,12 @@ function buildFallbackSignal(params: {
     stopLoss: `$${sl.toFixed(2)}`,
     stopLossRiskPct: `${riskPct}%`,
     confidence: Math.min(score, 88),
-    // Enforce NO_TRADE rule: if score < 65, override side
-    ...(score < 65 ? { side: "NO_TRADE", noTrade: true, noTradeReason: id ? "Skor kepercayaan di bawah ambang minimum 65. Tidak ada trade." : "Confidence score below minimum threshold of 65. No trade." } : {}),
+    // Enforce NO_TRADE rule: if score < 58 for long, < 62 for short
+    ...(side === "NO_TRADE" ? { noTrade: true, noTradeReason: id ? "Konfluensi teknikal belum cukup kuat. Tunggu setup yang lebih jelas." : "Technical confluence not strong enough. Wait for a clearer setup." } : {}),
     timestamp: Date.now(),
     reasoning: id
-      ? `Sinyal teknikal otomatis. EMA200: harga ${aboveEma200 ? "di atas" : "di bawah"} EMA200. RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"}. MACD 4H: ${macdBull ? "bullish" : "bearish"}. Tren 4H: ${trend4h}.`
-      : `Automated technical signal. EMA200: price is ${aboveEma200 ? "above" : "below"} EMA200. RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"}. MACD 4H: ${macdBull ? "bullish" : "bearish"}. 4H Trend: ${trend4h}.`,
+      ? `Sinyal teknikal otomatis [${side}]. EMA200: harga ${aboveEma200 ? "di atas" : "di bawah"} EMA200. RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"}${rsiOversold ? " (oversold-potensi reversal)" : rsiOverbought ? " (overbought-potensi koreksi)" : ""}. MACD 4H: ${macdBull ? "bullish" : "bearish"}. Tren 4H: ${trend4h}. Skor Long: ${longScore} | Skor Short: ${shortScore}.`
+      : `Automated technical signal [${side}]. EMA200: price ${aboveEma200 ? "above" : "below"} EMA200. RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"}${rsiOversold ? " (oversold-reversal potential)" : rsiOverbought ? " (overbought-correction potential)" : ""}. MACD 4H: ${macdBull ? "bullish" : "bearish"}. 4H Trend: ${trend4h}. Long Score: ${longScore} | Short Score: ${shortScore}.`,
     traderStyle: "Technical Analysis — EMA + RSI + MACD Confluence",
     leverage: side === "NO_TRADE" ? "1x (spot)" : "3-5x",
     expertMindset: id
@@ -590,11 +637,14 @@ function buildFallbackSignal(params: {
       id ? `EMA 20/50: ${ema20AboveEma50 ? "bullish crossover" : "belum crossover"}` : `EMA 20/50: ${ema20AboveEma50 ? "bullish alignment" : "not aligned yet"}`,
     ],
     scoreBreakdown: {
-      trend: aboveEma200 ? 75 : 30,
+      trend: aboveEma200 ? 72 : belowEma200 ? 28 : 50,
+      confluence: (rsiBullZone || rsiOversold) ? 68 : (rsiBearZone || rsiOverbought) ? 32 : 50,
+      srLevel: side === "BUY" ? 60 : side === "SELL" ? 40 : 50,
       volume: 50,
-      sentiment: 50,
-      momentum: macdBull ? 70 : 30,
-      structure: ema20AboveEma50 ? 70 : 30,
+      sentiment: (rsiOversold || rsi4hOversold) ? 65 : (rsiOverbought || rsi4hOverbought) ? 35 : 50,
+      funding: 50,
+      macro: trend4h === "BULLISH" ? 65 : trend4h === "BEARISH" ? 35 : 50,
+      total: Math.min(score, 88),
     },
     priceScenarios: {
       bearishTarget: `$${sup3.toFixed(2)}`,
