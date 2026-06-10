@@ -508,14 +508,14 @@ export default function SignalsScreen() {
 
 
 
-            {/* Spot Accumulation Zone */}
-            {signal.spotAccumulation && (
-              <SpotAccumulationCard data={signal.spotAccumulation} colors={colors} />
-            )}
-
             {/* Leverage & Risk Calculator */}
             {!signal.noTrade && (
               <LeverageCalculator signal={signal} colors={colors} />
+            )}
+
+            {/* Spot Accumulation Zone */}
+            {signal.spotAccumulation && (
+              <SpotAccumulationCard data={signal.spotAccumulation} colors={colors} />
             )}
 
             {/* Scalping Plan (short-term sniper plan from Gemini) */}
