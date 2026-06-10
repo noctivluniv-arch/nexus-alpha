@@ -485,12 +485,6 @@ export default function SignalsScreen() {
                   colors={colors}
                 />
                 <Stat
-                  label={t("signals.leverage")}
-                  value={signal.leverage}
-                  colors={colors}
-                  valueColor={colors.primary}
-                />
-                <Stat
                   label={t("signals.stopLoss")}
                   value={`${signal.stopLoss}${signal.stopLossRiskPct ? ` (${signal.stopLossRiskPct})` : ""}`}
                   colors={colors}
@@ -540,68 +534,6 @@ export default function SignalsScreen() {
                 <Text style={[styles.spotValue, { color: colors.primary }]}>
                   {signal.spotEntry}
                 </Text>
-              </View>
-            ) : null}
-
-            {/* Take Profit targets with R:R */}
-            {!signal.noTrade && signal.takeProfit.length > 0 ? (
-              <View style={{ marginBottom: 16 }}>
-                <Text
-                  style={[styles.tpLabel, { color: colors.mutedForeground }]}
-                >
-                  {t("signals.tpTargets")}
-                </Text>
-                <View style={{ gap: 6 }}>
-                  {signal.takeProfit.map((tp, idx) => {
-                    const rrTag = signal.takeProfitRR?.[idx];
-                    return (
-                      <View
-                        key={idx}
-                        style={[
-                          styles.tpRow,
-                          {
-                            backgroundColor: colors.success + "10",
-                            borderColor: colors.success + "33",
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[styles.tpIdx, { color: colors.success }]}
-                        >
-                          TP{idx + 1}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.tpVal,
-                            { color: colors.foreground },
-                          ]}
-                        >
-                          {tp.startsWith("$") ? tp : `$${formatNumber(tp, 2)}`}
-                        </Text>
-                        {rrTag ? (
-                          <View
-                            style={[
-                              styles.rrPill,
-                              {
-                                backgroundColor: colors.success + "22",
-                                borderColor: colors.success + "55",
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.rrText,
-                                { color: colors.success },
-                              ]}
-                            >
-                              {rrTag}
-                            </Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    );
-                  })}
-                </View>
               </View>
             ) : null}
 
