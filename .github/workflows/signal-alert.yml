@@ -1,0 +1,111 @@
+name: Signal Alert
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'  # every 30 minutes
+  workflow_dispatch:         # manual trigger for testing
+
+jobs:
+  check-signals:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check & Send Signals
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          API_BASE="https://nexus-alpha-zeta.vercel.app"
+          PAIRS=("BTCUSDT" "ETHUSDT" "BNBUSDT" "SOLUSDT")
+          
+          for PAIR in "${PAIRS[@]}"; do
+            echo "Checking $PAIR..."
+            
+            RESPONSE=$(curl -s --max-time 60 "$API_BASE/ai/signal?pair=$PAIR&lang=en" || echo '{"error":"timeout"}')
+            
+            SIDE=$(echo $RESPONSE | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('side','NO_TRADE'))" 2>/dev/null || echo "NO_TRADE")
+            CONFIDENCE=$(echo $RESPONSE | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('confidence',0))" 2>/dev/null || echo "0")
+            NO_TRADE=$(echo $RESPONSE | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('noTrade',True))" 2>/dev/null || echo "True")
+            
+            echo "$PAIR: side=$SIDE confidence=$CONFIDENCE noTrade=$NO_TRADE"
+            
+            if [ "$NO_TRADE" = "False" ] && [ "$SIDE" != "NO_TRADE" ]; then
+              echo "Valid signal found for $PAIR! Sending to Telegram..."
+              
+              python3 << PYEOF
+import json, urllib.request, os, sys
+
+response = '''$RESPONSE'''
+try:
+    signal = json.loads(response)
+except:
+    print("Failed to parse signal")
+    sys.exit(0)
+
+side = signal.get('side', 'NO_TRADE')
+pair = signal.get('pair', '$PAIR')
+confidence = signal.get('confidence', 0)
+entry = signal.get('entryRange', 'N/A')
+sl = signal.get('stopLoss', 'N/A')
+sl_pct = signal.get('stopLossRiskPct', '')
+tp_list = signal.get('takeProfit', [])
+tp_rr = signal.get('takeProfitRR', [])
+leverage = signal.get('leverage', 'N/A')
+structure = signal.get('marketStructure', 'N/A')
+spot_entry = signal.get('spotEntry', 'N/A')
+invalidation = signal.get('invalidation', 'N/A')
+confluences = signal.get('confluences', [])
+reasoning = signal.get('reasoning', '')
+
+side_emoji = "🟢 BUY/LONG" if side == "BUY" else "🔴 SELL/SHORT"
+chart_emoji = "📈" if side == "BUY" else "📉"
+
+msg = f"{chart_emoji} <b>NEXUSALPHA SIGNAL ALERT</b>\n"
+msg += "━━━━━━━━━━━━━━━\n"
+msg += f"<b>Pair:</b> {pair}\n"
+msg += f"<b>Signal:</b> {side_emoji}\n"
+msg += f"<b>Confidence:</b> {confidence}/100 ✅\n"
+msg += f"<b>Market:</b> {structure}\n\n"
+msg += f"<b>📍 Entry:</b> {entry}\n"
+msg += f"<b>🛑 Stop Loss:</b> {sl} ({sl_pct})\n"
+msg += f"<b>🎯 Take Profit:</b>\n"
+for i, tp in enumerate(tp_list):
+    rr = tp_rr[i] if i < len(tp_rr) else ""
+    msg += f"  TP{i+1}: {tp} {rr}\n"
+msg += f"\n<b>⚡ Leverage:</b> {leverage}\n"
+msg += f"<b>💰 Spot DCA Zone:</b> {spot_entry}\n\n"
+if confluences:
+    msg += "<b>✅ Confluences:</b>\n"
+    for c in confluences[:3]:
+        msg += f"• {c}\n"
+    msg += "\n"
+msg += f"<b>⚠️ Invalidation:</b> {invalidation}\n\n"
+msg += "━━━━━━━━━━━━━━━\n"
+msg += "<i>🤖 Auto-alert by NexusAlpha</i>\n"
+msg += "<i>nexus-alpha-zeta.vercel.app</i>"
+
+token = os.environ['TELEGRAM_BOT_TOKEN']
+chat_id = os.environ['TELEGRAM_CHAT_ID']
+url = f"https://api.telegram.org/bot{token}/sendMessage"
+payload = json.dumps({
+    "chat_id": chat_id,
+    "text": msg,
+    "parse_mode": "HTML",
+    "disable_web_page_preview": True
+}).encode()
+req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+try:
+    with urllib.request.urlopen(req) as r:
+        result = json.loads(r.read())
+        if result.get('ok'):
+            print(f"✅ Telegram sent for {pair}")
+        else:
+            print(f"❌ Telegram error: {result}")
+except Exception as e:
+    print(f"❌ Failed: {e}")
+PYEOF
+            else
+              echo "No valid signal for $PAIR (side=$SIDE, noTrade=$NO_TRADE)"
+            fi
+            
+            sleep 5
+          done

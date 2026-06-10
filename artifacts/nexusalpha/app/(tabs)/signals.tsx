@@ -605,27 +605,6 @@ export default function SignalsScreen() {
               </View>
             ) : null}
 
-            {/* Send to Telegram */}
-            {!signal.noTrade && (
-              <Pressable
-                onPress={sendToTelegram}
-                disabled={tgSending}
-                style={[
-                  styles.tgBtn,
-                  {
-                    backgroundColor: tgSent
-                      ? colors.success + "22"
-                      : "rgba(41,182,246,0.12)",
-                    borderColor: tgSent ? colors.success : "#29b6f6",
-                  },
-                ]}
-              >
-                <Text style={[styles.tgBtnText, { color: tgSent ? colors.success : "#29b6f6" }]}>
-                  {tgSending ? "⏳ Sending..." : tgSent ? "✅ Sent to Telegram!" : "📨 Send Signal to Telegram"}
-                </Text>
-              </Pressable>
-            )}
-
             {/* Leverage & Risk Calculator */}
             {!signal.noTrade && (
               <LeverageCalculator signal={signal} colors={colors} />
