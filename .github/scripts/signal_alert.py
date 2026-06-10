@@ -1,6 +1,6 @@
-import requests, os, time, json
+import requests, os, time
 
-API_BASE = "https://nexus-alpha-zeta.vercel.app"
+API_BASE = "https://nexus-alpha-j3yb.onrender.com"
 PAIRS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"]
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
@@ -76,7 +76,7 @@ for pair in PAIRS:
         )
         print(f"Status: {r.status_code}")
         if r.status_code != 200:
-            print(f"Error response: {r.text[:200]}")
+            print(f"Error: {r.text[:200]}")
             time.sleep(5)
             continue
         signal = r.json()
@@ -85,7 +85,7 @@ for pair in PAIRS:
         confidence = signal.get("confidence", 0)
         print(f"{pair}: side={side} confidence={confidence} noTrade={no_trade}")
         if not no_trade and side != "NO_TRADE" and confidence >= 58:
-            print(f"Valid signal for {pair}! Sending to Telegram...")
+            print(f"Valid signal! Sending to Telegram...")
             send_telegram(format_signal(signal))
         else:
             print(f"No valid signal for {pair}")
