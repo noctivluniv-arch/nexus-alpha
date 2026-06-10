@@ -276,6 +276,10 @@ export interface MemeCoin {
   earlyGemScore?: number;
   earlyGemLabel?: "GEM" | "POTENSIAL" | "BIASA";
   earlyGemSignals?: string[];
+  volumeSignal?: "PUMP_IMMINENT" | "ACCUMULATION" | "NORMAL" | "DUMPING";
+  volumeSignalLabel?: string;
+  vol1h?: number;
+  vol6h?: number;
 }
 
 export type ChartTimeframe = "1h" | "24h" | "7d";

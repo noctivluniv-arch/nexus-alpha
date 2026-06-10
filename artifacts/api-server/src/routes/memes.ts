@@ -576,12 +576,113 @@ function detectInfluencer(
   text: string,
 ): "TRUMP" | "ELON" | "BOTH" | "NONE" {
   const t = text.toLowerCase();
-  const trump = /trump|maga|don[ -]?jr|melania|barron/.test(t);
-  const elon = /\belon\b|musk|doge(?!coin only)|shibe?|\bx[ -]?ai\b|grok|tesla|spacex/.test(t);
+  const trump = /trump|maga|don[ -]?jr|melania|barron|maga47|trump47/.test(t);
+  // Expanded: animals Elon likes, SpaceX/Tesla refs, meme internet refs, X ecosystem
+  const elon = /\belon\b|musk|doge(?!coin only)|shibe?|\bx[ -]?ai\b|grok|tesla|spacex|mars|rocket|cyber|starship|neuralink|boring|floki|based|wojak|pepo|\bcat\b|\bdog\b|\bfrog\b|\brat\b|\bape\b|harambe|chad|npc|gigachad|cope|shill|\bdegen\b|kekius|maximus/.test(t);
   if (trump && elon) return "BOTH";
   if (trump) return "TRUMP";
   if (elon) return "ELON";
   return "NONE";
+}
+
+// Narrative virality scoring — how "meme-able" is this coin?
+function scoreNarrativeVirality(name: string, symbol: string, desc: string): {
+  score: number;
+  tags: string[];
+  summary: string;
+} {
+  const t = `${name} ${symbol} ${desc}`.toLowerCase();
+  let score = 0;
+  const tags: string[] = [];
+
+  // Animal memes (Elon loves, community loves)
+  if (/dog|doge|shib|puppy|pup|woof|bark|bone|corgi|husky|lab|poodle|cat|kitten|kitty|meow|purr|frog|pepe|toad|ape|monkey|gorilla|bear|bull|rat|mouse|bunny|rabbit|hamster|fish|shark|whale|penguin|duck|bird|parrot|eagle|wolf|fox|lion|tiger/.test(t)) {
+    score += 25; tags.push("ANIMAL_MEME");
+  }
+
+  // Internet culture references
+  if (/wojak|chad|npc|gigachad|cope|shill|degen|wen|gm|ngmi|wagmi|hodl|moon|lambo|rekt|fud|fomo|based|cringe|normie|boomer|zoomer|doomer|bloomer|coomer/.test(t)) {
+    score += 20; tags.push("INTERNET_CULTURE");
+  }
+
+  // Elon/SpaceX/Tesla ecosystem
+  if (/elon|musk|spacex|tesla|mars|rocket|starship|grok|xai|neuralink|boring|cyber|starbase/.test(t)) {
+    score += 30; tags.push("ELON_ECOSYSTEM");
+  }
+
+  // Trump/MAGA ecosystem
+  if (/trump|maga|make.*great|america.*first|maga47|trump47|patriot|freedom|liberty/.test(t)) {
+    score += 25; tags.push("TRUMP_ECOSYSTEM");
+  }
+
+  // Simple/catchy names (WIF, BONK, PEPE pattern — short, memorable)
+  if (symbol.length <= 4) { score += 10; tags.push("SHORT_TICKER"); }
+  if (name.split(' ').length <= 2 && name.length <= 10) { score += 10; tags.push("CATCHY_NAME"); }
+
+  // Pop culture / viral
+  if (/peanut|moodeng|chillguy|popcat|fartcoin|brett|andy|giga|sigma|alpha|based|chad|goat|king|god/.test(t)) {
+    score += 15; tags.push("VIRAL_POP_CULTURE");
+  }
+
+  // Negative factors
+  if (/inu$|finance|protocol|dao|defi|swap|bridge|yield|stake|earn|reward/.test(t)) {
+    score -= 15; tags.push("TOO_DEFI");
+  }
+
+  const finalScore = Math.min(100, Math.max(0, score));
+  const summary = finalScore >= 70 ? "SANGAT VIRAL — punya semua elemen meme klasik"
+    : finalScore >= 50 ? "BERPOTENSI VIRAL — ada elemen meme kuat"
+    : finalScore >= 30 ? "MODERAT — perlu katalis eksternal"
+    : "LEMAH — kurang unsur viral";
+
+  return { score: finalScore, tags, summary };
+}
+
+// Volume Acceleration Ratio — deteksi early pump sebelum terjadi
+function computeVolumeAcceleration(h1: number, h6: number, h24: number): {
+  ratio1hVs6h: number;
+  ratio1hVs24h: number;
+  signal: "PUMP_IMMINENT" | "ACCUMULATION" | "NORMAL" | "DUMPING";
+  label: string;
+} {
+  const avg6hPerHour = h6 > 0 ? h6 / 6 : 0;
+  const avg24hPerHour = h24 > 0 ? h24 / 24 : 0;
+  const ratio1hVs6h = avg6hPerHour > 0 ? h1 / avg6hPerHour : 0;
+  const ratio1hVs24h = avg24hPerHour > 0 ? h1 / avg24hPerHour : 0;
+
+  let signal: "PUMP_IMMINENT" | "ACCUMULATION" | "NORMAL" | "DUMPING";
+  let label: string;
+
+  if (ratio1hVs6h >= 10) {
+    signal = "PUMP_IMMINENT";
+    label = `Volume 1H = ${ratio1hVs6h.toFixed(1)}x rata-rata 6H — PUMP IMMINENT!`;
+  } else if (ratio1hVs6h >= 3) {
+    signal = "ACCUMULATION";
+    label = `Volume 1H = ${ratio1hVs6h.toFixed(1)}x rata-rata 6H — akumulasi dimulai`;
+  } else if (ratio1hVs6h < 0.3 && h6 > 0) {
+    signal = "DUMPING";
+    label = `Volume 1H turun drastis — kemungkinan distribusi`;
+  } else {
+    signal = "NORMAL";
+    label = `Volume normal (ratio ${ratio1hVs6h.toFixed(1)}x)`;
+  }
+
+  return { ratio1hVs6h, ratio1hVs24h, signal, label };
+}
+
+// MCap Zone Classifier — jackpot zone detection
+function classifyMcapZone(marketCap: number): {
+  zone: "JACKPOT" | "SWEET_SPOT" | "GROWTH" | "LATE" | "UNKNOWN";
+  label: string;
+  multiplierPotential: string;
+  score: number;
+} {
+  if (marketCap <= 0) return { zone: "UNKNOWN", label: "Mcap tidak tersedia", multiplierPotential: "?", score: 5 };
+  if (marketCap <= 500_000) return { zone: "JACKPOT", label: "JACKPOT ZONE ($50K-$500K)", multiplierPotential: "100x-1000x possible", score: 40 };
+  if (marketCap <= 2_000_000) return { zone: "SWEET_SPOT", label: "SWEET SPOT ($500K-$2M)", multiplierPotential: "10x-100x possible", score: 30 };
+  if (marketCap <= 10_000_000) return { zone: "GROWTH", label: "Growth Zone ($2M-$10M)", multiplierPotential: "5x-20x possible", score: 15 };
+  if (marketCap <= 50_000_000) return { zone: "LATE", label: "Late Entry ($10M-$50M)", multiplierPotential: "2x-5x possible", score: 5 };
+  return { zone: "LATE", label: "Sudah terlambat untuk jackpot (>$50M)", multiplierPotential: "<2x realistic", score: 0 };
 }
 
 const ICONIC_MEME_PATTERNS =
@@ -605,6 +706,8 @@ function evaluateQuality(args: {
   ageDays: number;
   marketCap: number;
   vol24h: number;
+  volH1: number;
+  volH6: number;
   change24h: number;
   lp: LpLockInfo;
   topHolders: TopHoldersInfo;
@@ -612,12 +715,15 @@ function evaluateQuality(args: {
   providerOk: boolean;
   influencer: "TRUMP" | "ELON" | "BOTH" | "NONE";
   iconic: boolean;
+  narrativeScore: number;
 }): QualityCheck {
   const {
     liqUsd,
     ageDays,
     marketCap,
     vol24h,
+    volH1,
+    volH6,
     change24h,
     lp,
     topHolders,
@@ -625,6 +731,7 @@ function evaluateQuality(args: {
     providerOk,
     influencer,
     iconic,
+    narrativeScore,
   } = args;
 
   // 2-TIER MODEL:
@@ -743,6 +850,21 @@ function evaluateQuality(args: {
   if (burn.burnedPercent > 20) q += 5;
   else if (burn.burnedPercent > 5) q += 3;
 
+  // MCap Zone bonus (40 pts max) — jackpot zone gets massive boost
+  const mcapZone = classifyMcapZone(marketCap);
+  q += mcapZone.score;
+
+  // Volume Acceleration bonus (30 pts max) — early pump detection
+  const volAcc = computeVolumeAcceleration(volH1, volH6, vol24h);
+  if (volAcc.signal === "PUMP_IMMINENT") q += 30;
+  else if (volAcc.signal === "ACCUMULATION") q += 20;
+  else if (volAcc.signal === "DUMPING") q -= 10;
+
+  // Narrative virality bonus (20 pts max)
+  if (narrativeScore >= 70) q += 20;
+  else if (narrativeScore >= 50) q += 15;
+  else if (narrativeScore >= 30) q += 8;
+
   let tier: "VERIFIED" | "WATCHLIST" | "REJECTED";
   if (reject.length > 0) tier = "REJECTED";
   else if (warnings.length > 0) tier = "WATCHLIST";
@@ -753,8 +875,8 @@ function evaluateQuality(args: {
   if (tier === "WATCHLIST") score = Math.max(0, score - 15 - warnings.length * 3);
 
   // Early Gem Detection: token muda dengan volume/liq ratio tinggi
-  // = kemungkinan sedang dalam fase akumulasi sebelum pump
   const volLiqRatioCalc = liqUsd > 0 ? vol24h / liqUsd : 0;
+  const volAcc2 = computeVolumeAcceleration(volH1, volH6, vol24h);
   let earlyGemLabel: "GEM" | "POTENSIAL" | null = null;
   if (tier !== "REJECTED") {
     const isYoung = ageDays >= 1 && ageDays <= 30;
@@ -762,7 +884,10 @@ function evaluateQuality(args: {
     const hasLiquidity = liqUsd >= 50_000;
     const lowConcentration = topHolders.concentrationTop10 < 70;
     const hasLock = lp.status === "BURNED" || lp.status === "LOCKED";
-    if (isYoung && hasVelocity && hasLiquidity && hasLock && lowConcentration) {
+    // PUMP_IMMINENT overrides normal gem detection
+    if (volAcc2.signal === "PUMP_IMMINENT" && tier !== "REJECTED") {
+      earlyGemLabel = "GEM";
+    } else if (isYoung && hasVelocity && hasLiquidity && hasLock && lowConcentration) {
       earlyGemLabel = ageDays <= 7 && volLiqRatioCalc >= 0.5 ? "GEM" : "POTENSIAL";
     }
   }
@@ -2279,6 +2404,26 @@ async function refreshMemes(): Promise<any[]> {
         earlyGemScore: earlyGem.score,
         earlyGemLabel: earlyGem.label,
         earlyGemSignals: earlyGem.signals,
+        // ─── VOLUME ACCELERATION ─────────────────────────────────────────
+        volumeSignal: computeVolumeAcceleration(vol1h, vol6h, vol24h).signal,
+        volumeSignalLabel: (() => {
+          const sig = computeVolumeAcceleration(vol1h, vol6h, vol24h).signal;
+          if (sig === "PUMP_IMMINENT") return "🚀 PUMP IMMINENT";
+          if (sig === "ACCUMULATION") return "📈 ACCUMULATION";
+          if (sig === "DUMPING") return "📉 DUMPING";
+          return "😐 NORMAL";
+        })(),
+        vol1h, vol6h,
+        // ─── VOLUME ACCELERATION ─────────────────────────────────────────
+        volumeSignal: computeVolumeAcceleration(vol1h, vol6h, vol24h).signal,
+        volumeSignalLabel: (() => {
+          const sig = computeVolumeAcceleration(vol1h, vol6h, vol24h).signal;
+          if (sig === "PUMP_IMMINENT") return "🚀 PUMP IMMINENT";
+          if (sig === "ACCUMULATION") return "📈 ACCUMULATION";
+          if (sig === "DUMPING") return "📉 DUMPING";
+          return "😐 NORMAL";
+        })(),
+        vol1h, vol6h,
         // vol breakdown stored for OHLCV patch-up step
         _vol1h: vol1h, _vol6h: vol6h,
         _txBuys: txBuys, _txSells: txSells, _txBuyers: txBuyers, _txSellers: txSellers,

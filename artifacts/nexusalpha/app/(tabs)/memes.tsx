@@ -3270,7 +3270,15 @@ function EarlyGemSection({ coin, colors }: { coin: MemeCoin; colors: any }) {
   const score = coin.earlyGemScore ?? 0;
   const signals = coin.earlyGemSignals ?? [];
 
-  if (!label || label === "BIASA") return null;
+  const volSignal = coin.volumeSignal;
+  const volLabel = coin.volumeSignalLabel;
+  const isPumpImminent = volSignal === "PUMP_IMMINENT";
+  const isAccumulation = volSignal === "ACCUMULATION";
+
+  if (!label || label === "BIASA") {
+    // Even if not a gem, show pump imminent warning
+    if (!isPumpImminent && !isAccumulation) return null;
+  }
 
   const isGem = label === "GEM";
   const accent = isGem ? "#F59E0B" : "#8B5CF6";
@@ -3298,6 +3306,38 @@ function EarlyGemSection({ coin, colors }: { coin: MemeCoin; colors: any }) {
           
         </View>
       </Pressable>
+
+      {/* Volume Signal Badge */}
+      {volSignal && volSignal !== "NORMAL" && (
+        <View style={{
+          marginHorizontal: 12,
+          marginBottom: 8,
+          paddingHorizontal: 10,
+          paddingVertical: 6,
+          borderRadius: 8,
+          borderWidth: 1,
+          backgroundColor: isPumpImminent ? "rgba(239,68,68,0.1)" : isAccumulation ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
+          borderColor: isPumpImminent ? "rgba(239,68,68,0.4)" : isAccumulation ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+        }}>
+          <Text style={{
+            fontSize: 11,
+            fontFamily: "Helvetica Neue",
+            fontWeight: "700",
+            color: isPumpImminent ? "#EF4444" : isAccumulation ? "#22C55E" : "#EF4444",
+            letterSpacing: 0.5,
+          }}>
+            {volLabel}
+          </Text>
+          {coin.vol1h != null && coin.vol6h != null && (
+            <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Helvetica Neue" }}>
+              · Vol 1H: ${coin.vol1h > 1000000 ? (coin.vol1h/1000000).toFixed(1)+"M" : coin.vol1h > 1000 ? (coin.vol1h/1000).toFixed(0)+"K" : coin.vol1h.toFixed(0)}
+            </Text>
+          )}
+        </View>
+      )}
 
       {/* Score bar */}
       <View style={[styles.egBarBg, { marginHorizontal: 12, marginBottom: expanded ? 0 : 10 }]}>
