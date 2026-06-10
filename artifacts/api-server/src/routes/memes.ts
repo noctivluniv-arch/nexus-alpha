@@ -2436,15 +2436,21 @@ async function refreshMemes(): Promise<any[]> {
       };
     });
 
-    // Final ranking: VERIFIED first (sorted by qualityScore), then WATCHLIST
-    // (sorted by qualityScore). Cap to 15 total. VERIFIED is never displaced
-    // by a higher-scoring WATCHLIST entry.
-    const verifiedList = list
-      .filter((m) => m.tier === "VERIFIED")
-      .sort((a, b) => b.qualityScore - a.qualityScore);
-    const watchlistList = list
-      .filter((m) => m.tier === "WATCHLIST")
-      .sort((a, b) => b.qualityScore - a.qualityScore);
+    // Final ranking: boost PUMP_IMMINENT and new listings to top
+    const boostedList = list.map((m: any) => {
+      let boostScore = m.qualityScore;
+      if (m.volumeSignal === "PUMP_IMMINENT") boostScore += 40;
+      else if (m.volumeSignal === "ACCUMULATION") boostScore += 20;
+      if (m.ageInDays <= 1) boostScore += 30;
+      else if (m.ageInDays <= 3) boostScore += 15;
+      return { ...m, _boostScore: boostScore };
+    });
+    const verifiedList = boostedList
+      .filter((m: any) => m.tier === "VERIFIED")
+      .sort((a: any, b: any) => b._boostScore - a._boostScore);
+    const watchlistList = boostedList
+      .filter((m: any) => m.tier === "WATCHLIST")
+      .sort((a: any, b: any) => b._boostScore - a._boostScore);
     const filtered = [...verifiedList, ...watchlistList].slice(0, 15);
 
     // Best-effort socials enrichment via DexScreener — populates the

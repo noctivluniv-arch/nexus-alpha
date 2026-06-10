@@ -145,14 +145,20 @@ export default function MemesScreen() {
       counts.set(c.network, (counts.get(c.network) ?? 0) + 1);
     }
     const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+    const newCount = coins.filter((c) => (c.ageInDays ?? 999) <= 1).length;
+    const pumpCount = coins.filter((c) => c.volumeSignal === "PUMP_IMMINENT").length;
     return [
       { id: "ALL" as const, label: t("memes.filterAll"), count: coins.length },
+      { id: "NEW" as const, label: "🆕 NEW <24H", count: newCount },
+      { id: "PUMP" as const, label: "🚀 PUMP SIGNAL", count: pumpCount },
       ...sorted.map(([net, count]) => ({ id: net, label: net, count })),
     ];
   }, [coins, t]);
 
   const filteredCoins = useMemo(() => {
     if (activeNetwork === "ALL") return coins;
+    if (activeNetwork === "NEW") return coins.filter((c) => (c.ageInDays ?? 999) <= 1);
+    if (activeNetwork === "PUMP") return coins.filter((c) => c.volumeSignal === "PUMP_IMMINENT" || c.volumeSignal === "ACCUMULATION");
     return coins.filter((c) => c.network === activeNetwork);
   }, [coins, activeNetwork]);
 

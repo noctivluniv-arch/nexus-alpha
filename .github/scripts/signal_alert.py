@@ -93,4 +93,83 @@ for pair in PAIRS:
         print(f"Error checking {pair}: {e}")
     time.sleep(5)
 
-print("Done!")
+print("Done checking trading signals!")
+
+# ─── CHECK MEME COINS FOR PUMP SIGNALS ───────────────────────────────────────
+print("\nChecking meme coins for pump signals...")
+try:
+    r = requests.get(
+        f"{API_BASE}/memes",
+        headers={"x-app-secret": APP_SECRET},
+        timeout=60
+    )
+    if r.status_code == 200:
+        coins = r.json()
+        if isinstance(coins, list):
+            pump_coins = [c for c in coins if (
+                c.get("volumeSignal") in ["PUMP_IMMINENT", "ACCUMULATION"] or
+                (c.get("ageInDays", 999) <= 1 and c.get("earlyGemLabel") in ["GEM", "POTENSIAL"])
+            )]
+            print(f"Found {len(pump_coins)} pump/gem candidates")
+            for coin in pump_coins[:3]:
+                name = coin.get("name", "?")
+                symbol = coin.get("symbol", "?")
+                price = coin.get("price", "?")
+                change24h = coin.get("change24h", "0")
+                vol_signal = coin.get("volumeSignalLabel", "")
+                gem_label = coin.get("earlyGemLabel", "")
+                gem_score = coin.get("earlyGemScore", 0)
+                age = coin.get("ageInDays", 0)
+                network = coin.get("network", "?")
+                liq = coin.get("liquidity", "?")
+                risk = coin.get("riskLevel", "?")
+                viral_score = coin.get("viralScore", 0)
+                dex_url = coin.get("dexUrl", "")
+
+                msg = "🚨 <b>MEME COIN ALERT</b>
+"
+                msg += "━━━━━━━━━━━━━━━
+"
+                msg += f"<b>{name} (${symbol})</b>
+"
+                msg += f"<b>Network:</b> {network}
+"
+                msg += f"<b>Price:</b> {price}
+"
+                msg += f"<b>Change 24H:</b> {change24h}%
+"
+                if vol_signal:
+                    msg += f"<b>Volume Signal:</b> {vol_signal}
+"
+                if gem_label and gem_label != "BIASA":
+                    gem_icon = "⭐ GEM" if gem_label == "GEM" else "🔍 POTENSIAL"
+                    msg += f"<b>Early Gem:</b> {gem_icon} ({gem_score}/100)
+"
+                msg += f"<b>Age:</b> {float(age):.1f} days
+"
+                msg += f"<b>Liquidity:</b> {liq}
+"
+                msg += f"<b>Risk:</b> {risk}
+"
+                msg += f"<b>Viral Score:</b> {viral_score}/100
+"
+                if dex_url:
+                    msg += f"<b>DEX:</b> {dex_url}
+"
+                msg += "
+━━━━━━━━━━━━━━━
+"
+                msg += "<i>⚠️ DYOR! Meme coins are extremely risky.</i>
+"
+                msg += "<i>🤖 Auto-alert by NexusAlpha</i>"
+
+                send_telegram(msg)
+                time.sleep(2)
+        else:
+            print("Memes response is not a list")
+    else:
+        print(f"Memes API error: {r.status_code}")
+except Exception as e:
+    print(f"Error checking memes: {e}")
+
+print("All done!")
