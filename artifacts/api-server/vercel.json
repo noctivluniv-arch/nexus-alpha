@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "installCommand": "corepack enable && corepack prepare pnpm@11.5.2 --activate && cd ../.. && pnpm install --no-frozen-lockfile",
   "builds": [
     {
       "src": "dist/index.mjs",
