@@ -8,7 +8,7 @@ const DS_BASE = "https://api.dexscreener.com";
 const GP_BASE = "https://api.gopluslabs.io/api/v1";
 const CG_BASE = "https://api.coingecko.com/api/v3";
 const GT_BASE = "https://api.geckoterminal.com/api/v2";
-const TTL_MS = 15 * 60 * 1000;
+const TTL_MS = 5 * 60 * 1000; // Reduced from 15m to 5m for early signal freshness
 
 // Blue-chip memes already at peak adoption — exclude per "find next DOGE" intent
 const BLUE_CHIP_BLACKLIST = new Set([
@@ -597,6 +597,7 @@ interface QualityCheck {
   rejectReasons: string[];
   warnings: string[];
   qualityScore: number;
+  earlyGemLabel: "GEM" | "POTENSIAL" | null;
 }
 
 function evaluateQuality(args: {
@@ -653,7 +654,8 @@ function evaluateQuality(args: {
 
   // --- HARD: liquidity / freshness / volume / mcap sanity ---
   if (liqUsd < 50_000) reject.push("LIQUIDITY_TOO_THIN");
-  if (ageDays < 3) reject.push("TOO_NEW");
+  if (ageDays < 1) reject.push("TOO_NEW"); // was <3, reduced to allow early accumulation phase
+  if (ageDays < 3 && ageDays >= 1) warnings.push("VERY_NEW");
   if (vol24h < 5_000) reject.push("NO_REAL_VOLUME");
   if (Math.abs(change24h) > 400) reject.push("EXTREME_VOLATILITY");
   if (marketCap > 0 && marketCap < liqUsd * 0.3) reject.push("MCAP_LIQ_MISMATCH");
@@ -716,11 +718,15 @@ function evaluateQuality(args: {
   else if (liqUsd > 250_000) q += 8;
   else if (liqUsd > 100_000) q += 5;
 
-  // Age / battle-tested (15 pts max) — survived early dump = legit community
-  if (ageDays > 365) q += 15;
-  else if (ageDays > 90) q += 12;
-  else if (ageDays > 30) q += 8;
-  else if (ageDays > 14) q += 4;
+  // Age sweet spot (15 pts max):
+  // 3-30 hari = zona akumulasi awal (early gem window)
+  // > 30 hari = sudah established tapi lebih aman
+  // > 365 hari = blue chip (bukan target early detection)
+  if (ageDays >= 7 && ageDays <= 30) q += 15;   // SWEET SPOT: early gem
+  else if (ageDays >= 3 && ageDays < 7) q += 12;  // Very early, high potential
+  else if (ageDays > 30 && ageDays <= 90) q += 9;
+  else if (ageDays > 90 && ageDays <= 365) q += 6;
+  else if (ageDays > 365) q += 3; // Old = safe but not early gem target
 
   // Volume / community engagement (10 pts max)
   const volLiq = liqUsd > 0 ? vol24h / liqUsd : 0;
@@ -746,12 +752,28 @@ function evaluateQuality(args: {
   let score = q;
   if (tier === "WATCHLIST") score = Math.max(0, score - 15 - warnings.length * 3);
 
+  // Early Gem Detection: token muda dengan volume/liq ratio tinggi
+  // = kemungkinan sedang dalam fase akumulasi sebelum pump
+  const volLiqRatioCalc = liqUsd > 0 ? vol24h / liqUsd : 0;
+  let earlyGemLabel: "GEM" | "POTENSIAL" | null = null;
+  if (tier !== "REJECTED") {
+    const isYoung = ageDays >= 1 && ageDays <= 30;
+    const hasVelocity = volLiqRatioCalc >= 0.3 && volLiqRatioCalc <= 15;
+    const hasLiquidity = liqUsd >= 50_000;
+    const lowConcentration = topHolders.concentrationTop10 < 70;
+    const hasLock = lp.status === "BURNED" || lp.status === "LOCKED";
+    if (isYoung && hasVelocity && hasLiquidity && hasLock && lowConcentration) {
+      earlyGemLabel = ageDays <= 7 && volLiqRatioCalc >= 0.5 ? "GEM" : "POTENSIAL";
+    }
+  }
+
   return {
     tier,
     passes: tier !== "REJECTED",
     rejectReasons: reject,
     warnings,
     qualityScore: Math.min(100, score),
+    earlyGemLabel,
   };
 }
 
