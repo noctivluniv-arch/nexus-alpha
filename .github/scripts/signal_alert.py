@@ -1,9 +1,10 @@
-import requests, os, time
+import requests, os, time, json
 
 API_BASE = "https://nexus-alpha-zeta.vercel.app"
 PAIRS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"]
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+APP_SECRET = "nexusalpha-secret-2026"
 
 def send_telegram(msg):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
@@ -64,14 +65,27 @@ def format_signal(s):
 for pair in PAIRS:
     print(f"Checking {pair}...")
     try:
-        r = requests.get(f"{API_BASE}/ai/signal?pair={pair}&lang=en", timeout=60)
+        r = requests.post(
+            f"{API_BASE}/api/ai/signal",
+            headers={
+                "Content-Type": "application/json",
+                "x-app-secret": APP_SECRET
+            },
+            json={"pair": pair, "lang": "en"},
+            timeout=90
+        )
+        print(f"Status: {r.status_code}")
+        if r.status_code != 200:
+            print(f"Error response: {r.text[:200]}")
+            time.sleep(5)
+            continue
         signal = r.json()
         side = signal.get("side", "NO_TRADE")
         no_trade = signal.get("noTrade", True)
         confidence = signal.get("confidence", 0)
         print(f"{pair}: side={side} confidence={confidence} noTrade={no_trade}")
         if not no_trade and side != "NO_TRADE" and confidence >= 58:
-            print(f"Valid signal for {pair}! Sending...")
+            print(f"Valid signal for {pair}! Sending to Telegram...")
             send_telegram(format_signal(signal))
         else:
             print(f"No valid signal for {pair}")
