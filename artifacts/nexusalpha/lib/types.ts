@@ -77,6 +77,16 @@ export interface ScalpingPlan {
   notes: string;
 }
 
+export interface SpotAccumulationZone {
+  aggressive: string;    // entry dekat harga sekarang, risiko lebih tinggi
+  normal: string;        // entry di support utama
+  conservative: string;  // entry di support kuat / oversold zone
+  idealConditions: string[];  // kondisi ideal untuk beli spot
+  longTermTarget: string;
+  dcaStrategy: string;   // saran strategi DCA
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+}
+
 export interface TradingSignal {
   pair: TradingPair;
   side: "BUY" | "SELL" | "NO_TRADE";
@@ -109,6 +119,7 @@ export interface TradingSignal {
   priceScenarios?: PriceScenarios;
   scalpingPlan?: ScalpingPlan;
   isFallback?: boolean;
+  spotAccumulation?: SpotAccumulationZone;
 }
 
 export interface NewsFeedItem {

@@ -506,6 +506,87 @@ Output the SAME JSON structure with every value translated to Indonesian (keepin
   };
 }
 
+// ─── Spot Accumulation Zone Calculator ───────────────────────────────────────
+function computeSpotAccumulation(params: {
+  price: number;
+  sup1: number; sup2: number; sup3: number;
+  res1: number; res2: number; res3: number;
+  ema200: number | null;
+  rsi1d: number | null;
+  fgi: { value: number; label: string } | null;
+  fundingRate: number | null;
+  pair: string;
+}): Record<string, any> {
+  const { price, sup1, sup2, sup3, res1, res2, res3, ema200, rsi1d, fgi, fundingRate } = params;
+
+  // Aggressive: 1-3% di bawah harga sekarang atau support terdekat
+  const aggressiveLow = Math.min(price * 0.98, sup1 * 0.995);
+  const aggressiveHigh = Math.min(price * 0.995, sup1 * 1.002);
+
+  // Normal: support utama atau EMA200
+  const normalRef = ema200 != null ? Math.min(sup1, ema200) : sup1;
+  const normalLow = normalRef * 0.99;
+  const normalHigh = normalRef * 1.01;
+
+  // Conservative: support kuat / 20-30% di bawah harga
+  const conservativeLow = Math.min(sup2, sup3) * 0.99;
+  const conservativeHigh = Math.min(sup2, sup3) * 1.01;
+
+  // Kondisi ideal untuk beli spot
+  const idealConditions: string[] = [];
+  if (rsi1d != null) {
+    if (rsi1d < 35) idealConditions.push(`RSI 1D ${rsi1d.toFixed(1)} — oversold, ideal untuk akumulasi`);
+    else if (rsi1d < 50) idealConditions.push(`RSI 1D ${rsi1d.toFixed(1)} — zona netral-bearish, DCA boleh dimulai`);
+    else idealConditions.push(`RSI 1D ${rsi1d.toFixed(1)} — tunggu pullback untuk DCA lebih baik`);
+  }
+  if (fgi != null) {
+    if (fgi.value < 25) idealConditions.push(`Fear & Greed ${fgi.value} (${fgi.label}) — Extreme Fear, historis waktu terbaik beli`);
+    else if (fgi.value < 45) idealConditions.push(`Fear & Greed ${fgi.value} (${fgi.label}) — Fear zone, bagus untuk DCA`);
+    else if (fgi.value > 75) idealConditions.push(`Fear & Greed ${fgi.value} (${fgi.label}) — Greed tinggi, hindari FOMO buy`);
+    else idealConditions.push(`Fear & Greed ${fgi.value} (${fgi.label}) — netral`);
+  }
+  if (fundingRate != null) {
+    if (fundingRate < -0.01) idealConditions.push(`Funding rate ${(fundingRate * 100).toFixed(3)}% — negatif, shorts dominan → potensi squeeze naik`);
+    else if (fundingRate > 0.05) idealConditions.push(`Funding rate ${(fundingRate * 100).toFixed(3)}% — tinggi, longs overextended → hati-hati beli`);
+    else idealConditions.push(`Funding rate ${(fundingRate * 100).toFixed(3)}% — normal`);
+  }
+  if (ema200 != null) {
+    if (price < ema200) idealConditions.push(`Harga di bawah EMA200 ($${ema200.toFixed(2)}) — akumulasi jangka panjang valid`);
+    else idealConditions.push(`Harga di atas EMA200 ($${ema200.toFixed(2)}) — trend bullish, beli di pullback ke EMA`);
+  }
+
+  // Risk level
+  let riskLevel: "LOW" | "MEDIUM" | "HIGH" = "MEDIUM";
+  const rsiScore = rsi1d != null ? (rsi1d < 35 ? 0 : rsi1d < 50 ? 1 : 2) : 1;
+  const fgiScore = fgi != null ? (fgi.value < 25 ? 0 : fgi.value < 45 ? 1 : 2) : 1;
+  const totalRisk = rsiScore + fgiScore;
+  if (totalRisk <= 1) riskLevel = "LOW";
+  else if (totalRisk <= 3) riskLevel = "MEDIUM";
+  else riskLevel = "HIGH";
+
+  // DCA Strategy
+  let dcaStrategy = "";
+  if (riskLevel === "LOW") {
+    dcaStrategy = "Kondisi oversold — alokasikan 40% di zona aggressive, 40% normal, 20% conservative";
+  } else if (riskLevel === "MEDIUM") {
+    dcaStrategy = "Kondisi netral — alokasikan 20% aggressive, 50% normal, 30% conservative. DCA bertahap";
+  } else {
+    dcaStrategy = "Kondisi overbought/fear rendah — tunggu correction. Alokasikan 10% aggressive, 30% normal, 60% conservative";
+  }
+
+  const fmt = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+
+  return {
+    aggressive: `${fmt(aggressiveLow)} - ${fmt(aggressiveHigh)}`,
+    normal: `${fmt(normalLow)} - ${fmt(normalHigh)}`,
+    conservative: `${fmt(conservativeLow)} - ${fmt(conservativeHigh)}`,
+    idealConditions,
+    longTermTarget: fmt(res3),
+    dcaStrategy,
+    riskLevel,
+  };
+}
+
 function buildFallbackSignal(params: {
   pair: string;
   livePrice: number;
@@ -620,6 +701,14 @@ function buildFallbackSignal(params: {
       ? "Disiplin teknikal: tunggu konfirmasi sebelum entry. Jaga risiko maksimal 1-2% per trade."
       : "Technical discipline: wait for confirmation before entry. Keep risk at 1-2% per trade.",
     spotEntry: `$${sup2.toFixed(2)} - $${sup1.toFixed(2)}`,
+    spotAccumulation: computeSpotAccumulation({
+      price: p, sup1, sup2, sup3, res1, res2, res3,
+      ema200: ema200 ?? null,
+      rsi1d: rsi1d ?? null,
+      fgi: null,
+      fundingRate: null,
+      pair: params.pair,
+    }),
     longTermTarget: `$${res3.toFixed(2)}`,
     keySupport: `$${sup1.toFixed(2)}`,
     keyResistance: `$${res1.toFixed(2)}`,
@@ -1199,6 +1288,18 @@ ${buildLanguageDirective("en")}`;
       );
       idPayload = englishPayload;
     }
+    // Enrich with spot accumulation zone
+    const spotAccum = computeSpotAccumulation({
+      price: livePrice,
+      sup1, sup2, sup3, res1, res2, res3,
+      ema200: ema200Val ?? null,
+      rsi1d: rsi1dVal ?? null,
+      fgi: fgiData.status === "fulfilled" ? fgiData.value : null,
+      fundingRate: derivData.status === "fulfilled" ? (derivData.value?.fundingRate ?? null) : null,
+      pair: String(pair),
+    });
+    idPayload.spotAccumulation = spotAccum;
+
     SIGNAL_CACHE.set(cacheKey, { ts: Date.now(), data: idPayload });
     return res.json(idPayload);
   } catch (err: any) {

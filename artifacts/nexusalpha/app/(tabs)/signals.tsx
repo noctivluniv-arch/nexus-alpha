@@ -537,6 +537,11 @@ export default function SignalsScreen() {
               </View>
             ) : null}
 
+            {/* Spot Accumulation Zone */}
+            {signal.spotAccumulation && (
+              <SpotAccumulationCard data={signal.spotAccumulation} colors={colors} />
+            )}
+
             {/* Leverage & Risk Calculator */}
             {!signal.noTrade && (
               <LeverageCalculator signal={signal} colors={colors} />
@@ -1173,6 +1178,93 @@ function ScalpField({
   );
 }
 
+
+
+// ─── Spot Accumulation Zone Card ─────────────────────────────────────────────
+function SpotAccumulationCard({
+  data,
+  colors,
+}: {
+  data: any;
+  colors: any;
+}) {
+  const riskColor = data.riskLevel === "LOW"
+    ? colors.success
+    : data.riskLevel === "HIGH"
+    ? colors.danger
+    : colors.primary;
+
+  const riskLabel = data.riskLevel === "LOW"
+    ? "RISIKO RENDAH — Waktu bagus beli"
+    : data.riskLevel === "HIGH"
+    ? "RISIKO TINGGI — Tunggu correction"
+    : "RISIKO SEDANG — DCA bertahap";
+
+  return (
+    <View style={[styles.spotAccumCard, { borderColor: colors.border, backgroundColor: "rgba(255,255,255,0.02)" }]}>
+      <View style={styles.spotAccumHeader}>
+        <Text style={[styles.spotAccumTitle, { color: colors.mutedForeground }]}>
+          💰 SPOT ACCUMULATION ZONE
+        </Text>
+        <View style={[styles.spotAccumRiskBadge, { backgroundColor: riskColor + "22", borderColor: riskColor + "55" }]}>
+          <Text style={[styles.spotAccumRiskText, { color: riskColor }]}>
+            {data.riskLevel}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={[styles.spotAccumRiskLabel, { color: riskColor }]}>
+        {riskLabel}
+      </Text>
+
+      {/* 3 Zona DCA */}
+      <View style={styles.spotAccumZones}>
+        <View style={[styles.spotAccumZone, { borderColor: colors.danger + "44", backgroundColor: colors.danger + "08" }]}>
+          <Text style={[styles.spotAccumZoneLabel, { color: colors.mutedForeground }]}>AGGRESSIVE</Text>
+          <Text style={[styles.spotAccumZoneValue, { color: colors.danger }]}>{data.aggressive}</Text>
+          <Text style={[styles.spotAccumZoneDesc, { color: colors.mutedForeground }]}>Entry cepat, risiko lebih tinggi</Text>
+        </View>
+        <View style={[styles.spotAccumZone, { borderColor: colors.primary + "44", backgroundColor: colors.primary + "08" }]}>
+          <Text style={[styles.spotAccumZoneLabel, { color: colors.mutedForeground }]}>NORMAL ✓</Text>
+          <Text style={[styles.spotAccumZoneValue, { color: colors.primary }]}>{data.normal}</Text>
+          <Text style={[styles.spotAccumZoneDesc, { color: colors.mutedForeground }]}>Support utama, rekomendasi</Text>
+        </View>
+        <View style={[styles.spotAccumZone, { borderColor: colors.success + "44", backgroundColor: colors.success + "08" }]}>
+          <Text style={[styles.spotAccumZoneLabel, { color: colors.mutedForeground }]}>CONSERVATIVE</Text>
+          <Text style={[styles.spotAccumZoneValue, { color: colors.success }]}>{data.conservative}</Text>
+          <Text style={[styles.spotAccumZoneDesc, { color: colors.mutedForeground }]}>Support kuat, risiko rendah</Text>
+        </View>
+      </View>
+
+      {/* DCA Strategy */}
+      <View style={[styles.spotAccumStrategy, { backgroundColor: "rgba(255,255,255,0.03)", borderColor: colors.border }]}>
+        <Text style={[styles.spotAccumStrategyLabel, { color: colors.mutedForeground }]}>STRATEGI DCA</Text>
+        <Text style={[styles.spotAccumStrategyText, { color: colors.foreground }]}>{data.dcaStrategy}</Text>
+      </View>
+
+      {/* Ideal Conditions */}
+      {data.idealConditions?.length > 0 && (
+        <View style={{ marginTop: 10, gap: 5 }}>
+          <Text style={[styles.spotAccumStrategyLabel, { color: colors.mutedForeground, marginBottom: 4 }]}>
+            KONDISI MARKET
+          </Text>
+          {data.idealConditions.map((cond: string, i: number) => (
+            <View key={i} style={styles.spotAccumCondRow}>
+              <View style={[styles.checkDot, { backgroundColor: colors.primary }]} />
+              <Text style={[styles.spotAccumCondText, { color: colors.foreground }]}>{cond}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Long Term Target */}
+      <View style={[styles.spotAccumTarget, { borderColor: colors.success + "44", backgroundColor: colors.success + "08" }]}>
+        <Text style={[styles.spotAccumStrategyLabel, { color: colors.mutedForeground }]}>TARGET JANGKA PANJANG</Text>
+        <Text style={[styles.spotAccumZoneValue, { color: colors.success }]}>{data.longTermTarget}</Text>
+      </View>
+    </View>
+  );
+}
 
 // ─── Leverage & Risk Calculator ──────────────────────────────────────────────
 function LeverageCalculator({
@@ -1938,6 +2030,101 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Helvetica Neue",
     lineHeight: 16,
+  },
+  spotAccumCard: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 14,
+    marginBottom: 16,
+  },
+  spotAccumHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  spotAccumTitle: {
+    fontSize: 11,
+    fontFamily: "Helvetica Neue",
+    letterSpacing: 1.2,
+  },
+  spotAccumRiskBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  spotAccumRiskText: {
+    fontSize: 10,
+    fontFamily: "Helvetica Neue",
+    fontWeight: "600",
+    letterSpacing: 0.8,
+  },
+  spotAccumRiskLabel: {
+    fontSize: 11,
+    fontFamily: "Helvetica Neue",
+    marginBottom: 12,
+  },
+  spotAccumZones: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  spotAccumZone: {
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  spotAccumZoneLabel: {
+    fontSize: 9,
+    fontFamily: "Helvetica Neue",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: 3,
+  },
+  spotAccumZoneValue: {
+    fontSize: 14,
+    fontFamily: "Helvetica Neue",
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  spotAccumZoneDesc: {
+    fontSize: 10,
+    fontFamily: "Helvetica Neue",
+  },
+  spotAccumStrategy: {
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 10,
+  },
+  spotAccumStrategyLabel: {
+    fontSize: 9,
+    fontFamily: "Helvetica Neue",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: 4,
+  },
+  spotAccumStrategyText: {
+    fontSize: 11,
+    fontFamily: "Helvetica Neue",
+    lineHeight: 16,
+  },
+  spotAccumCondRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  spotAccumCondText: {
+    flex: 1,
+    fontSize: 11,
+    fontFamily: "Helvetica Neue",
+    lineHeight: 16,
+  },
+  spotAccumTarget: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   tgBtn: {
     borderWidth: 1,
