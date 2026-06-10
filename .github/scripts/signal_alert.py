@@ -1,0 +1,82 @@
+import requests, os, time
+
+API_BASE = "https://nexus-alpha-zeta.vercel.app"
+PAIRS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"]
+TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+
+def send_telegram(msg):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    try:
+        r = requests.post(url, json={
+            "chat_id": CHAT_ID,
+            "text": msg,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True
+        }, timeout=15)
+        result = r.json()
+        print(f"Telegram: {result.get('ok')}")
+    except Exception as e:
+        print(f"Telegram failed: {e}")
+
+def format_signal(s):
+    side = s.get("side", "NO_TRADE")
+    pair = s.get("pair", "N/A")
+    confidence = s.get("confidence", 0)
+    entry = s.get("entryRange", "N/A")
+    sl = s.get("stopLoss", "N/A")
+    sl_pct = s.get("stopLossRiskPct", "")
+    tp_list = s.get("takeProfit", [])
+    tp_rr = s.get("takeProfitRR", [])
+    leverage = s.get("leverage", "N/A")
+    structure = s.get("marketStructure", "N/A")
+    spot_entry = s.get("spotEntry", "N/A")
+    invalidation = s.get("invalidation", "N/A")
+    confluences = s.get("confluences", [])
+
+    side_label = "🟢 BUY/LONG" if side == "BUY" else "🔴 SELL/SHORT"
+    emoji = "📈" if side == "BUY" else "📉"
+
+    msg = f"{emoji} <b>NEXUSALPHA SIGNAL ALERT</b>\n"
+    msg += "━━━━━━━━━━━━━━━\n"
+    msg += f"<b>Pair:</b> {pair}\n"
+    msg += f"<b>Signal:</b> {side_label}\n"
+    msg += f"<b>Confidence:</b> {confidence}/100\n"
+    msg += f"<b>Market:</b> {structure}\n\n"
+    msg += f"<b>📍 Entry:</b> {entry}\n"
+    msg += f"<b>🛑 Stop Loss:</b> {sl} ({sl_pct})\n"
+    msg += "<b>🎯 Take Profit:</b>\n"
+    for i, tp in enumerate(tp_list):
+        rr = tp_rr[i] if i < len(tp_rr) else ""
+        msg += f"  TP{i+1}: {tp} {rr}\n"
+    msg += f"\n<b>⚡ Leverage:</b> {leverage}\n"
+    msg += f"<b>💰 Spot DCA Zone:</b> {spot_entry}\n\n"
+    if confluences:
+        msg += "<b>✅ Confluences:</b>\n"
+        for c in confluences[:3]:
+            msg += f"• {c}\n"
+        msg += "\n"
+    msg += f"<b>⚠️ Invalidation:</b> {invalidation}\n\n"
+    msg += "━━━━━━━━━━━━━━━\n"
+    msg += "<i>🤖 Auto-alert by NexusAlpha</i>"
+    return msg
+
+for pair in PAIRS:
+    print(f"Checking {pair}...")
+    try:
+        r = requests.get(f"{API_BASE}/ai/signal?pair={pair}&lang=en", timeout=60)
+        signal = r.json()
+        side = signal.get("side", "NO_TRADE")
+        no_trade = signal.get("noTrade", True)
+        confidence = signal.get("confidence", 0)
+        print(f"{pair}: side={side} confidence={confidence} noTrade={no_trade}")
+        if not no_trade and side != "NO_TRADE" and confidence >= 58:
+            print(f"Valid signal for {pair}! Sending...")
+            send_telegram(format_signal(signal))
+        else:
+            print(f"No valid signal for {pair}")
+    except Exception as e:
+        print(f"Error checking {pair}: {e}")
+    time.sleep(5)
+
+print("Done!")
