@@ -466,25 +466,25 @@ export default function SignalsScreen() {
                 />
                 <Stat
                   label={t("signals.stopLoss")}
-                  value={`$${signal.stopLoss}${signal.stopLossRiskPct ? ` (${signal.stopLossRiskPct})` : ""}`}
+                  value={`${signal.stopLoss}${signal.stopLossRiskPct ? ` (${signal.stopLossRiskPct})` : ""}`}
                   colors={colors}
                   valueColor={colors.danger}
                 />
                 <Stat
                   label={t("signals.longTarget")}
-                  value={`$${signal.longTermTarget}`}
+                  value={`${signal.longTermTarget}`}
                   colors={colors}
                   valueColor={colors.success}
                 />
                 <Stat
                   label={t("signals.support")}
-                  value={`$${signal.keySupport}`}
+                  value={`${signal.keySupport}`}
                   colors={colors}
                   valueColor={colors.cyan}
                 />
                 <Stat
                   label={t("signals.resistance")}
-                  value={`$${signal.keyResistance}`}
+                  value={`${signal.keyResistance}`}
                   colors={colors}
                   valueColor={colors.fuchsia}
                 />

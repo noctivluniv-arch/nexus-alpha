@@ -561,6 +561,8 @@ function buildFallbackSignal(params: {
     stopLoss: `$${sl.toFixed(2)}`,
     stopLossRiskPct: `${riskPct}%`,
     confidence: Math.min(score, 88),
+    // Enforce NO_TRADE rule: if score < 65, override side
+    ...(score < 65 ? { side: "NO_TRADE", noTrade: true, noTradeReason: id ? "Skor kepercayaan di bawah ambang minimum 65. Tidak ada trade." : "Confidence score below minimum threshold of 65. No trade." } : {}),
     timestamp: Date.now(),
     reasoning: id
       ? `Sinyal teknikal otomatis. EMA200: harga ${aboveEma200 ? "di atas" : "di bawah"} EMA200. RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"}. MACD 4H: ${macdBull ? "bullish" : "bearish"}. Tren 4H: ${trend4h}.`
