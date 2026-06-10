@@ -1159,6 +1159,7 @@ function SpotAccumulationCard({
   data: any;
   colors: any;
 }) {
+  const t = useT();
   const riskColor = data.riskLevel === "LOW"
     ? colors.success
     : data.riskLevel === "HIGH"
@@ -1166,16 +1167,16 @@ function SpotAccumulationCard({
     : colors.primary;
 
   const riskLabel = data.riskLevel === "LOW"
-    ? "RISIKO RENDAH — Waktu bagus beli"
+    ? t("signals.spot.riskLow")
     : data.riskLevel === "HIGH"
-    ? "RISIKO TINGGI — Tunggu correction"
-    : "RISIKO SEDANG — DCA bertahap";
+    ? t("signals.spot.riskHigh")
+    : t("signals.spot.riskMedium");
 
   return (
     <View style={[styles.spotAccumCard, { borderColor: colors.border, backgroundColor: "rgba(255,255,255,0.02)" }]}>
       <View style={styles.spotAccumHeader}>
         <Text style={[styles.spotAccumTitle, { color: colors.mutedForeground }]}>
-          💰 SPOT ACCUMULATION ZONE
+          {t("signals.spot.title")}
         </Text>
         <View style={[styles.spotAccumRiskBadge, { backgroundColor: riskColor + "22", borderColor: riskColor + "55" }]}>
           <Text style={[styles.spotAccumRiskText, { color: riskColor }]}>
@@ -1191,25 +1192,25 @@ function SpotAccumulationCard({
       {/* 3 Zona DCA */}
       <View style={styles.spotAccumZones}>
         <View style={[styles.spotAccumZone, { borderColor: colors.danger + "44", backgroundColor: colors.danger + "08" }]}>
-          <Text style={[styles.spotAccumZoneLabel, { color: colors.mutedForeground }]}>AGGRESSIVE</Text>
+          <Text style={[styles.spotAccumZoneLabel, { color: colors.mutedForeground }]}>{t("signals.spot.aggressive")}</Text>
           <Text style={[styles.spotAccumZoneValue, { color: colors.danger }]}>{data.aggressive}</Text>
-          <Text style={[styles.spotAccumZoneDesc, { color: colors.mutedForeground }]}>Entry cepat, risiko lebih tinggi</Text>
+          <Text style={[styles.spotAccumZoneDesc, { color: colors.mutedForeground }]}>{t("signals.spot.aggressiveDesc")}</Text>
         </View>
         <View style={[styles.spotAccumZone, { borderColor: colors.primary + "44", backgroundColor: colors.primary + "08" }]}>
-          <Text style={[styles.spotAccumZoneLabel, { color: colors.mutedForeground }]}>NORMAL ✓</Text>
+          <Text style={[styles.spotAccumZoneLabel, { color: colors.mutedForeground }]}>{t("signals.spot.normal")}</Text>
           <Text style={[styles.spotAccumZoneValue, { color: colors.primary }]}>{data.normal}</Text>
-          <Text style={[styles.spotAccumZoneDesc, { color: colors.mutedForeground }]}>Support utama, rekomendasi</Text>
+          <Text style={[styles.spotAccumZoneDesc, { color: colors.mutedForeground }]}>{t("signals.spot.normalDesc")}</Text>
         </View>
         <View style={[styles.spotAccumZone, { borderColor: colors.success + "44", backgroundColor: colors.success + "08" }]}>
-          <Text style={[styles.spotAccumZoneLabel, { color: colors.mutedForeground }]}>CONSERVATIVE</Text>
+          <Text style={[styles.spotAccumZoneLabel, { color: colors.mutedForeground }]}>{t("signals.spot.conservative")}</Text>
           <Text style={[styles.spotAccumZoneValue, { color: colors.success }]}>{data.conservative}</Text>
-          <Text style={[styles.spotAccumZoneDesc, { color: colors.mutedForeground }]}>Support kuat, risiko rendah</Text>
+          <Text style={[styles.spotAccumZoneDesc, { color: colors.mutedForeground }]}>{t("signals.spot.conservativeDesc")}</Text>
         </View>
       </View>
 
       {/* DCA Strategy */}
       <View style={[styles.spotAccumStrategy, { backgroundColor: "rgba(255,255,255,0.03)", borderColor: colors.border }]}>
-        <Text style={[styles.spotAccumStrategyLabel, { color: colors.mutedForeground }]}>STRATEGI DCA</Text>
+        <Text style={[styles.spotAccumStrategyLabel, { color: colors.mutedForeground }]}>{t("signals.spot.dcaStrategy")}</Text>
         <Text style={[styles.spotAccumStrategyText, { color: colors.foreground }]}>{data.dcaStrategy}</Text>
       </View>
 
@@ -1217,7 +1218,7 @@ function SpotAccumulationCard({
       {data.idealConditions?.length > 0 && (
         <View style={{ marginTop: 10, gap: 5 }}>
           <Text style={[styles.spotAccumStrategyLabel, { color: colors.mutedForeground, marginBottom: 4 }]}>
-            KONDISI MARKET
+            {t("signals.spot.marketConditions")}
           </Text>
           {data.idealConditions.map((cond: string, i: number) => (
             <View key={i} style={styles.spotAccumCondRow}>
@@ -1230,7 +1231,7 @@ function SpotAccumulationCard({
 
       {/* Long Term Target */}
       <View style={[styles.spotAccumTarget, { borderColor: colors.success + "44", backgroundColor: colors.success + "08" }]}>
-        <Text style={[styles.spotAccumStrategyLabel, { color: colors.mutedForeground }]}>TARGET JANGKA PANJANG</Text>
+        <Text style={[styles.spotAccumStrategyLabel, { color: colors.mutedForeground }]}>{t("signals.spot.longTermTarget")}</Text>
         <Text style={[styles.spotAccumZoneValue, { color: colors.success }]}>{data.longTermTarget}</Text>
       </View>
     </View>
@@ -1293,13 +1294,13 @@ function LeverageCalculator({
     >
       {/* Header */}
       <Text style={[styles.leverageTitle, { color: colors.mutedForeground }]}>
-        LEVERAGE & RISK CALCULATOR
+        {t("signals.leverage.title")}
       </Text>
 
       {/* Capital Input */}
       <View style={styles.leverageInputRow}>
         <Text style={[styles.leverageLabel, { color: colors.mutedForeground }]}>
-          MODAL (USDT)
+          {t("signals.leverage.capital")}
         </Text>
         <TextInput
           style={[
@@ -1316,7 +1317,7 @@ function LeverageCalculator({
 
       {/* Leverage Selector */}
       <Text style={[styles.leverageLabel, { color: colors.mutedForeground, marginBottom: 8 }]}>
-        PILIH LEVERAGE
+        {t("signals.leverage.selectLeverage")}
       </Text>
       <View style={styles.leverageBtnRow}>
         {LEVERAGE_OPTIONS.map((lv) => (
@@ -1346,7 +1347,7 @@ function LeverageCalculator({
       {/* Summary Grid */}
       <View style={styles.leverageGrid}>
         <View style={[styles.leverageStatBox, { borderColor: colors.border }]}>
-          <Text style={[styles.leverageStatLabel, { color: colors.mutedForeground }]}>POSISI SIZE</Text>
+          <Text style={[styles.leverageStatLabel, { color: colors.mutedForeground }]}>{t("signals.leverage.positionSize")}</Text>
           <Text style={[styles.leverageStatVal, { color: colors.foreground }]}>
             ${positionSize.toFixed(2)}
           </Text>
@@ -1358,13 +1359,13 @@ function LeverageCalculator({
           </Text>
         </View>
         <View style={[styles.leverageStatBox, { borderColor: colors.danger + "99" }]}>
-          <Text style={[styles.leverageStatLabel, { color: colors.mutedForeground }]}>LIQUIDASI</Text>
+          <Text style={[styles.leverageStatLabel, { color: colors.mutedForeground }]}>{t("signals.leverage.liquidation")}</Text>
           <Text style={[styles.leverageStatVal, { color: colors.danger }]}>
             ${liqPrice.toFixed(2)}
           </Text>
         </View>
         <View style={[styles.leverageStatBox, { borderColor: colors.danger + "99" }]}>
-          <Text style={[styles.leverageStatLabel, { color: colors.mutedForeground }]}>LOSS @ SL</Text>
+          <Text style={[styles.leverageStatLabel, { color: colors.mutedForeground }]}>{t("signals.leverage.lossAtSL")}</Text>
           <Text style={[styles.leverageStatVal, { color: colors.danger }]}>
             ${Math.abs(slPnl).toFixed(2)} ({Math.abs(slPct).toFixed(1)}%)
           </Text>
@@ -1375,7 +1376,7 @@ function LeverageCalculator({
       {tpPrices.length > 0 && (
         <View style={{ marginTop: 12, gap: 6 }}>
           <Text style={[styles.leverageLabel, { color: colors.mutedForeground, marginBottom: 4 }]}>
-            ESTIMASI PROFIT PER TP
+            {t("signals.leverage.profitPerTP")}
           </Text>
           {tpPrices.map((tp, i) => {
             const pnl = calcPnl(tp);

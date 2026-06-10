@@ -11,7 +11,7 @@ import React, {
 export type Lang = "id" | "en";
 
 const STORAGE_KEY = "nexusalpha.lang";
-const DEFAULT_LANG: Lang = "id";
+const DEFAULT_LANG: Lang = "en";
 
 type Dict = Record<string, string>;
 
@@ -116,6 +116,32 @@ const ID: Dict = {
   "signals.scenarios.timeframe": "Estimasi Waktu",
   "signals.scenarios.trigger": "Pemicu",
   "signals.scenarios.baseCase": "SKENARIO PALING MUNGKIN",
+
+  // Leverage Calculator
+  "signals.leverage.title": "LEVERAGE & RISK CALCULATOR",
+  "signals.leverage.capital": "MODAL (USDT)",
+  "signals.leverage.selectLeverage": "PILIH LEVERAGE",
+  "signals.leverage.positionSize": "POSISI SIZE",
+  "signals.leverage.qty": "QTY",
+  "signals.leverage.liquidation": "LIQUIDASI",
+  "signals.leverage.lossAtSL": "LOSS @ SL",
+  "signals.leverage.profitPerTP": "ESTIMASI PROFIT PER TP",
+  "signals.leverage.warning": "⚠ Leverage {lv}x sangat berisiko tinggi. Liquidasi hanya {pct}% pergerakan harga. Gunakan hanya jika berpengalaman.",
+
+  // Spot Accumulation
+  "signals.spot.title": "💰 SPOT ACCUMULATION ZONE",
+  "signals.spot.riskLow": "RISIKO RENDAH — Waktu bagus beli",
+  "signals.spot.riskMedium": "RISIKO SEDANG — DCA bertahap",
+  "signals.spot.riskHigh": "RISIKO TINGGI — Tunggu correction",
+  "signals.spot.aggressive": "AGGRESSIVE",
+  "signals.spot.aggressiveDesc": "Entry cepat, risiko lebih tinggi",
+  "signals.spot.normal": "NORMAL ✓",
+  "signals.spot.normalDesc": "Support utama, rekomendasi",
+  "signals.spot.conservative": "CONSERVATIVE",
+  "signals.spot.conservativeDesc": "Support kuat, risiko rendah",
+  "signals.spot.dcaStrategy": "STRATEGI DCA",
+  "signals.spot.marketConditions": "KONDISI MARKET",
+  "signals.spot.longTermTarget": "TARGET JANGKA PANJANG",
 
   // Nexus
   "nexus.banner.title": "REAL-TIME LIQUIDATIONS — OKX SWAPS",
@@ -360,6 +386,32 @@ const EN: Dict = {
   "signals.scenarios.timeframe": "Estimated Time",
   "signals.scenarios.trigger": "Trigger",
   "signals.scenarios.baseCase": "MOST LIKELY SCENARIO",
+
+  // Leverage Calculator
+  "signals.leverage.title": "LEVERAGE & RISK CALCULATOR",
+  "signals.leverage.capital": "CAPITAL (USDT)",
+  "signals.leverage.selectLeverage": "SELECT LEVERAGE",
+  "signals.leverage.positionSize": "POSITION SIZE",
+  "signals.leverage.qty": "QTY",
+  "signals.leverage.liquidation": "LIQUIDATION",
+  "signals.leverage.lossAtSL": "LOSS @ SL",
+  "signals.leverage.profitPerTP": "ESTIMATED PROFIT PER TP",
+  "signals.leverage.warning": "⚠ {lv}x leverage is very high risk. Liquidation occurs at only {pct}% price movement. Use only if experienced.",
+
+  // Spot Accumulation
+  "signals.spot.title": "💰 SPOT ACCUMULATION ZONE",
+  "signals.spot.riskLow": "LOW RISK — Good time to buy",
+  "signals.spot.riskMedium": "MEDIUM RISK — DCA gradually",
+  "signals.spot.riskHigh": "HIGH RISK — Wait for correction",
+  "signals.spot.aggressive": "AGGRESSIVE",
+  "signals.spot.aggressiveDesc": "Fast entry, higher risk",
+  "signals.spot.normal": "NORMAL ✓",
+  "signals.spot.normalDesc": "Main support, recommended",
+  "signals.spot.conservative": "CONSERVATIVE",
+  "signals.spot.conservativeDesc": "Strong support, lower risk",
+  "signals.spot.dcaStrategy": "DCA STRATEGY",
+  "signals.spot.marketConditions": "MARKET CONDITIONS",
+  "signals.spot.longTermTarget": "LONG TERM TARGET",
 
   // Nexus
   "nexus.banner.title": "REAL-TIME LIQUIDATIONS — OKX SWAPS",
