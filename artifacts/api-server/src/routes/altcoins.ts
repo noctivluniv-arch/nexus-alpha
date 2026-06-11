@@ -66,20 +66,32 @@ function scoreAltcoin(coin: any, meta: any): {
   let marketPosition = 0;
   let safety = 0;
 
-  // Fundamental (30 pts)
-  if (coin.developer_score > 70) fundamental += 10;
-  else if (coin.developer_score > 40) fundamental += 6;
-  else if (coin.developer_score > 0) fundamental += 3;
+  const marketData = coin.market_data ?? {};
+  const mcap = marketData.market_cap?.usd ?? 0;
+  const vol24h = marketData.total_volume?.usd ?? 0;
+  const rank = coin.market_cap_rank ?? 999;
 
-  if (coin.community_score > 70) fundamental += 8;
-  else if (coin.community_score > 40) fundamental += 5;
-  else if (coin.community_score > 0) fundamental += 2;
+  // Fundamental (30 pts) — based on available data
+  // Github activity as proxy for developer score
+  const githubStars = coin.developer_data?.stars ?? 0;
+  const githubForks = coin.developer_data?.forks ?? 0;
+  const commits4w = coin.developer_data?.commit_count_4_weeks ?? 0;
+  if (githubStars > 5000 || commits4w > 50) fundamental += 10;
+  else if (githubStars > 1000 || commits4w > 20) fundamental += 7;
+  else if (githubStars > 100 || commits4w > 5) fundamental += 4;
+  else fundamental += 2; // still has some value if known project
 
-  if (coin.liquidity_score > 70) fundamental += 7;
-  else if (coin.liquidity_score > 40) fundamental += 4;
-  else if (coin.liquidity_score > 0) fundamental += 2;
+  // Volume/MCap ratio as liquidity proxy
+  const volMcRatio = mcap > 0 ? vol24h / mcap : 0;
+  if (volMcRatio > 0.05 && volMcRatio < 0.5) fundamental += 10;
+  else if (volMcRatio > 0.01) fundamental += 7;
+  else if (volMcRatio > 0) fundamental += 3;
 
-  if (coin.public_interest_score > 0) fundamental += 5;
+  // Links as fundamental proxy (has website + twitter + github = legit project)
+  const hasWebsite = (coin.links?.homepage?.[0] ?? "").length > 0;
+  const hasTwitter = (coin.links?.twitter_screen_name ?? "").length > 0;
+  const hasGithub = (coin.links?.repos_url?.github?.[0] ?? "").length > 0;
+  fundamental += (hasWebsite ? 4 : 0) + (hasTwitter ? 3 : 0) + (hasGithub ? 3 : 0);
 
   // Technical (25 pts)
   const change24h = coin.market_data?.price_change_percentage_24h ?? 0;
@@ -114,10 +126,11 @@ function scoreAltcoin(coin: any, meta: any): {
   else if (rank <= 200) marketPosition += 6;
   else if (rank <= 500) marketPosition += 3;
 
-  // Safety (10 pts)
-  if (coin.coingecko_score > 70) safety += 10;
-  else if (coin.coingecko_score > 50) safety += 7;
-  else if (coin.coingecko_score > 30) safety += 4;
+  // Safety (10 pts) — based on rank and age
+  if (rank <= 50) safety += 10;
+  else if (rank <= 100) safety += 8;
+  else if (rank <= 200) safety += 6;
+  else if (rank <= 500) safety += 4;
   else safety += 2;
 
   const total = Math.min(100, fundamental + technical + narrative + marketPosition + safety);

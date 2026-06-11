@@ -82,7 +82,7 @@ export default function AltcoinsScreen() {
     else setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${api.baseUrl}/altcoins`, {
+      const res = await fetch(`${api.baseUrl}/api/altcoins`, {
         headers: { "x-app-secret": "nexusalpha-secret-2026" },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
