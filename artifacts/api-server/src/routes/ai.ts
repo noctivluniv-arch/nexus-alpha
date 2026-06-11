@@ -1408,7 +1408,6 @@ ${buildLanguageDirective("en")}`;
 
     SIGNAL_CACHE.set(cacheKey, { ts: Date.now(), data: idPayload });
     return res.json(idPayload);
-  } // end if(false) — Gemini disabled
   } catch (err: any) {
     req.log.error({ err: err?.message }, "AI signal failed");
     const isQuotaErr =
