@@ -116,11 +116,11 @@ export interface RuleBasedSignalOutput {
 }
 
 function fmt(n: number): string {
-  return \`$\${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}\`;
+  return `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 }
 
 function fmtPct(n: number): string {
-  return \`\${n.toFixed(2)}%\`;
+  return `${n.toFixed(2)}%`;
 }
 
 // ─── SWING ENGINE ─────────────────────────────────────────────────────────────
@@ -142,16 +142,16 @@ function scoreSwing(inp: RuleBasedSignalInput): {
   if (inp.ema20 && inp.ema50 && inp.ema200) {
     if (inp.price > inp.ema20 && inp.ema20 > inp.ema50 && inp.ema50 > inp.ema200) {
       score.trend += 12; bullCount++;
-      confluences.push(\`EMA stack bullish: harga > EMA20 > EMA50 > EMA200\`);
+      confluences.push(`EMA stack bullish: harga > EMA20 > EMA50 > EMA200`);
     } else if (inp.price < inp.ema20 && inp.ema20 < inp.ema50 && inp.ema50 < inp.ema200) {
       score.trend += 12; bearCount++;
-      confluences.push(\`EMA stack bearish: harga < EMA20 < EMA50 < EMA200\`);
+      confluences.push(`EMA stack bearish: harga < EMA20 < EMA50 < EMA200`);
     } else if (inp.price > inp.ema200) {
       score.trend += 6; bullCount++;
-      confluences.push(\`Harga di atas EMA200 — bias bullish jangka panjang\`);
+      confluences.push(`Harga di atas EMA200 — bias bullish jangka panjang`);
     } else {
       score.trend += 4; bearCount++;
-      confluences.push(\`Harga di bawah EMA200 — bias bearish jangka panjang\`);
+      confluences.push(`Harga di bawah EMA200 — bias bearish jangka panjang`);
     }
   }
 
@@ -159,10 +159,10 @@ function scoreSwing(inp: RuleBasedSignalInput): {
   if (inp.ichimoku) {
     if (inp.ichimoku.priceVsCloud === "ABOVE" && inp.ichimoku.trend === "BULLISH") {
       score.trend += 5; bullCount++;
-      confluences.push(\`Ichimoku: harga di atas cloud, trend BULLISH\`);
+      confluences.push(`Ichimoku: harga di atas cloud, trend BULLISH`);
     } else if (inp.ichimoku.priceVsCloud === "BELOW" && inp.ichimoku.trend === "BEARISH") {
       score.trend += 5; bearCount++;
-      confluences.push(\`Ichimoku: harga di bawah cloud, trend BEARISH\`);
+      confluences.push(`Ichimoku: harga di bawah cloud, trend BEARISH`);
     } else {
       score.trend += 2;
     }
@@ -179,16 +179,16 @@ function scoreSwing(inp: RuleBasedSignalInput): {
   if (inp.rsi1d !== null) {
     if (inp.rsi1d > 50 && inp.rsi1d < 70) {
       score.confluence += 5; bullCount++;
-      confluences.push(\`RSI 1D \${inp.rsi1d.toFixed(1)} — momentum bullish zona optimal\`);
+      confluences.push(`RSI 1D ${inp.rsi1d.toFixed(1)} — momentum bullish zona optimal`);
     } else if (inp.rsi1d < 50 && inp.rsi1d > 30) {
       score.confluence += 5; bearCount++;
-      confluences.push(\`RSI 1D \${inp.rsi1d.toFixed(1)} — momentum bearish\`);
+      confluences.push(`RSI 1D ${inp.rsi1d.toFixed(1)} — momentum bearish`);
     } else if (inp.rsi1d <= 30) {
       score.confluence += 3; bullCount++;
-      confluences.push(\`RSI 1D \${inp.rsi1d.toFixed(1)} — oversold, potensi reversal bullish\`);
+      confluences.push(`RSI 1D ${inp.rsi1d.toFixed(1)} — oversold, potensi reversal bullish`);
     } else if (inp.rsi1d >= 70) {
       score.confluence += 2; bearCount++;
-      confluences.push(\`RSI 1D \${inp.rsi1d.toFixed(1)} — overbought, hati-hati\`);
+      confluences.push(`RSI 1D ${inp.rsi1d.toFixed(1)} — overbought, hati-hati`);
     }
   }
 
@@ -196,10 +196,10 @@ function scoreSwing(inp: RuleBasedSignalInput): {
   if (inp.macd4h) {
     if (inp.macd4h.histogram > 0 && inp.macd4h.macd > inp.macd4h.signal) {
       score.confluence += 5; bullCount++;
-      confluences.push(\`MACD 4H bullish cross, histogram positif \${inp.macd4h.histogram.toFixed(4)}\`);
+      confluences.push(`MACD 4H bullish cross, histogram positif ${inp.macd4h.histogram.toFixed(4)}`);
     } else if (inp.macd4h.histogram < 0 && inp.macd4h.macd < inp.macd4h.signal) {
       score.confluence += 5; bearCount++;
-      confluences.push(\`MACD 4H bearish cross, histogram negatif \${inp.macd4h.histogram.toFixed(4)}\`);
+      confluences.push(`MACD 4H bearish cross, histogram negatif ${inp.macd4h.histogram.toFixed(4)}`);
     } else {
       score.confluence += 2;
     }
@@ -209,10 +209,10 @@ function scoreSwing(inp: RuleBasedSignalInput): {
   if (inp.stoch4h) {
     if (inp.stoch4h.k < 20 && inp.stoch4h.k > inp.stoch4h.d) {
       score.confluence += 4; bullCount++;
-      confluences.push(\`Stoch 4H oversold + bullish cross: K=\${inp.stoch4h.k.toFixed(1)}\`);
+      confluences.push(`Stoch 4H oversold + bullish cross: K=${inp.stoch4h.k.toFixed(1)}`);
     } else if (inp.stoch4h.k > 80 && inp.stoch4h.k < inp.stoch4h.d) {
       score.confluence += 4; bearCount++;
-      confluences.push(\`Stoch 4H overbought + bearish cross: K=\${inp.stoch4h.k.toFixed(1)}\`);
+      confluences.push(`Stoch 4H overbought + bearish cross: K=${inp.stoch4h.k.toFixed(1)}`);
     } else {
       score.confluence += 1;
     }
@@ -222,10 +222,10 @@ function scoreSwing(inp: RuleBasedSignalInput): {
   if (inp.waveTrend) {
     if (inp.waveTrend.cross === "BULLISH" && inp.waveTrend.zone === "OVERSOLD") {
       score.confluence += 4; bullCount++;
-      confluences.push(\`WaveTrend bullish cross dari zona oversold\`);
+      confluences.push(`WaveTrend bullish cross dari zona oversold`);
     } else if (inp.waveTrend.cross === "BEARISH" && inp.waveTrend.zone === "OVERBOUGHT") {
       score.confluence += 4; bearCount++;
-      confluences.push(\`WaveTrend bearish cross dari zona overbought\`);
+      confluences.push(`WaveTrend bearish cross dari zona overbought`);
     } else if (inp.waveTrend.cross === "BULLISH") {
       score.confluence += 2; bullCount++;
     } else if (inp.waveTrend.cross === "BEARISH") {
@@ -236,10 +236,10 @@ function scoreSwing(inp: RuleBasedSignalInput): {
   // RSI Divergence
   if (inp.rsiDivergence === "BULLISH_DIVERGENCE") {
     score.confluence += 2; bullCount++;
-    confluences.push(\`RSI divergence bullish terdeteksi\`);
+    confluences.push(`RSI divergence bullish terdeteksi`);
   } else if (inp.rsiDivergence === "BEARISH_DIVERGENCE") {
     score.confluence += 2; bearCount++;
-    confluences.push(\`RSI divergence bearish terdeteksi\`);
+    confluences.push(`RSI divergence bearish terdeteksi`);
   }
 
   score.confluence = Math.min(20, score.confluence);
@@ -255,24 +255,24 @@ function scoreSwing(inp: RuleBasedSignalInput): {
 
   if (nearSup) {
     score.srLevel += 10; bullCount++;
-    confluences.push(\`Harga dekat support kuat \${fmt(inp.sup1)}\`);
+    confluences.push(`Harga dekat support kuat ${fmt(inp.sup1)}`);
   }
   if (nearRes) {
     score.srLevel += 10; bearCount++;
-    confluences.push(\`Harga dekat resistance kuat \${fmt(inp.res1)}\`);
+    confluences.push(`Harga dekat resistance kuat ${fmt(inp.res1)}`);
   }
-  if (nearBBLower) { score.srLevel += 5; bullCount++; confluences.push(\`Harga menyentuh BB lower band\`); }
-  if (nearBBUpper) { score.srLevel += 5; bearCount++; confluences.push(\`Harga menyentuh BB upper band\`); }
-  if (nearVwap) { score.srLevel += 3; confluences.push(\`Harga dekat VWAP \${fmt(inp.vwap!.vwap)}\`); }
-  if (nearPivot) { score.srLevel += 2; confluences.push(\`Harga dekat Daily Pivot Point \${fmt(inp.pivots!.pp)}\`); }
+  if (nearBBLower) { score.srLevel += 5; bullCount++; confluences.push(`Harga menyentuh BB lower band`); }
+  if (nearBBUpper) { score.srLevel += 5; bearCount++; confluences.push(`Harga menyentuh BB upper band`); }
+  if (nearVwap) { score.srLevel += 3; confluences.push(`Harga dekat VWAP ${fmt(inp.vwap!.vwap)}`); }
+  if (nearPivot) { score.srLevel += 2; confluences.push(`Harga dekat Daily Pivot Point ${fmt(inp.pivots!.pp)}`); }
 
   // BOS confirmation
   if (inp.bos.direction === "BULLISH" && bullCount > bearCount) {
     score.srLevel += 5; bullCount++;
-    confluences.push(\`BOS bullish terkonfirmasi di \${fmt(inp.bos.price)}\`);
+    confluences.push(`BOS bullish terkonfirmasi di ${fmt(inp.bos.price)}`);
   } else if (inp.bos.direction === "BEARISH" && bearCount > bullCount) {
     score.srLevel += 5; bearCount++;
-    confluences.push(\`BOS bearish terkonfirmasi di \${fmt(inp.bos.price)}\`);
+    confluences.push(`BOS bearish terkonfirmasi di ${fmt(inp.bos.price)}`);
   }
 
   score.srLevel = Math.min(20, score.srLevel);
@@ -281,12 +281,12 @@ function scoreSwing(inp: RuleBasedSignalInput): {
   const volRatio = inp.volAvg30 > 0 ? inp.volRecent / inp.volAvg30 : 0;
   const volAcc = inp.volH6 > 0 ? inp.volH1 / (inp.volH6 / 6) : 0;
 
-  if (volRatio >= 1.5) { score.volume += 8; confluences.push(\`Volume 1.5x di atas rata-rata 30D — konfirmasi kuat\`); }
+  if (volRatio >= 1.5) { score.volume += 8; confluences.push(`Volume 1.5x di atas rata-rata 30D — konfirmasi kuat`); }
   else if (volRatio >= 1.0) { score.volume += 5; }
   else if (volRatio >= 0.7) { score.volume += 3; }
-  else { confluences.push(\`Volume lemah (\${volRatio.toFixed(2)}x avg) — sinyal kurang valid\`); }
+  else { confluences.push(`Volume lemah (${volRatio.toFixed(2)}x avg) — sinyal kurang valid`); }
 
-  if (volAcc >= 3) { score.volume += 7; confluences.push(\`Volume acceleration \${volAcc.toFixed(1)}x — akumulasi terdeteksi\`); }
+  if (volAcc >= 3) { score.volume += 7; confluences.push(`Volume acceleration ${volAcc.toFixed(1)}x — akumulasi terdeteksi`); }
   else if (volAcc >= 1.5) { score.volume += 4; }
 
   score.volume = Math.min(15, score.volume);
@@ -296,10 +296,10 @@ function scoreSwing(inp: RuleBasedSignalInput): {
     // Contrarian: extreme fear = buy opportunity, extreme greed = sell opportunity
     if (inp.fgi.value <= 25 && bullCount > bearCount) {
       score.sentiment += 8;
-      confluences.push(\`Fear & Greed \${inp.fgi.value} (Extreme Fear) — contrarian BUY signal\`);
+      confluences.push(`Fear & Greed ${inp.fgi.value} (Extreme Fear) — contrarian BUY signal`);
     } else if (inp.fgi.value >= 75 && bearCount > bullCount) {
       score.sentiment += 8;
-      confluences.push(\`Fear & Greed \${inp.fgi.value} (Extreme Greed) — contrarian SELL signal\`);
+      confluences.push(`Fear & Greed ${inp.fgi.value} (Extreme Greed) — contrarian SELL signal`);
     } else if (inp.fgi.value >= 40 && inp.fgi.value <= 60) {
       score.sentiment += 4;
     } else {
@@ -311,10 +311,10 @@ function scoreSwing(inp: RuleBasedSignalInput): {
   if (inp.lsRatio !== null) {
     if (inp.lsRatio > 2.0 && bearCount > bullCount) {
       score.sentiment += 2;
-      confluences.push(\`L/S Ratio \${inp.lsRatio.toFixed(2)} — terlalu banyak long, potential short squeeze\`);
+      confluences.push(`L/S Ratio ${inp.lsRatio.toFixed(2)} — terlalu banyak long, potential short squeeze`);
     } else if (inp.lsRatio < 0.5 && bullCount > bearCount) {
       score.sentiment += 2;
-      confluences.push(\`L/S Ratio \${inp.lsRatio.toFixed(2)} — terlalu banyak short, potential long squeeze\`);
+      confluences.push(`L/S Ratio ${inp.lsRatio.toFixed(2)} — terlalu banyak short, potential long squeeze`);
     }
   }
 
@@ -324,15 +324,15 @@ function scoreSwing(inp: RuleBasedSignalInput): {
   if (inp.fundingRate !== null) {
     if (inp.fundingRate < 0 && bullCount > bearCount) {
       score.funding += 10;
-      confluences.push(\`Funding rate negatif \${fmtPct(inp.fundingRate * 100)} — longs dibayar, favorable untuk BUY\`);
+      confluences.push(`Funding rate negatif ${fmtPct(inp.fundingRate * 100)} — longs dibayar, favorable untuk BUY`);
     } else if (inp.fundingRate > 0.001 && inp.fundingRate < 0.05) {
       score.funding += 6;
     } else if (inp.fundingRate >= 0.05 && inp.fundingRate < 0.15) {
       score.funding += 3;
-      confluences.push(\`Funding rate tinggi \${fmtPct(inp.fundingRate * 100)} — hati-hati untuk LONG\`);
+      confluences.push(`Funding rate tinggi ${fmtPct(inp.fundingRate * 100)} — hati-hati untuk LONG`);
     } else if (inp.fundingRate >= 0.15 && bullCount > bearCount) {
       score.funding = 0;
-      confluences.push(\`REJECT: Funding rate \${fmtPct(inp.fundingRate * 100)} terlalu tinggi untuk LONG\`);
+      confluences.push(`REJECT: Funding rate ${fmtPct(inp.fundingRate * 100)} terlalu tinggi untuk LONG`);
     } else {
       score.funding += 5;
     }
@@ -348,7 +348,7 @@ function scoreSwing(inp: RuleBasedSignalInput): {
     // BTC dom falling + bullish = altcoin season
     if (inp.btcDom < 50 && bullCount > bearCount && inp.pair !== "BTCUSDT") {
       score.macro += 3;
-      confluences.push(\`BTC dominance \${inp.btcDom.toFixed(1)}% rendah — altcoin season\`);
+      confluences.push(`BTC dominance ${inp.btcDom.toFixed(1)}% rendah — altcoin season`);
     } else if (inp.btcDom > 55 && inp.pair !== "BTCUSDT") {
       score.macro += 1;
     } else {
@@ -417,8 +417,8 @@ function scoreScalp(inp: RuleBasedSignalInput): {
       sl,
       tps: [entry + risk * 1.5, entry + risk * 2.5, entry + risk * 4],
       leverage: "10-15x",
-      trigger: \`1H RSI oversold + 4H MACD bullish + dekat support \${fmt(inp.sup1)}\`,
-      notes: \`Entry di \${fmt(entry)}, SL di \${fmt(sl)} (-\${((risk/entry)*100).toFixed(2)}%). Ambil 50% profit di TP1.\`
+      trigger: `1H RSI oversold + 4H MACD bullish + dekat support ${fmt(inp.sup1)}`,
+      notes: `Entry di ${fmt(entry)}, SL di ${fmt(sl)} (-${((risk/entry)*100).toFixed(2)}%). Ambil 50% profit di TP1.`
     };
   }
 
@@ -432,8 +432,8 @@ function scoreScalp(inp: RuleBasedSignalInput): {
       sl,
       tps: [entry - risk * 1.5, entry - risk * 2.5, entry - risk * 4],
       leverage: "10-15x",
-      trigger: \`1H RSI overbought + 4H MACD bearish + dekat resistance \${fmt(inp.res1)}\`,
-      notes: \`Entry di \${fmt(entry)}, SL di \${fmt(sl)} (+\${((risk/entry)*100).toFixed(2)}%). Ambil 50% profit di TP1.\`
+      trigger: `1H RSI overbought + 4H MACD bearish + dekat resistance ${fmt(inp.res1)}`,
+      notes: `Entry di ${fmt(entry)}, SL di ${fmt(sl)} (+${((risk/entry)*100).toFixed(2)}%). Ambil 50% profit di TP1.`
     };
   }
 
@@ -452,26 +452,26 @@ function scoreScalp(inp: RuleBasedSignalInput): {
 function checkHardRejects(inp: RuleBasedSignalInput, bias: "BULLISH" | "BEARISH" | "NEUTRAL"): string | null {
   // RSI extremes
   if (bias === "BULLISH" && inp.rsi1d !== null && inp.rsi1d > 80) {
-    return \`RSI 1D \${inp.rsi1d.toFixed(1)} overbought — terlalu berisiko untuk BUY\`;
+    return `RSI 1D ${inp.rsi1d.toFixed(1)} overbought — terlalu berisiko untuk BUY`;
   }
   if (bias === "BEARISH" && inp.rsi1d !== null && inp.rsi1d < 20) {
-    return \`RSI 1D \${inp.rsi1d.toFixed(1)} oversold — terlalu berisiko untuk SELL\`;
+    return `RSI 1D ${inp.rsi1d.toFixed(1)} oversold — terlalu berisiko untuk SELL`;
   }
   // High funding for long
   if (bias === "BULLISH" && inp.fundingRate !== null && inp.fundingRate > 0.15) {
-    return \`Funding rate \${fmtPct(inp.fundingRate * 100)} terlalu tinggi untuk LONG\`;
+    return `Funding rate ${fmtPct(inp.fundingRate * 100)} terlalu tinggi untuk LONG`;
   }
   // Low volume
   const volRatio = inp.volAvg30 > 0 ? inp.volRecent / inp.volAvg30 : 1;
   if (volRatio < 0.5) {
-    return \`Volume \${volRatio.toFixed(2)}x terlalu rendah — sinyal tidak valid\`;
+    return `Volume ${volRatio.toFixed(2)}x terlalu rendah — sinyal tidak valid`;
   }
   // 4H and 1D disagree completely
   if (inp.trend4h === "BULLISH" && bias === "BEARISH" && inp.rsi1d !== null && inp.rsi1d > 50) {
-    return \`4H trend bullish tapi bias bearish — konflik timeframe, tunggu konfirmasi\`;
+    return `4H trend bullish tapi bias bearish — konflik timeframe, tunggu konfirmasi`;
   }
   if (inp.trend4h === "BEARISH" && bias === "BULLISH" && inp.rsi1d !== null && inp.rsi1d < 50) {
-    return \`4H trend bearish tapi bias bullish — konflik timeframe, tunggu konfirmasi\`;
+    return `4H trend bearish tapi bias bullish — konflik timeframe, tunggu konfirmasi`;
   }
   return null;
 }
@@ -500,7 +500,7 @@ export function generateRuleBasedSignal(inp: RuleBasedSignalInput): RuleBasedSig
       noTradeReason = "Bias netral — konfluensi tidak cukup mengarah ke satu arah";
     }
   } else {
-    noTradeReason = \`Skor kepercayaan \${score.total}/100 di bawah threshold 65\`;
+    noTradeReason = `Skor kepercayaan ${score.total}/100 di bawah threshold 65`;
   }
 
   // Calculate levels
@@ -543,14 +543,14 @@ export function generateRuleBasedSignal(inp: RuleBasedSignalInput): RuleBasedSig
   const bullishTarget = fmt(inp.res3 * 1.05);
   const bearishTarget = fmt(inp.sup3 * 0.95);
   const baseCase = score.total >= 70
-    ? \`Setup \${side === "BUY" ? "bullish" : side === "SELL" ? "bearish" : "netral"} dengan skor \${score.total}/100 — tunggu konfirmasi di \${fmt(side === "BUY" ? entryLow : entryHigh)}\`
-    : \`Konsolidasi di range \${fmt(inp.sup1)} - \${fmt(inp.res1)} dalam jangka pendek\`;
+    ? `Setup ${side === "BUY" ? "bullish" : side === "SELL" ? "bearish" : "netral"} dengan skor ${score.total}/100 — tunggu konfirmasi di ${fmt(side === "BUY" ? entryLow : entryHigh)}`
+    : `Konsolidasi di range ${fmt(inp.sup1)} - ${fmt(inp.res1)} dalam jangka pendek`;
 
   // Reasoning
   const topConfluences = confluences.slice(0, 4);
   const reasoning = topConfluences.length > 0
     ? topConfluences.join(". ")
-    : \`Analisis rule-based: skor \${score.total}/100, bias \${bias}\`;
+    : `Analisis rule-based: skor ${score.total}/100, bias ${bias}`;
 
   // Trader style based on dominant indicators
   const traderStyle = score.trend > 15
@@ -569,23 +569,23 @@ export function generateRuleBasedSignal(inp: RuleBasedSignalInput): RuleBasedSig
     side,
     confidence: score.total,
     scoreBreakdown: score,
-    entryRange: \`\${fmt(entryLow)} - \${fmt(entryHigh)}\`,
+    entryRange: `${fmt(entryLow)} - ${fmt(entryHigh)}`,
     stopLoss: fmt(sl),
-    stopLossRiskPct: \`\${riskPct.toFixed(2)}%\`,
+    stopLossRiskPct: `${riskPct.toFixed(2)}%`,
     takeProfit: [fmt(tp1), fmt(tp2), fmt(tp3)],
-    takeProfitRR: [\`1:2\`, \`1:3\`, \`1:5\`],
+    takeProfitRR: [`1:2`, `1:3`, `1:5`],
     leverage: side === "NO_TRADE" ? "1x (spot only)" : score.total >= 80 ? "5-10x" : "3-5x",
     reasoning,
     confluences: topConfluences,
     invalidation: side === "BUY"
-      ? \`Setup batal jika harga close di bawah \${fmt(sl)}\`
+      ? `Setup batal jika harga close di bawah ${fmt(sl)}`
       : side === "SELL"
-      ? \`Setup batal jika harga close di atas \${fmt(sl)}\`
-      : \`Tunggu setup valid dengan skor minimal 65/100\`,
+      ? `Setup batal jika harga close di atas ${fmt(sl)}`
+      : `Tunggu setup valid dengan skor minimal 65/100`,
     traderStyle,
     expertMindset,
     timeframe: "4H konfirmasi, 1D tren",
-    riskReward: \`1:\${rr}\`,
+    riskReward: `1:${rr}`,
     // Scalp
     scalpSide: scalp.side,
     scalpEntry: fmt(scalp.entry),
@@ -595,7 +595,7 @@ export function generateRuleBasedSignal(inp: RuleBasedSignalInput): RuleBasedSig
     scalpTrigger: scalp.trigger,
     scalpNotes: scalp.notes,
     // Spot
-    spotEntry: \`\${fmt(spotLow)} - \${fmt(spotHigh)}\`,
+    spotEntry: `${fmt(spotLow)} - ${fmt(spotHigh)}`,
     longTermTarget: fmt(inp.res3),
     keySupport: fmt(inp.sup1),
     keyResistance: fmt(inp.res1),
