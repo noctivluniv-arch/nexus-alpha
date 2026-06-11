@@ -1741,7 +1741,7 @@ Fibonacci: 0.382=$${fib["0.382"].toFixed(2)} 0.5=$${fib["0.5"].toFixed(2)} 0.618
 
 const PREWARM_PAIRS = ["BTCUSDT", "ETHUSDT"];
 let prewarmDone = false;
-export function scheduleSignalPrewarm(): void {
+function scheduleSignalPrewarm(): void {
   if (prewarmDone) return;
   prewarmDone = true;
   setTimeout(() => {

@@ -2406,7 +2406,7 @@ async function refreshMemes(): Promise<any[]> {
         earlyGemSignals: earlyGem.signals,
         // ─── VOLUME ACCELERATION ─────────────────────────────────────────
         volumeSignal: computeVolumeAcceleration(vol1h, vol6h, vol24h).signal,
-    });
+    };
 
     // Final ranking: boost PUMP_IMMINENT and new listings to top
     const boostedList = list.map((m: any) => {
