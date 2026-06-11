@@ -7,7 +7,6 @@ import memesRouter from "./memes";
 import whalesRouter from "./whales";
 import telegramRouter from "./telegram";
 import altcoinsRouter from "./altcoins";
-import altcoinsRouter from "./altcoins";
 
 const router: IRouter = Router();
 
@@ -18,7 +17,6 @@ router.use(newsRouter);
 router.use(memesRouter);
 router.use(whalesRouter);
 router.use("/telegram", telegramRouter);
-router.use(altcoinsRouter);
 router.use(altcoinsRouter);
 
 export default router;
