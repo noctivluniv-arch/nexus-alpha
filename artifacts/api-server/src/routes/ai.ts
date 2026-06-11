@@ -1749,4 +1749,3 @@ function scheduleSignalPrewarm(): void {
   }, 5000);
 }
 
-export default router;

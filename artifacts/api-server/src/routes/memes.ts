@@ -2214,7 +2214,7 @@ async function refreshMemes(): Promise<any[]> {
     // Keep VERIFIED + WATCHLIST (anything that wasn't hard-rejected)
     const survivors = evaluated.filter((e) => e.quality.passes);
 
-    const list = survivors.map((e) => {
+    const list = survivors.map(async (e) => {
       const {
         candidate: c,
         security,
