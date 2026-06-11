@@ -1432,6 +1432,7 @@ ${buildLanguageDirective("en")}`;
     }
     return res.status(500).json({ error: "AI generation failed" });
   }
+  }
 });
 
 async function generateWhalesFromGemini(): Promise<unknown[]> {
