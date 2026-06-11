@@ -18,6 +18,7 @@ async function buildAll() {
     entryPoints: [path.resolve(artifactDir, "src/index.ts")],
     platform: "node",
     target: "node20",
+    tsconfig: path.resolve(artifactDir, "tsconfig.json"),
     bundle: true,
     format: "esm",
     outdir: distDir,
