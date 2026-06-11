@@ -70,6 +70,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="altcoins"
+        options={{
+          title: t("tabs.altcoins"),
+          tabBarIcon: ({ color }) => <TabIcon symbol="💎" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="news"
         options={{
           title: t("tabs.news"),

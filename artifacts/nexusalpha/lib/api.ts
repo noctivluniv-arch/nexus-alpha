@@ -45,6 +45,7 @@ async function jsonFetch<T>(
 }
 
 export const api = {
+  baseUrl: BASE,
   async getPrices(pairs: TradingPair[]): Promise<PriceData[]> {
     const symbols = pairs.join(",");
     return jsonFetch<PriceData[]>(

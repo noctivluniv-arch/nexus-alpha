@@ -22,8 +22,12 @@ const ID: Dict = {
   "tabs.nexus": "NEXUS",
   "tabs.memes": "MEMES",
   "tabs.news": "NEWS",
+  "tabs.altcoins": "ALTCOIN",
+  "tabs.altcoins": "ALTCOIN",
 
   // Header subtitles (per screen)
+  "header.altcoins": "Watchlist Altcoin",
+  "header.altcoins": "Watchlist Altcoin",
   "header.market": "Tinjauan Pasar",
   "header.signals": "Sinyal Futures AI",
   "header.nexus": "Likuidasi & Derivatif",
@@ -294,6 +298,7 @@ const EN: Dict = {
   "tabs.news": "NEWS",
 
   // Header subtitles
+  "header.altcoins": "Altcoin Watchlist",
   "header.market": "Market Overview",
   "header.signals": "AI Futures Signals",
   "header.nexus": "Liquidations & Derivatives",
