@@ -25,6 +25,7 @@ import {
   orderFlowImbalance,
   liquidationLevels,
 } from "../lib/indicators";
+import { generateRuleBasedSignal } from "../lib/rule-based-engine";
 import {
 computeEnhancedIndicators,
 type EnhancedIndicators,
@@ -1063,6 +1064,102 @@ Output the complete JSON signal. All price fields must use actual numeric values
 If EV grade is F (negative expectancy), default to NO_TRADE.
 ${buildLanguageDirective("en")}`;
 
+  // ─── Rule-Based Engine (primary) ────────────────────────────────────────
+  const rsi1hData = ohlc ? (() => {
+    const candles1h = ohlc.hourly;
+    return rsi(candles1h.closes, 14);
+  })() : null;
+
+  const stoch1hData = ohlc ? (() => {
+    const candles1h = ohlc.hourly;
+    return stochastic(candles1h.highs, candles1h.lows, candles1h.closes);
+  })() : null;
+
+  const macd1dData = ohlc ? macd(ohlc.daily.closes) : null;
+
+  const ruleSignal = generateRuleBasedSignal({
+    pair: String(pair),
+    price: livePrice,
+    ema20: ema20Val, ema50: ema50Val, ema200: ema200Val,
+    rsi1h: rsi1hData, rsi4h: rsi4hVal, rsi1d: rsi1dVal, rsi1w: rsi1wVal,
+    rsiDivergence: rsiDiv,
+    macd4h: macd4hVal, macd1d: macd1dData,
+    bb: bbVal, stoch4h: stoch4hVal, stoch1h: stoch1hData,
+    volAvg30, volRecent,
+    volH1: ohlc?.hourly.volumes.slice(-1)[0] ?? 0,
+    volH6: ohlc?.hourly.volumes.slice(-6).reduce((a,b) => a+b, 0) ?? 0,
+    trend4h, trend1d: trend4h,
+    bos, sup1, sup2, sup3, res1, res2, res3,
+    ichimoku: ichimokuVal ?? null,
+    waveTrend: waveTrendVal ?? null,
+    vwap: vwapVal ?? null,
+    pivots: pivots ?? null,
+    fundingRate: deriv?.fundingRate ?? null,
+    lsRatio: deriv?.lsRatio ?? null,
+    oiUsd: null,
+    fgi, btcDom: global?.btcDom ?? null,
+    atr14: atr(ohlc?.daily.highs ?? [], ohlc?.daily.lows ?? [], ohlc?.daily.closes ?? [], 14),
+    change24h, high24h, low24h,
+  });
+
+  // Cache and return rule-based signal
+  const ruleResult = {
+    pair: String(pair),
+    side: ruleSignal.side,
+    noTrade: ruleSignal.side === "NO_TRADE",
+    noTradeReason: ruleSignal.noTradeReason ?? "",
+    entryRange: ruleSignal.entryRange,
+    entryPrice: ruleSignal.entryRange.split(" - ")[0],
+    takeProfit: ruleSignal.takeProfit,
+    takeProfitRR: ruleSignal.takeProfitRR,
+    stopLoss: ruleSignal.stopLoss,
+    stopLossRiskPct: ruleSignal.stopLossRiskPct,
+    confidence: ruleSignal.confidence,
+    timestamp: Date.now(),
+    reasoning: ruleSignal.reasoning,
+    traderStyle: ruleSignal.traderStyle,
+    leverage: ruleSignal.leverage,
+    expertMindset: ruleSignal.expertMindset,
+    spotEntry: ruleSignal.spotEntry,
+    longTermTarget: ruleSignal.longTermTarget,
+    keySupport: ruleSignal.keySupport,
+    keyResistance: ruleSignal.keyResistance,
+    marketStructure: trend4h === "BULLISH" ? "BULLISH" : trend4h === "BEARISH" ? "BEARISH" : "RANGING",
+    riskReward: ruleSignal.riskReward,
+    timeframe: ruleSignal.timeframe,
+    validUntil: new Date(Date.now() + SIGNAL_TTL_MS).toISOString(),
+    confluences: ruleSignal.confluences,
+    invalidation: ruleSignal.invalidation,
+    scoreBreakdown: ruleSignal.scoreBreakdown,
+    priceScenarios: {
+      bullishTarget: ruleSignal.bullishTarget,
+      bullishTimeframe: "2-4 minggu",
+      bullishCondition: \`Jika harga tembus resistance \${ruleSignal.keyResistance}\`,
+      bearishTarget: ruleSignal.bearishTarget,
+      bearishTimeframe: "2-4 minggu",
+      bearishCondition: \`Jika harga tembus support \${ruleSignal.keySupport}\`,
+      baseCase: ruleSignal.baseCase,
+    },
+    scalpingPlan: {
+      side: ruleSignal.scalpSide,
+      entryPrice: ruleSignal.scalpEntry,
+      entryTrigger: ruleSignal.scalpTrigger,
+      stopLoss: ruleSignal.scalpSL,
+      takeProfit: ruleSignal.scalpTP,
+      takeProfitRR: ["1:1.5", "1:2.5", "1:4"],
+      leverage: ruleSignal.scalpLeverage,
+      timeframe: "1H",
+      holdTime: "15m - 4j",
+      sessionWindow: "NY/London open",
+      notes: ruleSignal.scalpNotes,
+    },
+  };
+
+  SIGNAL_CACHE.set(cacheKey, { ts: Date.now(), data: ruleResult });
+  return res.json(normalizeSignalLanguage(ruleResult, lang));
+
+  // ─── Gemini AI (kept as backup, disabled for now) ─────────────────────────
+  if (false) {
   try {
     const response = await withTimeout<GenerateContentResponse>(ai.models.generateContent({
       model: MODEL,
