@@ -38,39 +38,74 @@ def format_signal(s):
     side_label = "🟢 BUY/LONG" if side == "BUY" else "🔴 SELL/SHORT"
     emoji = "📈" if side == "BUY" else "📉"
 
-    msg = f"{emoji} <b>NEXUSALPHA SIGNAL ALERT</b>\n"
+    msg = emoji + " <b>NEXUSALPHA SIGNAL ALERT</b>\n"
     msg += "━━━━━━━━━━━━━━━\n"
-    msg += f"<b>Pair:</b> {pair}\n"
-    msg += f"<b>Signal:</b> {side_label}\n"
-    msg += f"<b>Confidence:</b> {confidence}/100\n"
-    msg += f"<b>Market:</b> {structure}\n\n"
-    msg += f"<b>📍 Entry:</b> {entry}\n"
-    msg += f"<b>🛑 Stop Loss:</b> {sl} ({sl_pct})\n"
+    msg += "<b>Pair:</b> " + pair + "\n"
+    msg += "<b>Signal:</b> " + side_label + "\n"
+    msg += "<b>Confidence:</b> " + str(confidence) + "/100\n"
+    msg += "<b>Market:</b> " + structure + "\n\n"
+    msg += "<b>📍 Entry:</b> " + entry + "\n"
+    msg += "<b>🛑 Stop Loss:</b> " + sl + " (" + sl_pct + ")\n"
     msg += "<b>🎯 Take Profit:</b>\n"
     for i, tp in enumerate(tp_list):
         rr = tp_rr[i] if i < len(tp_rr) else ""
-        msg += f"  TP{i+1}: {tp} {rr}\n"
-    msg += f"\n<b>⚡ Leverage:</b> {leverage}\n"
-    msg += f"<b>💰 Spot DCA Zone:</b> {spot_entry}\n\n"
+        msg += "  TP" + str(i+1) + ": " + tp + " " + rr + "\n"
+    msg += "\n<b>⚡ Leverage:</b> " + leverage + "\n"
+    msg += "<b>💰 Spot DCA Zone:</b> " + spot_entry + "\n\n"
     if confluences:
         msg += "<b>✅ Confluences:</b>\n"
         for c in confluences[:3]:
-            msg += f"• {c}\n"
+            msg += "• " + c + "\n"
         msg += "\n"
-    msg += f"<b>⚠️ Invalidation:</b> {invalidation}\n\n"
+    msg += "<b>⚠️ Invalidation:</b> " + invalidation + "\n\n"
     msg += "━━━━━━━━━━━━━━━\n"
     msg += "<i>🤖 Auto-alert by NexusAlpha</i>"
     return msg
 
+def format_meme(coin):
+    name = coin.get("name", "?")
+    symbol = coin.get("symbol", "?")
+    price = coin.get("price", "?")
+    change24h = str(coin.get("change24h", "0"))
+    vol_signal = coin.get("volumeSignalLabel", "")
+    gem_label = coin.get("earlyGemLabel", "")
+    gem_score = coin.get("earlyGemScore", 0)
+    age = coin.get("ageInDays", 0)
+    network = coin.get("network", "?")
+    liq = coin.get("liquidity", "?")
+    risk = coin.get("riskLevel", "?")
+    viral_score = coin.get("viralScore", 0)
+    dex_url = coin.get("dexUrl", "")
+
+    msg = "🚨 <b>MEME COIN ALERT</b>\n"
+    msg += "━━━━━━━━━━━━━━━\n"
+    msg += "<b>" + name + " ($" + symbol + ")</b>\n"
+    msg += "<b>Network:</b> " + network + "\n"
+    msg += "<b>Price:</b> " + str(price) + "\n"
+    msg += "<b>Change 24H:</b> " + change24h + "%\n"
+    if vol_signal:
+        msg += "<b>Volume Signal:</b> " + vol_signal + "\n"
+    if gem_label and gem_label != "BIASA":
+        gem_icon = "⭐ GEM" if gem_label == "GEM" else "🔍 POTENSIAL"
+        msg += "<b>Early Gem:</b> " + gem_icon + " (" + str(gem_score) + "/100)\n"
+    msg += "<b>Age:</b> " + str(round(float(age), 1)) + " days\n"
+    msg += "<b>Liquidity:</b> " + str(liq) + "\n"
+    msg += "<b>Risk:</b> " + str(risk) + "\n"
+    msg += "<b>Viral Score:</b> " + str(viral_score) + "/100\n"
+    if dex_url:
+        msg += "<b>DEX:</b> " + dex_url + "\n"
+    msg += "\n━━━━━━━━━━━━━━━\n"
+    msg += "<i>⚠️ DYOR! Meme coins are extremely risky.</i>\n"
+    msg += "<i>🤖 Auto-alert by NexusAlpha</i>"
+    return msg
+
+# ─── CHECK TRADING SIGNALS ────────────────────────────────────────────────────
 for pair in PAIRS:
     print(f"Checking {pair}...")
     try:
         r = requests.post(
             f"{API_BASE}/api/ai/signal",
-            headers={
-                "Content-Type": "application/json",
-                "x-app-secret": APP_SECRET
-            },
+            headers={"Content-Type": "application/json", "x-app-secret": APP_SECRET},
             json={"pair": pair, "lang": "en"},
             timeout=90
         )
@@ -95,7 +130,7 @@ for pair in PAIRS:
 
 print("Done checking trading signals!")
 
-# ─── CHECK MEME COINS FOR PUMP SIGNALS ───────────────────────────────────────
+# ─── CHECK MEME COINS ─────────────────────────────────────────────────────────
 print("\nChecking meme coins for pump signals...")
 try:
     r = requests.get(
@@ -112,58 +147,7 @@ try:
             )]
             print(f"Found {len(pump_coins)} pump/gem candidates")
             for coin in pump_coins[:3]:
-                name = coin.get("name", "?")
-                symbol = coin.get("symbol", "?")
-                price = coin.get("price", "?")
-                change24h = coin.get("change24h", "0")
-                vol_signal = coin.get("volumeSignalLabel", "")
-                gem_label = coin.get("earlyGemLabel", "")
-                gem_score = coin.get("earlyGemScore", 0)
-                age = coin.get("ageInDays", 0)
-                network = coin.get("network", "?")
-                liq = coin.get("liquidity", "?")
-                risk = coin.get("riskLevel", "?")
-                viral_score = coin.get("viralScore", 0)
-                dex_url = coin.get("dexUrl", "")
-
-                msg = "🚨 <b>MEME COIN ALERT</b>
-"
-                msg += "━━━━━━━━━━━━━━━
-"
-                msg += f"<b>{name} (${symbol})</b>
-"
-                msg += f"<b>Network:</b> {network}
-"
-                msg += f"<b>Price:</b> {price}
-"
-                msg += f"<b>Change 24H:</b> {change24h}%
-"
-                if vol_signal:
-                    msg += f"<b>Volume Signal:</b> {vol_signal}
-"
-                if gem_label and gem_label != "BIASA":
-                    gem_icon = "⭐ GEM" if gem_label == "GEM" else "🔍 POTENSIAL"
-                    msg += f"<b>Early Gem:</b> {gem_icon} ({gem_score}/100)
-"
-                msg += f"<b>Age:</b> {float(age):.1f} days
-"
-                msg += f"<b>Liquidity:</b> {liq}
-"
-                msg += f"<b>Risk:</b> {risk}
-"
-                msg += f"<b>Viral Score:</b> {viral_score}/100
-"
-                if dex_url:
-                    msg += f"<b>DEX:</b> {dex_url}
-"
-                msg += "
-━━━━━━━━━━━━━━━
-"
-                msg += "<i>⚠️ DYOR! Meme coins are extremely risky.</i>
-"
-                msg += "<i>🤖 Auto-alert by NexusAlpha</i>"
-
-                send_telegram(msg)
+                send_telegram(format_meme(coin))
                 time.sleep(2)
         else:
             print("Memes response is not a list")
