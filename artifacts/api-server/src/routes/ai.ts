@@ -1134,10 +1134,10 @@ ${buildLanguageDirective("en")}`;
     priceScenarios: {
       bullishTarget: ruleSignal.bullishTarget,
       bullishTimeframe: "2-4 minggu",
-      bullishCondition: \`Jika harga tembus resistance \${ruleSignal.keyResistance}\`,
+      bullishCondition: `Jika harga tembus resistance \${ruleSignal.keyResistance}`,
       bearishTarget: ruleSignal.bearishTarget,
       bearishTimeframe: "2-4 minggu",
-      bearishCondition: \`Jika harga tembus support \${ruleSignal.keySupport}\`,
+      bearishCondition: `Jika harga tembus support \${ruleSignal.keySupport}`,
       baseCase: ruleSignal.baseCase,
     },
     scalpingPlan: {

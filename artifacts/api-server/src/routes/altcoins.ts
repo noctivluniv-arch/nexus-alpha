@@ -118,8 +118,6 @@ function scoreAltcoin(coin: any, meta: any): {
   else narrative += 8;
 
   // Market Position (15 pts)
-  const mcap = coin.market_data?.market_cap?.usd ?? 0;
-  const rank = coin.market_cap_rank ?? 999;
   if (rank <= 20) marketPosition += 15;
   else if (rank <= 50) marketPosition += 12;
   else if (rank <= 100) marketPosition += 9;
