@@ -1408,6 +1408,7 @@ ${buildLanguageDirective("en")}`;
 
     SIGNAL_CACHE.set(cacheKey, { ts: Date.now(), data: idPayload });
     return res.json(idPayload);
+  } // end if(false) — Gemini disabled
   } catch (err: any) {
     req.log.error({ err: err?.message }, "AI signal failed");
     const isQuotaErr =
@@ -1432,6 +1433,7 @@ ${buildLanguageDirective("en")}`;
     }
     return res.status(500).json({ error: "AI generation failed" });
   }
+});
 
 async function generateWhalesFromGemini(): Promise<unknown[]> {
   const prompt = `
@@ -1749,5 +1751,4 @@ function scheduleSignalPrewarm(): void {
   }, 5000);
 }
 
-  });
 export default router;

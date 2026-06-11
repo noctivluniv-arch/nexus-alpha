@@ -2214,7 +2214,7 @@ async function refreshMemes(): Promise<any[]> {
     // Keep VERIFIED + WATCHLIST (anything that wasn't hard-rejected)
     const survivors = evaluated.filter((e) => e.quality.passes);
 
-    const list = survivors.map(async (e) => {
+    const list = survivors.map((e) => {
       const {
         candidate: c,
         security,
@@ -2406,7 +2406,25 @@ async function refreshMemes(): Promise<any[]> {
         earlyGemSignals: earlyGem.signals,
         // ─── VOLUME ACCELERATION ─────────────────────────────────────────
         volumeSignal: computeVolumeAcceleration(vol1h, vol6h, vol24h).signal,
-    };
+        volumeSignalLabel: (() => {
+          const sig = computeVolumeAcceleration(vol1h, vol6h, vol24h).signal;
+          if (sig === "PUMP_IMMINENT") return "🚀 PUMP IMMINENT";
+          if (sig === "ACCUMULATION") return "📈 ACCUMULATION";
+          if (sig === "DUMPING") return "📉 DUMPING";
+          return "😐 NORMAL";
+        })(),
+        vol1h, vol6h,
+        // vol breakdown stored for OHLCV patch-up step
+        _vol1h: vol1h, _vol6h: vol6h,
+        _txBuys: txBuys, _txSells: txSells, _txBuyers: txBuyers, _txSellers: txSellers,
+        _change1h: change1h, _change6h: change6h, _liqUsd: liqUsd,
+        _concentrationTop10: security.topHolders.concentrationTop10,
+        _ageDays: ageDays,
+        _marketCap: marketCap,
+        _iconic: iconic,
+        _fromTrending: c.fromTrending ?? false,
+      };
+    });
 
     // Final ranking: boost PUMP_IMMINENT and new listings to top
     const boostedList = list.map((m: any) => {
@@ -2891,9 +2909,5 @@ router.post("/ai/memes", async (req: Request, res: Response) => {
     return res.status(503).json({ error: "Sumber data memecoin tidak tersedia sementara, coba lagi nanti" });
   }
 });
-
-export default router;
-  }
-}
 
 export default router;
