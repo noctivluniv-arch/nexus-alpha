@@ -802,7 +802,7 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
         );
         SIGNAL_CACHE.set(cacheKey, { ts: Date.now(), data: idPayload });
         return res.json({ ...idPayload, fromCache: true });
-      } catch (err: any) {
+      } catch (err) {
         req.log.warn(
           { err: err?.message, pair },
           "Translation from cached EN failed; regenerating",
@@ -1134,10 +1134,10 @@ ${buildLanguageDirective("en")}`;
     priceScenarios: {
       bullishTarget: ruleSignal.bullishTarget,
       bullishTimeframe: "2-4 minggu",
-      bullishCondition: `Jika harga tembus resistance \${ruleSignal.keyResistance}`,
+      bullishCondition: `Jika harga tembus resistance ${ruleSignal.keyResistance}`,
       bearishTarget: ruleSignal.bearishTarget,
       bearishTimeframe: "2-4 minggu",
-      bearishCondition: `Jika harga tembus support \${ruleSignal.keySupport}`,
+      bearishCondition: `Jika harga tembus support ${ruleSignal.keySupport}`,
       baseCase: ruleSignal.baseCase,
     },
     scalpingPlan: {
@@ -1387,7 +1387,7 @@ ${buildLanguageDirective("en")}`;
     let idPayload: Record<string, any>;
     try {
       idPayload = await translateSignalToIndonesian(englishPayload);
-    } catch (err: any) {
+    } catch (err) {
       req.log.warn(
         { err: err?.message, pair },
         "Indonesian translation failed; serving English canonical",
@@ -1408,7 +1408,7 @@ ${buildLanguageDirective("en")}`;
 
     SIGNAL_CACHE.set(cacheKey, { ts: Date.now(), data: idPayload });
     return res.json(idPayload);
-  } catch (err: any) {
+  } catch (err) {
     req.log.error({ err: err?.message }, "AI signal failed");
     const isQuotaErr =
       err?.message?.includes("429") || err?.message?.includes("RESOURCE_EXHAUSTED") ||
@@ -1494,7 +1494,7 @@ router.post("/ai/whales", requireAppSecret, aiLimiter, async (req: Request, res:
   try {
     const list = await whalesAiInflight;
     return res.json(list);
-  } catch (err: any) {
+  } catch (err) {
     req.log.error({ err: err?.message }, "AI whales failed");
     if (
       err?.message?.includes("429") || err?.message?.includes("RESOURCE_EXHAUSTED") ||
