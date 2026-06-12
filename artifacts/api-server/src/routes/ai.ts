@@ -860,6 +860,11 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
   let sup2 = livePrice;
   let sup3 = livePrice;
 
+  let vwapVal: ReturnType<typeof vwap> | null = null;
+  let ichimokuVal: ReturnType<typeof ichimoku> | null = null;
+  let waveTrendVal: ReturnType<typeof waveTrend> | null = null;
+  let pivots: ReturnType<typeof pivotPoints> | null = null;
+
   if (ohlc && ohlc.daily.closes.length > 30) {
     // Hourly bars (~300 × 1H = 12.5 days) → aggregate to 4H buckets for
     //   intraday indicators (RSI 4H, MACD 4H, Stochastic 4H).
@@ -942,13 +947,13 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
     bos = bosLevel(candles4h.highs, candles4h.lows, candles4h.closes, 20);
 
     // New indicators
-    const vwapVal = vwap(daily.highs, daily.lows, daily.closes, daily.volumes);
-    const ichimokuVal = ichimoku(daily.highs, daily.lows, daily.closes);
-    const waveTrendVal = waveTrend(candles4h.highs, candles4h.lows, candles4h.closes);
+    vwapVal = vwap(daily.highs, daily.lows, daily.closes, daily.volumes);
+    ichimokuVal = ichimoku(daily.highs, daily.lows, daily.closes);
+    waveTrendVal = waveTrend(candles4h.highs, candles4h.lows, candles4h.closes);
     const dailyHighPrev = daily.highs[daily.highs.length - 2] ?? daily.highs[daily.highs.length - 1];
     const dailyLowPrev = daily.lows[daily.lows.length - 2] ?? daily.lows[daily.lows.length - 1];
     const dailyClosePrev = daily.closes[daily.closes.length - 2] ?? daily.closes[daily.closes.length - 1];
-    const pivots = pivotPoints(dailyHighPrev, dailyLowPrev, dailyClosePrev);
+    pivots = pivotPoints(dailyHighPrev, dailyLowPrev, dailyClosePrev);
     const ofi = orderFlowImbalance(
       daily.closes.map((c, i) => i === 0 ? c : daily.closes[i-1]),
       daily.closes,
@@ -1156,7 +1161,7 @@ ${buildLanguageDirective("en")}`;
   };
 
   SIGNAL_CACHE.set(cacheKey, { ts: Date.now(), data: ruleResult });
-  return res.json(normalizeSignalLanguage(ruleResult, lang));
+  return res.json(ruleResult);
 
   // ─── Gemini AI (kept as backup, disabled for now) ─────────────────────────
   if (false) {
