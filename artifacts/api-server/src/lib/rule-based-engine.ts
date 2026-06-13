@@ -113,6 +113,10 @@ export interface RuleBasedSignalOutput {
   bearishTarget: string;
   baseCase: string;
   noTradeReason?: string;
+  riskManagement: {
+    stopDistancePct: string;
+    suggestion: string;
+  };
 }
 
 function fmt(n: number): string {
@@ -124,7 +128,7 @@ function fmtPct(n: number): string {
 }
 
 // ─── SWING ENGINE ─────────────────────────────────────────────────────────────
-function scoreSwing(inp: RuleBasedSignalInput): {
+export function scoreSwing(inp: RuleBasedSignalInput): {
   score: ScoreBreakdown;
   bias: "BULLISH" | "BEARISH" | "NEUTRAL";
   confluences: string[];
@@ -486,7 +490,11 @@ export function generateRuleBasedSignal(inp: RuleBasedSignalInput): RuleBasedSig
   let side: "BUY" | "SELL" | "NO_TRADE" = "NO_TRADE";
   let noTradeReason = "";
 
-  if (score.total >= 65) {
+  // Zona "sweet spot" 45-55 dipilih berdasarkan backtest 2024-2026 (4 pair, 3 horizon):
+  // zona ini konsisten net-positive (setelah fee+funding) di train & out-of-sample test,
+  // sementara zona >=55 (confluence tinggi) cenderung "late entry" / lemah, dan <45
+  // cenderung negatif. Lihat scripts/backtest-rule-engine.ts untuk detail.
+  if (score.total >= 45 && score.total < 55) {
     const rejectReason = checkHardRejects(inp, bias);
     if (rejectReason) {
       side = "NO_TRADE";
@@ -499,8 +507,10 @@ export function generateRuleBasedSignal(inp: RuleBasedSignalInput): RuleBasedSig
       side = "NO_TRADE";
       noTradeReason = "Bias netral — konfluensi tidak cukup mengarah ke satu arah";
     }
+  } else if (score.total < 45) {
+    noTradeReason = `Skor ${score.total}/100 di bawah zona sweet-spot (45-55) — confidence terlalu rendah berdasarkan backtest`;
   } else {
-    noTradeReason = `Skor kepercayaan ${score.total}/100 di bawah threshold 65`;
+    noTradeReason = `Skor ${score.total}/100 di atas zona sweet-spot (45-55) — confluence terlalu tinggi, secara historis sering jadi late-entry`;
   }
 
   // Calculate levels
@@ -581,7 +591,7 @@ export function generateRuleBasedSignal(inp: RuleBasedSignalInput): RuleBasedSig
       ? `Setup batal jika harga close di bawah ${fmt(sl)}`
       : side === "SELL"
       ? `Setup batal jika harga close di atas ${fmt(sl)}`
-      : `Tunggu setup valid dengan skor minimal 65/100`,
+      : `Tunggu setup valid dengan skor di zona 45-55/100 (sweet spot berdasarkan backtest)`,
     traderStyle,
     expertMindset,
     timeframe: "4H konfirmasi, 1D tren",
@@ -604,5 +614,29 @@ export function generateRuleBasedSignal(inp: RuleBasedSignalInput): RuleBasedSig
     bearishTarget,
     baseCase,
     noTradeReason: side === "NO_TRADE" ? noTradeReason : undefined,
+    riskManagement: (() => {
+      // stopDistancePct: jarak SL aktual dari entry, dalam % (fallback ke ATR jika NO_TRADE)
+      const stopDistPct = side === "BUY"
+        ? ((entryLow - sl) / entryLow) * 100
+        : side === "SELL"
+        ? ((sl - entryHigh) / entryHigh) * 100
+        : riskPct; // ATR-based fallback untuk NO_TRADE
+
+      const example1pct = stopDistPct > 0 ? (1 / stopDistPct) : 0;
+      const example2pct = stopDistPct > 0 ? (2 / stopDistPct) : 0;
+
+      return {
+        stopDistancePct: `${stopDistPct.toFixed(2)}%`,
+        suggestion:
+          `Risk-based sizing (BUKAN leverage ke seluruh modal): tentukan dulu berapa % modal ` +
+          `yang siap dipertaruhkan per trade (umum: 1-2%). Position size = (modal x risk%) / ${stopDistPct.toFixed(2)}%. ` +
+          `Contoh modal $1000: risk 1% -> position size \u2248 ${(example1pct * 1000).toFixed(0)} ` +
+          `(leverage efektif \u2248 ${example1pct.toFixed(1)}x dari modal). ` +
+          `Risk 2% -> position size \u2248 ${(example2pct * 1000).toFixed(0)} ` +
+          `(leverage efektif \u2248 ${example2pct.toFixed(1)}x). ` +
+          `Leverage exchange bisa lebih tinggi dari ini — tapi JANGAN dipakai untuk ` +
+          `memperbesar position size di atas hasil hitungan risk% ini.`,
+      };
+    })(),
   };
 }
