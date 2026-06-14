@@ -947,7 +947,12 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
     );
     bbVal = bollinger(daily.closes, 20, 2);
 
-    const vp = volumeProfile(daily.volumes.slice(-30));
+    // Exclude the last daily candle: OKX daily candles use UTC+8 day boundaries,
+    // so the most recent candle is often still IN-PROGRESS (partial day volume).
+    // Comparing a partial day's volume against a 30-day average of FULL days
+    // creates a systematic downward bias on volRatio. Use the last 30 CLOSED
+    // days instead (recent = yesterday's full volume).
+    const vp = volumeProfile(daily.volumes.slice(-31, -1));
     volAvg30 = vp.avg;
     volRecent = vp.recent;
     volSpike = vp.spike;
@@ -1595,7 +1600,12 @@ async function prewarmSignal(pair: string): Promise<void> {
     const macd4hVal = macd(candles4h.closes);
     const stoch4hVal = stochastic(candles4h.highs, candles4h.lows, candles4h.closes);
     const bbVal = bollinger(daily.closes, 20, 2);
-    const vp = volumeProfile(daily.volumes.slice(-30));
+    // Exclude the last daily candle: OKX daily candles use UTC+8 day boundaries,
+    // so the most recent candle is often still IN-PROGRESS (partial day volume).
+    // Comparing a partial day's volume against a 30-day average of FULL days
+    // creates a systematic downward bias on volRatio. Use the last 30 CLOSED
+    // days instead (recent = yesterday's full volume).
+    const vp = volumeProfile(daily.volumes.slice(-31, -1));
     const obvTrendStr = obvTrend(daily.closes, daily.volumes);
     const rsiDiv = detectRsiDivergence(daily.closes, 20);
     const swing7d = swingLevels(candles4h.highs, candles4h.lows, 42);
