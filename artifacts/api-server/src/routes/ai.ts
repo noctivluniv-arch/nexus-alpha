@@ -241,9 +241,9 @@ AUTOMATIC REJECT — output NO_TRADE if ANY of these apply:
 - Funding rate > 0.15% for LONG signals
 - Price in middle of range (no clear S/R nearby)
 - Volume < 0.7x 30-day average
-- Score < 65 total
+- Score outside 45-55 zone
 
-If confidence < 65, output signal = "NO_TRADE". 
+If confidence outside 45-55 zone, output signal = "NO_TRADE". 
 
 CRITICAL BIAS RULE: Do NOT default to SELL just because price is below EMA200. 
 - If RSI is recovering from oversold (< 35 → now rising), bias is BUY not SELL
@@ -358,7 +358,7 @@ const LAYER_4 = `FINAL VALIDATION — reject (NO_TRADE) if ANY:
 - RSI > 80 (LONG) or RSI < 20 (SHORT) daily
 - Funding > 0.15% for LONG
 - Volume < 0.7x avg30
-- Score < 65
+- Score outside 45-55 zone
 - 4H and Daily trend disagree
 - R:R < 1:2
 

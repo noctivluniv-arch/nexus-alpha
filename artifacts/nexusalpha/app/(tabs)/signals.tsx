@@ -425,13 +425,13 @@ export default function SignalsScreen() {
                     styles.confThreshold,
                     {
                       color:
-                        signal.confidence >= 65
+                        (signal.confidence >= 45 && signal.confidence < 55)
                           ? colors.success
                           : colors.danger,
                     },
                   ]}
                 >
-                  {signal.confidence >= 65
+                  {(signal.confidence >= 45 && signal.confidence < 55)
                     ? t("signals.confValid")
                     : t("signals.confBelowThreshold")}
                 </Text>
@@ -448,7 +448,7 @@ export default function SignalsScreen() {
                     {
                       width: `${Math.min(signal.confidence, 100)}%`,
                       backgroundColor:
-                        signal.confidence >= 65
+                        (signal.confidence >= 45 && signal.confidence < 55)
                           ? colors.success
                           : colors.danger,
                     },
@@ -460,7 +460,7 @@ export default function SignalsScreen() {
                   styles.confValue,
                   {
                     color:
-                      signal.confidence >= 65 ? colors.success : colors.danger,
+                      (signal.confidence >= 45 && signal.confidence < 55) ? colors.success : colors.danger,
                   },
                 ]}
               >
@@ -865,7 +865,7 @@ function ScoreCard({
         <Text
           style={[
             styles.scoreTotalVal,
-            { color: score.total >= 65 ? colors.success : colors.danger },
+            { color: (score.total >= 45 && score.total < 55) ? colors.success : colors.danger },
           ]}
         >
           {score.total}/100
