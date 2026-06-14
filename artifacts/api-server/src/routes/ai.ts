@@ -49,7 +49,25 @@ interface SignalCacheEntry {
   data: Record<string, unknown>;
 }
 const SIGNAL_CACHE = new Map<string, SignalCacheEntry>();
-const SIGNAL_TTL_MS = process.env.GEMINI_API_KEY ? 30 * 60 * 1000 : 5 * 60 * 1000;
+// 10 detik — cukup untuk feel "real-time" tanpa spam Binance/OKX di traffic tinggi.
+// Harga (livePrice) & semua indikator turunan selalu fresh setelah cache ini expire.
+const SIGNAL_TTL_MS = 10 * 1000;
+
+// FGI & BTC dominance bersifat GLOBAL (bukan per-pair) dan berubah lambat
+// (FGI update ~harian, BTC dom berubah dalam jam). Cache terpisah & dishare
+// antar pair, supaya CoinGecko (rate-limit ketat) tidak di-spam meski
+// SIGNAL_CACHE expire tiap 10 detik.
+interface MacroCacheEntry {
+  ts: number;
+  fgi: { value: number; label: string } | null;
+  btcGlobal: { btcDom: number; mcapChange24h: number } | null;
+}
+let macroCache: MacroCacheEntry | null = null;
+const MACRO_TTL_MS = 5 * 60 * 1000;
+
+// Funding rate/OI/LS ratio per-pair dari OKX — berubah dalam menit.
+const DERIV_CACHE = new Map<string, { ts: number; data: DerivData | null }>();
+const DERIV_TTL_MS = 60 * 1000;
 
 interface WhalesCacheEntry {
   ts: number;
@@ -811,14 +829,34 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
     }
   }
 
-  const [ohlc, [derivData, fgiData, btcGlobal]] = await Promise.all([
-    getOHLC(String(pair), 90),
-    Promise.allSettled([
-      fetchDerivatives(String(pair)),
-      fetchFearGreed(),
-      fetchBtcDom(),
-    ]),
+  const pairStr = String(pair);
+
+  const [derivVal, macroVal, ohlc] = await Promise.all([
+    (async () => {
+      const cached = DERIV_CACHE.get(pairStr);
+      if (cached && Date.now() - cached.ts < DERIV_TTL_MS) return cached.data;
+      const fresh = await fetchDerivatives(pairStr);
+      DERIV_CACHE.set(pairStr, { ts: Date.now(), data: fresh });
+      return fresh;
+    })(),
+    (async () => {
+      if (macroCache && Date.now() - macroCache.ts < MACRO_TTL_MS) {
+        return { fgi: macroCache.fgi, btcGlobal: macroCache.btcGlobal };
+      }
+      const [fgiR, btcR] = await Promise.allSettled([fetchFearGreed(), fetchBtcDom()]);
+      const fgi = fgiR.status === "fulfilled" ? fgiR.value : null;
+      const btcGlobalFresh = btcR.status === "fulfilled" ? btcR.value : null;
+      macroCache = { ts: Date.now(), fgi, btcGlobal: btcGlobalFresh };
+      return { fgi, btcGlobal: btcGlobalFresh };
+    })(),
+    getOHLC(pairStr, 90),
   ]);
+
+  // Bentuk ulang sebagai PromiseSettledResult-like agar kode downstream
+  // (yang sudah ada, mengakses .status/.value) tetap berjalan tanpa diubah.
+  const derivData = { status: "fulfilled" as const, value: derivVal };
+  const fgiData = { status: "fulfilled" as const, value: macroVal.fgi };
+  const btcGlobal = { status: "fulfilled" as const, value: macroVal.btcGlobal };
 
   let livePrice = parseFloat(priceData?.lastPrice ?? "0");
   const change24h = priceData?.priceChangePercent ?? "0";
