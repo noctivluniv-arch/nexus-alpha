@@ -1061,6 +1061,27 @@ function ScalpingPlanCard({
             </View>
           ) : null}
 
+          {plan.riskManagement ? (
+            <View style={styles.scalpTriggerBox}>
+              <Text
+                style={[
+                  styles.scalpTriggerLabel,
+                  { color: colors.mutedForeground },
+                ]}
+              >
+                {t("signals.scalp.riskManagement")} ({plan.riskManagement.stopDistancePct})
+              </Text>
+              <Text
+                style={[
+                  styles.scalpTriggerText,
+                  { color: colors.foreground },
+                ]}
+              >
+                {plan.riskManagement.suggestion}
+              </Text>
+            </View>
+          ) : null}
+
           {plan.takeProfit && plan.takeProfit.length > 0 ? (
             <View style={{ marginTop: 10 }}>
               <Text
@@ -1120,6 +1141,21 @@ function ScalpingPlanCard({
             >
               {plan.notes}
             </Text>
+          ) : null}
+
+          {plan.side !== "NO_SCALP" ? (
+            <View style={{ marginTop: 10 }}>
+              <LeverageCalculator
+                signal={{
+                  side: plan.side,
+                  entryPrice: plan.entryPrice,
+                  stopLoss: plan.stopLoss,
+                  takeProfit: plan.takeProfit,
+                  takeProfitRR: plan.takeProfitRR,
+                }}
+                colors={colors}
+              />
+            </View>
           ) : null}
         </>
       )}
@@ -1242,11 +1278,20 @@ function SpotAccumulationCard({
 }
 
 // ─── Leverage & Risk Calculator ──────────────────────────────────────────────
+interface LeverageCalcInput {
+  side: string;
+  entryPrice?: string;
+  entryRange?: string;
+  stopLoss: string;
+  takeProfit: string[];
+  takeProfitRR?: string[];
+}
+
 function LeverageCalculator({
   signal,
   colors,
 }: {
-  signal: TradingSignal;
+  signal: LeverageCalcInput;
   colors: any;
 }) {
   const t = useT();
@@ -1263,7 +1308,7 @@ function LeverageCalculator({
   const tpPrices = (signal.takeProfit ?? []).map((tp: string) =>
     parseFloat(tp.replace(/[^0-9.]/g, ""))
   );
-  const isShort = signal.side === "SELL";
+  const isShort = signal.side === "SELL" || signal.side === "SHORT";
   const capitalNum = parseFloat(capital) || 0;
   const margin = capitalNum;
   const positionSize = margin * leverage;

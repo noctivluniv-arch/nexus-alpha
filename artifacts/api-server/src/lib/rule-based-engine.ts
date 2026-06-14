@@ -101,6 +101,7 @@ export interface RuleBasedSignalOutput {
   scalpSL: string;
   scalpTP: string[];
   scalpLeverage: string;
+  scalpRiskManagement: { stopDistancePct: string; suggestion: string };
   scalpTrigger: string;
   scalpNotes: string;
   // Spot
@@ -381,9 +382,29 @@ function scoreScalp(inp: RuleBasedSignalInput): {
   leverage: string;
   trigger: string;
   notes: string;
+  riskManagement: { stopDistancePct: string; suggestion: string };
 } {
   const atr = inp.atr14 ?? (inp.price * 0.015);
   const atr1h = atr * 0.4; // smaller ATR for 1H
+
+  const buildScalpRiskManagement = (entry: number, sl: number): { stopDistancePct: string; suggestion: string } => {
+    const stopDistPct = (Math.abs(entry - sl) / entry) * 100;
+    const example1pct = stopDistPct > 0 ? (1 / stopDistPct) : 0;
+    const example2pct = stopDistPct > 0 ? (2 / stopDistPct) : 0;
+    return {
+      stopDistancePct: `${stopDistPct.toFixed(2)}%`,
+      suggestion:
+        `Risk-based sizing (BUKAN leverage ke seluruh modal): tentukan dulu berapa % modal ` +
+        `yang siap dipertaruhkan per trade (umum: 0.5-1% untuk scalp, lebih kecil dari swing karena ` +
+        `frekuensi lebih tinggi). Position size = (modal x risk%) / ${stopDistPct.toFixed(2)}%. ` +
+        `Contoh modal $1000: risk 0.5% -> position size \u2248 ${(example1pct * 500).toFixed(0)} ` +
+        `(leverage efektif \u2248 ${(example1pct/2).toFixed(1)}x). ` +
+        `Risk 1% -> position size \u2248 ${(example1pct * 1000).toFixed(0)} ` +
+        `(leverage efektif \u2248 ${example1pct.toFixed(1)}x). ` +
+        `JANGAN gunakan leverage exchange di atas hasil hitungan risk% ini.`,
+    };
+  };
+
 
   // Scalp conditions — need 1H + 4H alignment
   const rsi1hOversold = inp.rsi1h !== null && inp.rsi1h < 35;
@@ -420,9 +441,10 @@ function scoreScalp(inp: RuleBasedSignalInput): {
       entry,
       sl,
       tps: [entry + risk * 1.5, entry + risk * 2.5, entry + risk * 4],
-      leverage: "10-15x",
+      leverage: "Lihat riskManagement (risk-based, BUKAN angka tetap)",
       trigger: `1H RSI oversold + 4H MACD bullish + dekat support ${fmt(inp.sup1)}`,
-      notes: `Entry di ${fmt(entry)}, SL di ${fmt(sl)} (-${((risk/entry)*100).toFixed(2)}%). Ambil 50% profit di TP1.`
+      notes: `Entry di ${fmt(entry)}, SL di ${fmt(sl)} (-${((risk/entry)*100).toFixed(2)}%). Ambil 50% profit di TP1.`,
+      riskManagement: buildScalpRiskManagement(entry, sl),
     };
   }
 
@@ -435,9 +457,10 @@ function scoreScalp(inp: RuleBasedSignalInput): {
       entry,
       sl,
       tps: [entry - risk * 1.5, entry - risk * 2.5, entry - risk * 4],
-      leverage: "10-15x",
+      leverage: "Lihat riskManagement (risk-based, BUKAN angka tetap)",
       trigger: `1H RSI overbought + 4H MACD bearish + dekat resistance ${fmt(inp.res1)}`,
-      notes: `Entry di ${fmt(entry)}, SL di ${fmt(sl)} (+${((risk/entry)*100).toFixed(2)}%). Ambil 50% profit di TP1.`
+      notes: `Entry di ${fmt(entry)}, SL di ${fmt(sl)} (+${((risk/entry)*100).toFixed(2)}%). Ambil 50% profit di TP1.`,
+      riskManagement: buildScalpRiskManagement(entry, sl),
     };
   }
 
@@ -448,7 +471,8 @@ function scoreScalp(inp: RuleBasedSignalInput): {
     tps: [],
     leverage: "1x",
     trigger: "Konfluensi scalp tidak cukup",
-    notes: "Tunggu setup lebih jelas. Minimal 4 dari 8 kondisi harus terpenuhi."
+    notes: "Tunggu setup lebih jelas. Minimal 4 dari 8 kondisi harus terpenuhi.",
+    riskManagement: { stopDistancePct: "0.00%", suggestion: "Tidak ada setup — tidak relevan untuk dihitung." },
   };
 }
 
@@ -602,6 +626,7 @@ export function generateRuleBasedSignal(inp: RuleBasedSignalInput): RuleBasedSig
     scalpSL: fmt(scalp.sl),
     scalpTP: scalp.tps.map(fmt),
     scalpLeverage: scalp.leverage,
+    scalpRiskManagement: scalp.riskManagement,
     scalpTrigger: scalp.trigger,
     scalpNotes: scalp.notes,
     // Spot

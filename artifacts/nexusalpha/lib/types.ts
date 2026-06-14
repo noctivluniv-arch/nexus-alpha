@@ -75,6 +75,7 @@ export interface ScalpingPlan {
   holdTime: string;
   sessionWindow: string;
   notes: string;
+  riskManagement?: { stopDistancePct: string; suggestion: string };
 }
 
 export interface SpotAccumulationZone {

@@ -1195,6 +1195,7 @@ ${buildLanguageDirective("en")}`;
       holdTime: "15m - 4j",
       sessionWindow: "NY/London open",
       notes: ruleSignal.scalpNotes,
+      riskManagement: ruleSignal.scalpRiskManagement,
     },
   };
 
