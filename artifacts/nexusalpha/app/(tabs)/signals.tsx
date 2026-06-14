@@ -425,13 +425,13 @@ export default function SignalsScreen() {
                     styles.confThreshold,
                     {
                       color:
-                        (signal.confidence >= 45 && signal.confidence < 55)
+                        signal.side !== "NO_TRADE"
                           ? colors.success
                           : colors.danger,
                     },
                   ]}
                 >
-                  {(signal.confidence >= 45 && signal.confidence < 55)
+                  {signal.side !== "NO_TRADE"
                     ? t("signals.confValid")
                     : t("signals.confBelowThreshold")}
                 </Text>
@@ -448,7 +448,7 @@ export default function SignalsScreen() {
                     {
                       width: `${Math.min(signal.confidence, 100)}%`,
                       backgroundColor:
-                        (signal.confidence >= 45 && signal.confidence < 55)
+                        signal.side !== "NO_TRADE"
                           ? colors.success
                           : colors.danger,
                     },
@@ -460,7 +460,7 @@ export default function SignalsScreen() {
                   styles.confValue,
                   {
                     color:
-                      (signal.confidence >= 45 && signal.confidence < 55) ? colors.success : colors.danger,
+                      signal.side !== "NO_TRADE" ? colors.success : colors.danger,
                   },
                 ]}
               >
@@ -473,6 +473,7 @@ export default function SignalsScreen() {
               <ScoreCard
                 score={signal.scoreBreakdown}
                 colors={colors}
+                side={signal.side}
               />
             ) : null}
 
@@ -843,9 +844,11 @@ const SCORE_ITEMS: {
 function ScoreCard({
   score,
   colors,
+  side,
 }: {
   score: ScoreBreakdown;
   colors: any;
+  side: string;
 }) {
   const t = useT();
   return (
@@ -865,7 +868,7 @@ function ScoreCard({
         <Text
           style={[
             styles.scoreTotalVal,
-            { color: (score.total >= 45 && score.total < 55) ? colors.success : colors.danger },
+            { color: side !== "NO_TRADE" ? colors.success : colors.danger },
           ]}
         >
           {score.total}/100
