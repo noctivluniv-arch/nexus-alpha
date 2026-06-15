@@ -519,13 +519,31 @@ export default function SignalsScreen() {
               <SpotAccumulationCard data={signal.spotAccumulation} colors={colors} />
             )}
 
-            {/* Scalping Plan (short-term sniper plan from Gemini) */}
+            {/* Scalping Plan — TEMPORARILY DISABLED
+                Backtest (n~15,000, 4 pairs, 1H) menunjukkan kondisi
+                scoreScalp tidak punya edge yang cukup untuk menutupi fee.
+                Kode backend & ScalpingPlanCard TIDAK dihapus, supaya mudah
+                di-enable kembali jika logic-nya di-redesign & divalidasi.
+                Lihat scripts/backtest-scalp-components.ts untuk detail. */}
             {signal.scalpingPlan ? (
-              <ScalpingPlanCard
-                plan={signal.scalpingPlan}
-                colors={colors}
-                t={t}
-              />
+              <View
+                style={[
+                  styles.scalpCard,
+                  { backgroundColor: "rgba(255,255,255,0.03)", borderColor: colors.border },
+                ]}
+              >
+                <Text style={[styles.scalpTitle, { color: colors.mutedForeground }]}>
+                  {t("signals.scalp.title")}
+                </Text>
+                <Text
+                  style={[
+                    styles.scalpNoteText,
+                    { color: colors.mutedForeground, marginTop: 6 },
+                  ]}
+                >
+                  {t("signals.scalp.disabledNotice")}
+                </Text>
+              </View>
             ) : null}
 
             {/* Confluences */}
