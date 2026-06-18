@@ -13,3 +13,7 @@ services:
         value: 10000
       - key: TELEGRAM_BOT_TOKEN
         sync: false
+      - key: TELEGRAM_CHAT_ID
+        value: "305425021"
+      - key: BASE_URL
+        value: "https://nexus-alpha-j3yb.onrender.com"
