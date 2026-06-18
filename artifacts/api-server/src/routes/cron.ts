@@ -5,7 +5,7 @@ const router = Router();
 
 const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "305425021";
-const CONFIDENCE_THRESHOLD = 80;
+const CONFIDENCE_THRESHOLD = 58;
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:10000";
 
 async function sendTelegram(text: string): Promise<void> {
