@@ -7,6 +7,7 @@ import memesRouter from "./memes";
 import whalesRouter from "./whales";
 import telegramRouter from "./telegram";
 import altcoinsRouter from "./altcoins";
+import cronRouter from "./cron";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(memesRouter);
 router.use(whalesRouter);
 router.use("/telegram", telegramRouter);
 router.use(altcoinsRouter);
+router.use("/cron", cronRouter);
 
 export default router;
