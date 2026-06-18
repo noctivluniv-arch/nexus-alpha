@@ -50,7 +50,7 @@ export default function SignalsScreen() {
     setTgSending(true);
     setTgSent(false);
     try {
-      const res = await fetch(`${api.baseUrl}/telegram/send`, {
+      const res = await fetch(`${api.baseUrl}/api/telegram/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chatId: TELEGRAM_CHAT_ID, signal }),
