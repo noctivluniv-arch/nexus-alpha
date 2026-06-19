@@ -351,7 +351,7 @@ const LAYER_3 = `Analyze the market data above. Step by step:
 3. Momentum: RSI+MACD+Stoch agreement? Divergence? Volume confirmation?
 4. Sentiment: does derivatives data (funding, OI, L/S ratio) support signal?
 5. Risk: logical stop (structural), R:R >= 1:2, invalidation conditions?
-6. Verdict: score each factor, output NO_TRADE if total < 58. For SELL signals the threshold is 62 — bearish confluence must be clear.
+6. Verdict: score each factor using the 45-55 sweet spot zone defined above. If confidence is within 45-55 AND direction is clear, output BUY or SELL. Otherwise NO_TRADE.
 Think like smart money, be contrarian at sentiment extremes.`;
 
 const LAYER_4 = `FINAL VALIDATION — reject (NO_TRADE) if ANY:
@@ -717,7 +717,7 @@ function buildFallbackSignal(params: {
     stopLoss: `$${sl.toFixed(2)}`,
     stopLossRiskPct: `${riskPct}%`,
     confidence: Math.min(score, 88),
-    // Enforce NO_TRADE rule: if score < 58 for long, < 62 for short
+    // Enforce NO_TRADE rule: confidence must be within 45-55 sweet spot zone
     ...(side === "NO_TRADE" ? { noTrade: true, noTradeReason: id ? "Konfluensi teknikal belum cukup kuat. Tunggu setup yang lebih jelas." : "Technical confluence not strong enough. Wait for a clearer setup." } : {}),
     timestamp: Date.now(),
     reasoning: id
