@@ -5,7 +5,8 @@ const router = Router();
 
 const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "305425021";
-const CONFIDENCE_THRESHOLD = 58;
+const SWEET_SPOT_MIN = 45;
+const SWEET_SPOT_MAX = 65;
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:10000";
 
 async function sendTelegram(text: string): Promise<void> {
@@ -49,7 +50,8 @@ async function runSignalScan() {
 
       // Only send if confidence >= threshold and not NO_TRADE
       if (
-        signal.confidence >= CONFIDENCE_THRESHOLD &&
+        signal.confidence >= SWEET_SPOT_MIN &&
+        signal.confidence <= SWEET_SPOT_MAX &&
         signal.side !== "NO_TRADE" &&
         !signal.noTrade
       ) {
