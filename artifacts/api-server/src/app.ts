@@ -34,5 +34,6 @@ app.use(express.json({ limit: "50kb" }));
 app.use(express.urlencoded({ extended: true, limit: "50kb" }));
 
 app.use("/api", router);
+app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 
 export default app;
