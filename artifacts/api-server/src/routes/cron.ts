@@ -7,6 +7,13 @@ const router = Router();
 const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "305425021";
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 async function sendTelegram(text: string): Promise<void> {
   const res = await fetch(`${TELEGRAM_API}/sendMessage`, {
     method: "POST",
@@ -62,7 +69,7 @@ async function runSignalScan() {
 
         if (signal.confluences.length > 0) {
           msg += `<b>📌 Confluences:</b>\n`;
-          signal.confluences.slice(0, 5).forEach((c) => (msg += `  • ${c}\n`));
+          signal.confluences.slice(0, 5).forEach((c) => (msg += `  • ${escapeHtml(c)}\n`));
           msg += `\n`;
         }
 
