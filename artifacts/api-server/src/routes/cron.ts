@@ -30,6 +30,7 @@ async function runSignalScan() {
 
   for (const pair of SUPPORTED_PAIRS) {
     try {
+      await new Promise((r) => setTimeout(r, 2000));
       const signal = await computeRealtimeSignal(pair);
 
       console.log(`[CRON] ${pair} → confidence: ${signal.confidence}, side: ${signal.side}, bias: ${signal.bias}`);
@@ -76,7 +77,7 @@ async function runSignalScan() {
 }
 
 export function startCron() {
-  const INTERVAL_MS = 5 * 60 * 1000;
+  const INTERVAL_MS = 10 * 60 * 1000;
   console.log(`[CRON] Auto-signal scanner started. Interval: ${INTERVAL_MS / 1000}s`);
 
   runSignalScan();
