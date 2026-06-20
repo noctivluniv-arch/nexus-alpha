@@ -24,10 +24,20 @@ interface Candles {
 }
 
 async function fetchKlines(symbol: string, interval: string, limit = 300): Promise<Candles> {
-  const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+  // Bybit interval mapping: "1d" -> "D", "4h" -> "240" (minutes)
+  const bybitInterval = interval === "1d" ? "D" : interval === "4h" ? "240" : interval;
+  const url = `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${bybitInterval}&limit=${limit}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Binance klines error ${res.status} for ${symbol} ${interval}`);
-  const raw = (await res.json()) as any[];
+  if (!res.ok) throw new Error(`Bybit klines error ${res.status} for ${symbol} ${interval}`);
+  const json = (await res.json()) as any;
+
+  if (json.retCode !== 0) {
+    throw new Error(`Bybit klines API error: ${json.retMsg} for ${symbol} ${interval}`);
+  }
+
+  // Bybit returns [startTime, open, high, low, close, volume, turnover], newest first
+  const raw: any[] = json.result?.list ?? [];
+  raw.reverse(); // oldest first, to match ordering used elsewhere
 
   const c: Candles = { opens: [], highs: [], lows: [], closes: [], volumes: [], closeTime: [] };
   for (const k of raw) {
@@ -36,18 +46,20 @@ async function fetchKlines(symbol: string, interval: string, limit = 300): Promi
     c.lows.push(parseFloat(k[3]));
     c.closes.push(parseFloat(k[4]));
     c.volumes.push(parseFloat(k[5]));
-    c.closeTime.push(k[6]);
+    c.closeTime.push(parseInt(k[0], 10));
   }
   return c;
 }
 
 async function fetchLatestFundingRate(symbol: string): Promise<number | null> {
   try {
-    const url = `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`;
+    const url = `https://api.bybit.com/v5/market/funding/history?category=linear&symbol=${symbol}&limit=1`;
     const res = await fetch(url);
     if (!res.ok) return null;
-    const data = (await res.json()) as any[];
-    return data.length > 0 ? parseFloat(data[0].fundingRate) : null;
+    const json = (await res.json()) as any;
+    if (json.retCode !== 0) return null;
+    const list = json.result?.list ?? [];
+    return list.length > 0 ? parseFloat(list[0].fundingRate) : null;
   } catch {
     return null;
   }
