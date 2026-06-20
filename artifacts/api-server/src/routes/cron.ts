@@ -8,7 +8,7 @@ const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOK
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "305425021";
 
 async function sendTelegram(text: string): Promise<void> {
-  await fetch(`${TELEGRAM_API}/sendMessage`, {
+  const res = await fetch(`${TELEGRAM_API}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -18,6 +18,13 @@ async function sendTelegram(text: string): Promise<void> {
       disable_web_page_preview: true,
     }),
   });
+
+  const json = await res.json().catch(() => null);
+
+  if (!res.ok || !json?.ok) {
+    console.error(`[TELEGRAM] Send failed (status ${res.status}):`, JSON.stringify(json));
+    throw new Error(`Telegram sendMessage failed: ${json?.description ?? res.statusText}`);
+  }
 }
 
 function fmtPrice(n: number | null): string {
