@@ -37,6 +37,14 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 4. Cooldown 30 menit per coin (Map in-memory)
 5. Kirim Telegram via MEME_TELEGRAM_BOT_TOKEN ke MEME_TELEGRAM_CHAT_ID
 
+## Logika Scoring Meme Coin (memes.ts)
+- PUMP_IMMINENT: volume 1H >= 4x rata-rata 6H (diturunkan dari 10x)
+- ACCUMULATION: volume 1H >= 1.5x rata-rata 6H (diturunkan dari 3x)
+- Buy pressure bonus: 70%+ buy ratio = +15 poin, 60%+ = +10, 50%+ = +5, <35% = -10
+- LP_UNLOCKED: hard reject untuk non-Solana, warning saja untuk Solana
+- Hard reject: LIQUIDITY_TOO_THIN (<$50K), TOO_NEW (<12 jam), NO_REAL_VOLUME (<$5K), EXTREME_VOLATILITY (>400%), MCAP_LIQ_MISMATCH, WHALE_CONCENTRATION_EXTREME (>=95%), SINGLE_HOLDER_EXTREME (>50%)
+- earlyGemLabel "GEM": PUMP_IMMINENT ATAU (usia 1-30 hari + volLiqRatio 0.3-15 + liq >$50K + LP locked/burned + konsentrasi <70%)
+
 ## Environment Variables di Render
 - TELEGRAM_BOT_TOKEN — bot signal biasa
 - TELEGRAM_CHAT_ID — chat ID signal biasa
@@ -53,6 +61,10 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 
 ## Bug Yang Sudah Diselesaikan
 - narrativeData is not defined (ReferenceError scope) di memes.ts — FIXED ✓
-  Fix: tambah narrativeData ke return object evaluated.map dan destructuring survivors.map
 - Meme cron fetch 404 karena URL salah (/ai/memes → /api/ai/memes) — FIXED ✓
 - Meme cron fetch 404 karena method salah (GET → POST) — FIXED ✓
+
+## Improvement Yang Sudah Diimplementasikan
+- PUMP_IMMINENT threshold turun 10x → 4x untuk deteksi lebih awal — DONE ✓
+- Buy pressure scoring ditambahkan ke evaluateQuality — DONE ✓
+- LP_UNLOCKED jadi warning untuk Solana, bukan hard reject — DONE ✓
