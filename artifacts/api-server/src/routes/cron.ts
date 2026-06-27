@@ -6,7 +6,8 @@ const router = Router();
 
 const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "305425021";
-<<<<<<< HEAD
+const CONFIDENCE_THRESHOLD = 58;
+const BASE_URL = process.env.BASE_URL ?? "http://localhost:10000";
 
 function escapeHtml(text: string): string {
   return text
@@ -14,10 +15,6 @@ function escapeHtml(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 }
-=======
-const CONFIDENCE_THRESHOLD = 58;
-const BASE_URL = process.env.BASE_URL ?? "http://localhost:10000";
->>>>>>> bc9a8ec6 (wip: update cron and memes routes)
 
 async function sendTelegram(text: string): Promise<void> {
   const res = await fetch(`${TELEGRAM_API}/sendMessage`, {
