@@ -22,6 +22,7 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 - Telegram notifications: aktif, cron tiap 10 menit via cron.ts
 - escapeHtml() sudah diterapkan di confluences untuk cegah Telegram 400 error
 - Git tag stable: stable-telegram-signals
+- fix: resolve merge conflict in cron.ts
 
 ## File-File Kunci
 - artifacts/api-server/src/routes/cron.ts — cron job & Telegram sender
