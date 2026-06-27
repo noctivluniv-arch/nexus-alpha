@@ -135,7 +135,7 @@ const MEME_INTERVAL_MS = 15 * 60 * 1000; // scan tiap 15 menit
 async function runMemeScan() {
   console.log("[MEME-CRON] Starting meme coin scan...");
   try {
-    const res = await fetch(`${BASE_URL}/ai/memes`);
+    const res = await fetch(`${BASE_URL}/api/ai/memes`);
     if (!res.ok) {
       console.error(`[MEME-CRON] Failed to fetch memes: ${res.status}`);
       return;
