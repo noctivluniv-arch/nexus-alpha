@@ -1730,6 +1730,173 @@ function calcEarlyGemScore(p: {
   return { score: Math.min(100, score), label, signals };
 }
 
+// ─── BUY RECOMMENDATION ──────────────────────────────────────────────────────
+// Menggabungkan semua sinyal untuk menghasilkan verdict layak beli atau tidak.
+
+interface BuyRecommendation {
+  verdict: "LAYAK_BELI" | "WASPADA" | "HINDARI";
+  score: number; // 0-100
+  reasons: string[];   // alasan positif
+  redFlags: string[];  // alasan negatif
+  summary: string;     // satu kalimat ringkasan
+}
+
+function calcBuyRecommendation(p: {
+  // Security
+  tier: "VERIFIED" | "WATCHLIST" | "REJECTED";
+  manipulationRisk: "AMAN" | "WASPADA" | "MANIPULASI";
+  lpStatus: string;
+  network: string;
+  concentrationTop10: number;
+  biggestHolder: number;
+  // Momentum
+  volumeSignal: "PUMP_IMMINENT" | "ACCUMULATION" | "NORMAL" | "DUMPING";
+  viralScore: number;
+  organicScore: number;
+  earlyGemScore: number;
+  earlyGemLabel: "GEM" | "POTENSIAL" | "BIASA";
+  // Social
+  hasTwitter: boolean;
+  hasTelegram: boolean;
+  // Transaction
+  txBuys: number;
+  txSells: number;
+  txBuyers: number;
+  txSellers: number;
+  // Market
+  ageDays: number;
+  marketCap: number;
+  liqUsd: number;
+  change24h: number;
+  smartWalletsCount: number;
+}): BuyRecommendation {
+  const reasons: string[] = [];
+  const redFlags: string[] = [];
+  let score = 50; // mulai dari netral
+
+  // === RED FLAGS (langsung HINDARI jika terpenuhi) ===
+  if (p.manipulationRisk === "MANIPULASI") {
+    redFlags.push("Terdeteksi pola manipulasi harga");
+    score -= 40;
+  }
+  if (p.tier === "REJECTED") {
+    redFlags.push("Gagal filter keamanan dasar");
+    score -= 30;
+  }
+  if (p.concentrationTop10 >= 80) {
+    redFlags.push(`Top 10 holder kuasai ${p.concentrationTop10.toFixed(0)}% supply — risiko dump tinggi`);
+    score -= 20;
+  }
+  if (p.biggestHolder > 40) {
+    redFlags.push(`Satu wallet pegang ${p.biggestHolder.toFixed(0)}% supply — bahaya`);
+    score -= 20;
+  }
+  if (p.lpStatus === "UNLOCKED" && p.network !== "solana") {
+    redFlags.push("LP tidak terkunci — risiko rug pull tinggi");
+    score -= 25;
+  }
+  if (p.volumeSignal === "DUMPING") {
+    redFlags.push("Volume sedang turun drastis — distribusi aktif");
+    score -= 15;
+  }
+  const totalTx = p.txBuys + p.txSells;
+  const buyRatio = totalTx > 0 ? p.txBuys / totalTx : 0;
+  if (buyRatio < 0.35 && totalTx > 20) {
+    redFlags.push(`Hanya ${(buyRatio * 100).toFixed(0)}% transaksi adalah BUY — tekanan jual dominan`);
+    score -= 15;
+  }
+  if (p.change24h > 200) {
+    redFlags.push(`Sudah naik ${p.change24h.toFixed(0)}% dalam 24 jam — kemungkinan sudah terlambat`);
+    score -= 10;
+  }
+
+  // === POSITIVE SIGNALS ===
+  if (p.manipulationRisk === "AMAN") {
+    reasons.push("Tidak ada pola manipulasi terdeteksi");
+    score += 15;
+  }
+  if (p.tier === "VERIFIED") {
+    reasons.push("Lolos semua filter keamanan");
+    score += 10;
+  }
+  if (p.hasTwitter && p.hasTelegram) {
+    reasons.push("Ada Twitter dan Telegram resmi — komunitas aktif");
+    score += 12;
+  } else if (p.hasTwitter || p.hasTelegram) {
+    reasons.push("Ada social media resmi");
+    score += 6;
+  } else {
+    redFlags.push("Tidak ada Twitter/Telegram resmi ditemukan");
+    score -= 8;
+  }
+  if (p.volumeSignal === "PUMP_IMMINENT") {
+    reasons.push("Volume 1H meledak — momentum awal pump terdeteksi");
+    score += 20;
+  } else if (p.volumeSignal === "ACCUMULATION") {
+    reasons.push("Volume akumulasi terdeteksi — smart money masuk");
+    score += 10;
+  }
+  if (buyRatio >= 0.65 && totalTx > 10) {
+    reasons.push(`${(buyRatio * 100).toFixed(0)}% transaksi adalah BUY — demand kuat`);
+    score += 12;
+  }
+  if (p.smartWalletsCount >= 3) {
+    reasons.push(`${p.smartWalletsCount} smart wallet akumulasi — whale masuk diam-diam`);
+    score += 15;
+  } else if (p.smartWalletsCount >= 1) {
+    reasons.push(`${p.smartWalletsCount} smart wallet terdeteksi`);
+    score += 7;
+  }
+  if (p.earlyGemLabel === "GEM") {
+    reasons.push("Early gem score tinggi — pola mirip DOGE/WIF sebelum viral");
+    score += 15;
+  } else if (p.earlyGemLabel === "POTENSIAL") {
+    reasons.push("Potensi gem terdeteksi");
+    score += 8;
+  }
+  if (p.organicScore >= 70) {
+    reasons.push("Komunitas organik kuat — bukan bot");
+    score += 8;
+  }
+  if (p.marketCap > 0 && p.marketCap < 1_000_000) {
+    reasons.push(`Market cap $${(p.marketCap/1000).toFixed(0)}K — masih sangat awal`);
+    score += 8;
+  }
+  if (p.liqUsd >= 250_000) {
+    reasons.push(`Likuiditas $${(p.liqUsd/1000).toFixed(0)}K — cukup aman untuk entry/exit`);
+    score += 5;
+  }
+
+  const finalScore = Math.max(0, Math.min(100, score));
+
+  let verdict: BuyRecommendation["verdict"];
+  let summary: string;
+
+  // Hard HINDARI jika ada red flag ekstrem
+  const hasExtremRed = p.manipulationRisk === "MANIPULASI" ||
+    p.biggestHolder > 40 ||
+    (p.lpStatus === "UNLOCKED" && p.network !== "solana") ||
+    p.tier === "REJECTED";
+
+  if (hasExtremRed || finalScore < 35) {
+    verdict = "HINDARI";
+    summary = redFlags.length > 0
+      ? `Hindari: ${redFlags[0]}`
+      : "Terlalu banyak sinyal negatif untuk entry aman";
+  } else if (finalScore >= 65 && redFlags.length <= 1) {
+    verdict = "LAYAK_BELI";
+    summary = reasons.length > 0
+      ? `Layak beli: ${reasons[0]}`
+      : "Sinyal positif mendominasi, risiko terkelola";
+  } else {
+    verdict = "WASPADA";
+    summary = "Sinyal campuran — cek manual sebelum beli";
+  }
+
+  return { verdict, score: finalScore, reasons, redFlags, summary };
+}
+
+
 // Fetch 30-day OHLCV from GeckoTerminal for manipulation pattern detection.
 // Best-effort: silently skips on error/timeout, manipulation analysis falls
 // back to intraday signals.
@@ -2585,6 +2752,37 @@ async function refreshMemes(): Promise<any[]> {
       row.earlyGemScore = updatedEarlyGem.score;
       row.earlyGemLabel = updatedEarlyGem.label;
       row.earlyGemSignals = updatedEarlyGem.signals;
+
+      // Buy recommendation — verdict akhir layak beli atau tidak
+      const buyRec = calcBuyRecommendation({
+        tier: row.tier,
+        manipulationRisk: row.manipulationRisk,
+        lpStatus: row.lpLockInfo?.status ?? "UNKNOWN",
+        network: row.geckoNetwork ?? "",
+        concentrationTop10: row._concentrationTop10 ?? 50,
+        biggestHolder: row.topHolders?.list?.[0]?.percent ?? 0,
+        volumeSignal: row.volumeSignal,
+        viralScore: row.viralScore ?? 0,
+        organicScore: row.organicScore ?? 0,
+        earlyGemScore: row.earlyGemScore ?? 0,
+        earlyGemLabel: row.earlyGemLabel ?? "BIASA",
+        hasTwitter,
+        hasTelegram,
+        txBuys: row._txBuys ?? 0,
+        txSells: row._txSells ?? 0,
+        txBuyers: row._txBuyers ?? 0,
+        txSellers: row._txSellers ?? 0,
+        ageDays: row._ageDays ?? 0,
+        marketCap: row._marketCap ?? 0,
+        liqUsd: row._liqUsd ?? 0,
+        change24h: parseFloat(row.change24h || "0"),
+        smartWalletsCount: (row.smartWallets ?? []).length,
+      });
+      row.buyVerdict = buyRec.verdict;
+      row.buyScore = buyRec.score;
+      row.buyReasons = buyRec.reasons;
+      row.buyRedFlags = buyRec.redFlags;
+      row.buySummary = buyRec.summary;
 
       // Clean up internal temp fields before sending to client
       delete row._vol1h; delete row._vol6h;

@@ -151,6 +151,12 @@ async function runMemeScan() {
       const isPump = coin.volumeSignal === "PUMP_IMMINENT";
       if (!isGem && !isPump) continue;
 
+      // Skip coin yang verdict HINDARI
+      if (coin.buyVerdict === "HINDARI") {
+        console.log(`[MEME-CRON] ⛔ Skipped (HINDARI): ${coin.name} — ${coin.buySummary}`);
+        continue;
+      }
+
       const lastSent = memeCooldown.get(coin.id) ?? 0;
       if (now - lastSent < MEME_COOLDOWN_MS) continue;
 
@@ -160,31 +166,36 @@ async function runMemeScan() {
           ? "💎 EARLY GEM"
           : "🚀 PUMP IMMINENT";
 
+      const verdictEmoji = coin.buyVerdict === "LAYAK_BELI" ? "✅" : "⚠️";
+      const verdictLabel = coin.buyVerdict === "LAYAK_BELI" ? "LAYAK BELI" : "WASPADA";
+
       let msg = `${label} — <b>NEXUSALPHA MEME SCANNER</b>\n`;
       msg += `━━━━━━━━━━━━━━━\n`;
+      msg += `${verdictEmoji} <b>Verdict: ${verdictLabel}</b> (${coin.buyScore ?? "—"}/100)\n`;
+      msg += `<i>${escapeHtml(coin.buySummary ?? "—")}</i>\n\n`;
       msg += `<b>Coin:</b> ${escapeHtml(coin.name)} (${escapeHtml(coin.symbol)})\n`;
       msg += `<b>Network:</b> ${escapeHtml(coin.network)}\n`;
       msg += `<b>Price:</b> $${escapeHtml(String(coin.price))}\n`;
       msg += `<b>Market Cap:</b> $${escapeHtml(coin.marketCap ?? "—")}\n`;
       msg += `<b>Liquidity:</b> $${escapeHtml(coin.liquidity ?? "—")}\n`;
       msg += `<b>Age:</b> ${coin.ageInDays ?? "—"} hari\n\n`;
+      if (coin.buyReasons?.length > 0) {
+        msg += `<b>✅ Alasan Positif:</b>\n`;
+        coin.buyReasons.slice(0, 3).forEach((s: string) => (msg += `  • ${escapeHtml(s)}\n`));
+        msg += `\n`;
+      }
+      if (coin.buyRedFlags?.length > 0) {
+        msg += `<b>🚩 Red Flags:</b>\n`;
+        coin.buyRedFlags.slice(0, 3).forEach((w: string) => (msg += `  • ${escapeHtml(w)}\n`));
+        msg += `\n`;
+      }
       msg += `<b>📊 Scores:</b>\n`;
-      msg += `  Quality: ${coin.qualityScore ?? "—"}/100\n`;
-      msg += `  Viral: ${coin.viralScore ?? "—"}/100 (${escapeHtml(coin.viralLabel ?? "—")})\n`;
-      msg += `  Organic: ${coin.organicScore ?? "—"}/100 (${escapeHtml(coin.organicLabel ?? "—")})\n`;
       msg += `  Early Gem: ${coin.earlyGemScore ?? "—"}/100\n`;
-      msg += `  Narrative: ${escapeHtml(coin.narrativeType ?? "NONE")} (${coin.narrativeScore ?? 0}/100)\n\n`;
-      if (coin.earlyGemSignals?.length > 0) {
-        msg += `<b>✅ Sinyal Positif:</b>\n`;
-        coin.earlyGemSignals.slice(0, 4).forEach((s: string) => (msg += `  • ${escapeHtml(s)}\n`));
-        msg += `\n`;
-      }
-      if (coin.warnings?.length > 0) {
-        msg += `<b>⚠️ Warning:</b>\n`;
-        coin.warnings.slice(0, 3).forEach((w: string) => (msg += `  • ${escapeHtml(w)}\n`));
-        msg += `\n`;
-      }
+      msg += `  Viral: ${coin.viralScore ?? "—"}/100\n`;
+      msg += `  Organic: ${coin.organicScore ?? "—"}/100\n\n`;
       msg += `<b>🔗 Chart:</b> ${escapeHtml(coin.dexUrl ?? "—")}\n`;
+      if (coin.twitter) msg += `<b>🐦 Twitter:</b> ${escapeHtml(coin.twitter)}\n`;
+      if (coin.telegram) msg += `<b>📢 Telegram:</b> ${escapeHtml(coin.telegram)}\n`;
       msg += `<i>⏰ ${new Date().toLocaleString("id-ID")}</i>\n`;
       msg += `━━━━━━━━━━━━━━━\n`;
       msg += `<i>🤖 NexusAlpha Meme Scanner — DYOR, high risk</i>`;
