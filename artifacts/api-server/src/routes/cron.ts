@@ -7,7 +7,27 @@ const router = Router();
 const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "305425021";
 const CONFIDENCE_THRESHOLD = 58;
+const MEME_TELEGRAM_API = `https://api.telegram.org/bot${process.env.MEME_TELEGRAM_BOT_TOKEN}`;
+const MEME_CHAT_ID = process.env.MEME_TELEGRAM_CHAT_ID ?? "305425021";
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:10000";
+
+async function sendMemeTelegram(text: string): Promise<void> {
+  const res = await fetch(`${MEME_TELEGRAM_API}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: MEME_CHAT_ID,
+      text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+    }),
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.ok) {
+    console.error(`[MEME-TELEGRAM] Send failed:`, JSON.stringify(json));
+    throw new Error(`Telegram sendMessage failed: ${json?.description ?? res.statusText}`);
+  }
+}
 
 function escapeHtml(text: string): string {
   return text
@@ -169,7 +189,7 @@ async function runMemeScan() {
       msg += `━━━━━━━━━━━━━━━\n`;
       msg += `<i>🤖 NexusAlpha Meme Scanner — DYOR, high risk</i>`;
 
-      await sendTelegram(msg);
+      await sendMemeTelegram(msg);
       memeCooldown.set(coin.id, now);
       sent++;
       console.log(`[MEME-CRON] ✅ Alert sent: ${coin.name} (${coin.symbol})`);
