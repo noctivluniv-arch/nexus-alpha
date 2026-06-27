@@ -7,6 +7,45 @@ const router: IRouter = Router();
 const DS_BASE = "https://api.dexscreener.com";
 const GP_BASE = "https://api.gopluslabs.io/api/v1";
 const CG_BASE = "https://api.coingecko.com/api/v3";
+
+// ─── COINGECKO TRENDING ENRICHMENT ───────────────────────────────────────────
+// Fetch trending coins dari CoinGecko dan tandai coin yang ada di list ini
+// sebagai sinyal viral sosmed tambahan (gratis, no API key needed).
+
+let cgTrendingCache: { symbols: Set<string>; ids: Set<string>; ts: number } = {
+  symbols: new Set(),
+  ids: new Set(),
+  ts: 0,
+};
+const CG_TRENDING_TTL = 15 * 60 * 1000; // refresh tiap 15 menit
+
+async function fetchCoinGeckoTrending(): Promise<{ symbols: Set<string>; ids: Set<string> }> {
+  const now = Date.now();
+  if (now - cgTrendingCache.ts < CG_TRENDING_TTL && cgTrendingCache.symbols.size > 0) {
+    return cgTrendingCache;
+  }
+  try {
+    const res = await fetch(`${CG_BASE}/search/trending`, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return cgTrendingCache;
+    const json = await res.json() as { coins?: { item: { symbol: string; id: string } }[] };
+    const symbols = new Set<string>();
+    const ids = new Set<string>();
+    for (const c of json.coins ?? []) {
+      if (c.item?.symbol) symbols.add(c.item.symbol.toUpperCase());
+      if (c.item?.id) ids.add(c.item.id.toLowerCase());
+    }
+    cgTrendingCache = { symbols, ids, ts: now };
+    logger.info({ count: symbols.size, symbols: [...symbols] }, "CoinGecko trending refreshed");
+    return cgTrendingCache;
+  } catch {
+    return cgTrendingCache;
+  }
+}
+
+
 const GT_BASE = "https://api.geckoterminal.com/api/v2";
 const TTL_MS = 5 * 60 * 1000; // Reduced from 15m to 5m for early signal freshness
 
@@ -1626,6 +1665,7 @@ function calcEarlyGemScore(p: {
   vol24h: number;
   liqUsd: number;
   change24h: number;
+  fromCoinGeckoTrending?: boolean;
 }): EarlyGemResult {
   let score = 0;
   const signals: string[] = [];
@@ -1769,6 +1809,8 @@ function calcBuyRecommendation(p: {
   liqUsd: number;
   change24h: number;
   smartWalletsCount: number;
+  fromCoinGeckoTrending: boolean;
+  fromTrending: boolean;
 }): BuyRecommendation {
   const reasons: string[] = [];
   const redFlags: string[] = [];
@@ -1861,6 +1903,16 @@ function calcBuyRecommendation(p: {
   if (p.marketCap > 0 && p.marketCap < 1_000_000) {
     reasons.push(`Market cap $${(p.marketCap/1000).toFixed(0)}K — masih sangat awal`);
     score += 8;
+  }
+
+  // Trending boost
+  if (p.fromCoinGeckoTrending) {
+    reasons.push("Masuk CoinGecko trending — viral di komunitas crypto global");
+    score += 20;
+  }
+  if (p.fromTrending) {
+    reasons.push("Masuk GeckoTerminal trending pools — momentum on-chain terdeteksi");
+    score += 10;
   }
   if (p.liqUsd >= 250_000) {
     reasons.push(`Likuiditas $${(p.liqUsd/1000).toFixed(0)}K — cukup aman untuk entry/exit`);
@@ -2684,10 +2736,26 @@ async function refreshMemes(): Promise<any[]> {
     // render in the mobile UI. Failure is silently ignored: the rest of the
     // memes payload is still useful and the buttons simply won't show.
     // Run OHLCV enrichment in parallel with DexScreener socials.
-    await Promise.allSettled([
+    // Fetch CoinGecko trending in parallel dengan enrichment lainnya
+    const [,,cgTrending] = await Promise.allSettled([
       enrichWithDexScreenerSocials(filtered),
       enrichWithOhlcv30d(filtered),
+      fetchCoinGeckoTrending(),
     ]);
+
+    // Tandai coin yang masuk CoinGecko trending
+    const trendingSymbols = cgTrending.status === "fulfilled" ? cgTrending.value.symbols : new Set<string>();
+    const trendingIds = cgTrending.status === "fulfilled" ? cgTrending.value.ids : new Set<string>();
+    for (const row of filtered) {
+      const sym = (row.symbol ?? "").toUpperCase();
+      const cgId = (row.website ?? "").includes("coingecko.com")
+        ? row.website.split("/").pop()?.toLowerCase() ?? ""
+        : "";
+      row.fromCoinGeckoTrending = trendingSymbols.has(sym) || (cgId.length > 0 && trendingIds.has(cgId));
+      if (row.fromCoinGeckoTrending) {
+        logger.info({ name: row.name, symbol: sym }, "CoinGecko trending coin detected");
+      }
+    }
 
     // Patch-up: re-compute organic score with real social data now available,
     // and re-run manipulation analysis with OHLCV data fetched above.
@@ -2744,6 +2812,7 @@ async function refreshMemes(): Promise<any[]> {
         hasTwitter,
         hasTelegram,
         fromTrending: row._fromTrending ?? false,
+        fromCoinGeckoTrending: row.fromCoinGeckoTrending ?? false,
         iconic: row._iconic ?? false,
         vol24h: parseFloat(row.volume24h?.replace(/,/g, "") || "0"),
         liqUsd: row._liqUsd ?? 0,
@@ -2777,6 +2846,8 @@ async function refreshMemes(): Promise<any[]> {
         liqUsd: row._liqUsd ?? 0,
         change24h: parseFloat(row.change24h || "0"),
         smartWalletsCount: (row.smartWallets ?? []).length,
+        fromTrending: row._fromTrending ?? false,
+        fromCoinGeckoTrending: row.fromCoinGeckoTrending ?? false,
       });
       row.buyVerdict = buyRec.verdict;
       row.buyScore = buyRec.score;
