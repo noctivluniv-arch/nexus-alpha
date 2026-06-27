@@ -2207,6 +2207,7 @@ async function refreshMemes(): Promise<any[]> {
         txBuys,
         txSells,
         txBuyers,
+        narrativeData,
         txSellers,
       };
     });
@@ -2259,6 +2260,7 @@ async function refreshMemes(): Promise<any[]> {
         txBuys,
         txSells,
         txBuyers,
+        narrativeData,
         txSellers,
       } = e;
       const addr = c.baseToken.attributes.address;
