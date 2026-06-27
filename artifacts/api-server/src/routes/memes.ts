@@ -12,11 +12,12 @@ const TTL_MS = 5 * 60 * 1000; // Reduced from 15m to 5m for early signal freshne
 
 // Blue-chip memes already at peak adoption — exclude per "find next DOGE" intent
 const BLUE_CHIP_BLACKLIST = new Set([
-  "doge", "shib", "pepe", "wif", "bonk", "floki", "trump", "melania",
-  "asteroid", "fartcoin", "popcat", "brett", "mog", "andy", "neiro",
-  "mew", "myro", "ponke", "bome", "wen", "slerf", "chillguy",
-  "pengu", "pump", "moodeng", "goat", "act", "fwog", "spx", "memecoin",
-  "babydoge", "shibainu", "dogwifhat", "dogwif", "apepe",
+  // Hanya blue-chip yang sudah benar-benar established
+  // JANGAN tambah narasi baru di sini — bisa jadi WIF/BONK berikutnya
+  "doge", "shib", "pepe", "wif", "bonk", "floki",
+  "babydoge", "shibainu", "dogwifhat", "dogwif",
+  "trump", "melania",
+  "popcat", "brett", "mog", "pengu", "chillguy", "slerf",
 ]);
 
 const STABLES_AND_WRAPS = new Set([
@@ -761,8 +762,8 @@ function evaluateQuality(args: {
 
   // --- HARD: liquidity / freshness / volume / mcap sanity ---
   if (liqUsd < 50_000) reject.push("LIQUIDITY_TOO_THIN");
-  if (ageDays < 1) reject.push("TOO_NEW"); // was <3, reduced to allow early accumulation phase
-  if (ageDays < 3 && ageDays >= 1) warnings.push("VERY_NEW");
+  if (ageDays < 0.5) reject.push("TOO_NEW"); // 12 jam minimum untuk early gem detection
+  if (ageDays < 2 && ageDays >= 0.5) warnings.push("VERY_NEW");
   if (vol24h < 5_000) reject.push("NO_REAL_VOLUME");
   if (Math.abs(change24h) > 400) reject.push("EXTREME_VOLATILITY");
   if (marketCap > 0 && marketCap < liqUsd * 0.3) reject.push("MCAP_LIQ_MISMATCH");
@@ -2059,7 +2060,7 @@ async function refreshMemes(): Promise<any[]> {
       c.tokenAgeDays = ageD;
       if (liq < 50_000) continue;        // thin LP — skip
       if (vol < 5_000) continue;         // dead — skip
-      if (ageD < 3) continue;            // too new — skip
+      if (ageD < 1) continue;            // 1 hari minimum - cukup untuk early gem detection
       // Cap mcap: filter out established mid/large caps. Early DOGE-hunters
       // want pre-explosion targets, not $500M DeFi tokens or $20B blue chips.
       if (effectiveMcap > 200_000_000) continue;
@@ -2149,11 +2150,32 @@ async function refreshMemes(): Promise<any[]> {
       const influencer = detectInfluencer(themeText);
       const iconic = isIconicMeme(baseName, baseSymbol, "");
 
+      // Narrative analysis untuk deteksi tema viral
+      const narrativeData = (() => {
+        const t = `${baseName} ${baseSymbol}`.toLowerCase();
+        const hasAI = /\bai\b|artificial|claude|chatgpt|openai|llm|neural|robot|skynet|agent|sentient|agi|deepseek|gemini/.test(t);
+        const hasAnimal = /dog|cat|frog|rat|mouse|hamster|penguin|duck|wolf|fox|lion|tiger|bear|ape|monkey|squirrel|goat|peanut|moodeng|hippo|pig|fish|shark|turtle|snake|rabbit|bunny/.test(t);
+        const hasPolitical = /trump|maga|biden|harris|election|president|america|patriot|freedom/.test(t);
+        const hasSpace = /mars|moon|rocket|space|star|galaxy|alien|ufo|nasa|spacex|orbit|asteroid|lunar/.test(t);
+        const hasCrypto = /\bhodl\b|\bwagmi\b|\bngmi\b|\bdegen\b|diamond|\bwen\b|\bser\b/.test(t);
+        let score = 0;
+        const narratives: string[] = [];
+        if (hasAI) { score += 35; narratives.push("AI"); }
+        if (hasAnimal) { score += 30; narratives.push("ANIMAL"); }
+        if (hasPolitical) { score += 25; narratives.push("POLITICAL"); }
+        if (hasSpace) { score += 20; narratives.push("SPACE"); }
+        if (hasCrypto) { score += 15; narratives.push("CRYPTO_CULTURE"); }
+        if (narratives.length >= 2) score += 15;
+        return { hasAI, hasAnimal, hasPolitical, hasSpace, hasCrypto, narrativeScore: Math.min(100, score), topNarrative: narratives[0] ?? "NONE" };
+      })();
+
       const quality = evaluateQuality({
         liqUsd,
         ageDays,
         marketCap,
         vol24h,
+        volH1: vol1h,
+        volH6: vol6h,
         change24h,
         lp: security.lpLockInfo,
         topHolders: security.topHolders,
@@ -2161,6 +2183,7 @@ async function refreshMemes(): Promise<any[]> {
         providerOk: security.providerOk,
         influencer,
         iconic,
+        narrativeScore: narrativeData.narrativeScore,
       });
 
       return {
@@ -2322,6 +2345,11 @@ async function refreshMemes(): Promise<any[]> {
 
       return {
         id: `gt-${c.network}-${addr}`,
+        chainPriority: c.network === "solana" ? 3 : (c.network === "base" || c.network === "eth") ? 2 : 1,
+        narrativeType: narrativeData.topNarrative,
+        narrativeScore: narrativeData.narrativeScore,
+        hasAINarrative: narrativeData.hasAI,
+        hasAnimalNarrative: narrativeData.hasAnimal,
         name: baseName,
         symbol: baseSymbol,
         price:
@@ -2429,10 +2457,24 @@ async function refreshMemes(): Promise<any[]> {
     // Final ranking: boost PUMP_IMMINENT and new listings to top
     const boostedList = list.map((m: any) => {
       let boostScore = m.qualityScore;
-      if (m.volumeSignal === "PUMP_IMMINENT") boostScore += 40;
-      else if (m.volumeSignal === "ACCUMULATION") boostScore += 20;
-      if (m.ageInDays <= 1) boostScore += 30;
-      else if (m.ageInDays <= 3) boostScore += 15;
+      // Volume signal — sinyal paling kuat untuk early entry
+      if (m.volumeSignal === "PUMP_IMMINENT") boostScore += 50;
+      else if (m.volumeSignal === "ACCUMULATION") boostScore += 25;
+      else if (m.volumeSignal === "DUMPING") boostScore -= 20;
+      // Age boost — window paling sempit paling berharga
+      if (m.ageInDays <= 1) boostScore += 40;
+      else if (m.ageInDays <= 3) boostScore += 25;
+      else if (m.ageInDays <= 7) boostScore += 10;
+      // Chain priority — Solana & Base lebih produktif untuk meme
+      boostScore += (m.chainPriority ?? 1) * 5;
+      // Narrative boost — tema AI/animal/space lebih viral
+      if (m.narrativeScore >= 70) boostScore += 20;
+      else if (m.narrativeScore >= 40) boostScore += 10;
+      // Early gem label
+      if (m.earlyGemLabel === "GEM") boostScore += 30;
+      else if (m.earlyGemLabel === "POTENSIAL") boostScore += 15;
+      // Viral label bonus
+      if (m.viralLabel === "VIRAL") boostScore += 15;
       return { ...m, _boostScore: boostScore };
     });
     const verifiedList = boostedList
@@ -2441,7 +2483,7 @@ async function refreshMemes(): Promise<any[]> {
     const watchlistList = boostedList
       .filter((m: any) => m.tier === "WATCHLIST")
       .sort((a: any, b: any) => b._boostScore - a._boostScore);
-    const filtered = [...verifiedList, ...watchlistList].slice(0, 15);
+    const filtered = [...verifiedList, ...watchlistList].slice(0, 20);
 
     // Best-effort socials enrichment via DexScreener — populates the
     // `twitter` and `telegram` fields on each row so the X/Telegram buttons
