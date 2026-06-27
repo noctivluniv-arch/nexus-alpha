@@ -654,10 +654,10 @@ function computeVolumeAcceleration(h1: number, h6: number, h24: number): {
   let signal: "PUMP_IMMINENT" | "ACCUMULATION" | "NORMAL" | "DUMPING";
   let label: string;
 
-  if (ratio1hVs6h >= 10) {
+  if (ratio1hVs6h >= 4) {
     signal = "PUMP_IMMINENT";
     label = `Volume 1H = ${ratio1hVs6h.toFixed(1)}x rata-rata 6H — PUMP IMMINENT!`;
-  } else if (ratio1hVs6h >= 3) {
+  } else if (ratio1hVs6h >= 1.5) {
     signal = "ACCUMULATION";
     label = `Volume 1H = ${ratio1hVs6h.toFixed(1)}x rata-rata 6H — akumulasi dimulai`;
   } else if (ratio1hVs6h < 0.3 && h6 > 0) {
@@ -717,6 +717,9 @@ function evaluateQuality(args: {
   influencer: "TRUMP" | "ELON" | "BOTH" | "NONE";
   iconic: boolean;
   narrativeScore: number;
+  txBuys: number;
+  txSells: number;
+  network: string;
 }): QualityCheck {
   const {
     liqUsd,
@@ -733,6 +736,9 @@ function evaluateQuality(args: {
     influencer,
     iconic,
     narrativeScore,
+    txBuys,
+    txSells,
+    network,
   } = args;
 
   // 2-TIER MODEL:
@@ -768,8 +774,14 @@ function evaluateQuality(args: {
   if (Math.abs(change24h) > 400) reject.push("EXTREME_VOLATILITY");
   if (marketCap > 0 && marketCap < liqUsd * 0.3) reject.push("MCAP_LIQ_MISMATCH");
 
-  // --- HARD: LP unlocked = instant rug ---
-  if (lp.status === "UNLOCKED") reject.push("LP_UNLOCKED");
+  // --- HARD: LP unlocked = instant rug (kecuali Solana yang sering tidak lock) ---
+  if (lp.status === "UNLOCKED") {
+    if (network === "solana") {
+      warnings.push("LP_UNLOCKED");
+    } else {
+      reject.push("LP_UNLOCKED");
+    }
+  }
 
   // --- HARD: single holder >50% or top10 ≥95% (extreme rug risk) ---
   const biggestHolder = topHolders.list[0]?.percent ?? 0;
@@ -865,6 +877,16 @@ function evaluateQuality(args: {
   if (narrativeScore >= 70) q += 20;
   else if (narrativeScore >= 50) q += 15;
   else if (narrativeScore >= 30) q += 8;
+
+  // Buy pressure scoring (15 pts max)
+  const totalTxQ = txBuys + txSells;
+  if (totalTxQ > 0) {
+    const buyRatioQ = txBuys / totalTxQ;
+    if (buyRatioQ >= 0.70) { q += 15; }
+    else if (buyRatioQ >= 0.60) { q += 10; }
+    else if (buyRatioQ >= 0.50) { q += 5; }
+    else if (buyRatioQ < 0.35) { q -= 10; }
+  }
 
   let tier: "VERIFIED" | "WATCHLIST" | "REJECTED";
   if (reject.length > 0) tier = "REJECTED";
@@ -2184,6 +2206,9 @@ async function refreshMemes(): Promise<any[]> {
         influencer,
         iconic,
         narrativeScore: narrativeData.narrativeScore,
+        txBuys,
+        txSells,
+        network: c.network,
       });
 
       return {
