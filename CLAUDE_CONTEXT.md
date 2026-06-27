@@ -24,16 +24,18 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 - Git tag stable: stable-telegram-signals
 
 ## Bug Aktif Yang Perlu Diselesaikan
+- Tidak ada bug aktif saat ini.
+
+## Bug Yang Sudah Diselesaikan
 - File: artifacts/api-server/src/routes/memes.ts
-- Error: "narrativeData is not defined" (ReferenceError scope)
-- narrativeData didefinisikan di line 2154 (dalam scope evaluated map)
-- Dipakai di line 2349-2352 (di luar scope tersebut, di bagian list = survivors.map)
-- Akibat: halaman Memes error "Failed to load meme coins"
-- Langkah debug: sed -n '2140,2200p' artifacts/api-server/src/routes/memes.ts
+- Error: "narrativeData is not defined" (ReferenceError scope) — FIXED ✓
+- Root cause: narrativeData tidak di-return dari evaluated.map sehingga tidak tersedia di survivors.map
+- Fix: tambah narrativeData ke return object evaluated.map (line 2210) dan destructuring survivors.map (line 2263)
+- Tanggal fix: 2025-06-27
 
 ## File-File Kunci
 - artifacts/api-server/src/routes/cron.ts — cron job & Telegram sender
-- artifacts/api-server/src/routes/memes.ts — meme coin screener (ada bug narrativeData)
+- artifacts/api-server/src/routes/memes.ts — meme coin screener
 - artifacts/api-server/src/lib/signal-engine-realtime.ts — signal engine utama
 - artifacts/api-server/src/lib/types.ts — SUPPORTED_PAIRS dan tipe data
 
