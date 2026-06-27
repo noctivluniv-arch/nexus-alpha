@@ -23,6 +23,7 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 - Telegram meme coin: aktif, cron tiap 15 menit via startMemeCron()
 - escapeHtml() sudah diterapkan di confluences untuk cegah Telegram 400 error
 - Git tag stable: stable-telegram-signals
+- LunarCrush API: free tier tidak support endpoint yang dibutuhkan, tidak dipakai
 
 ## Cara Kerja Signal Biasa
 1. Cron jalan tiap 10 menit
@@ -34,16 +35,24 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 1. Cron jalan tiap 15 menit via startMemeCron()
 2. POST ke /api/ai/memes (reuse cache TTL 5 menit)
 3. Filter: earlyGemLabel === "GEM" ATAU volumeSignal === "PUMP_IMMINENT"
-4. Cooldown 30 menit per coin (Map in-memory)
-5. Kirim Telegram via MEME_TELEGRAM_BOT_TOKEN ke MEME_TELEGRAM_CHAT_ID
+4. Skip coin dengan buyVerdict === "HINDARI"
+5. Cooldown 30 menit per coin (Map in-memory)
+6. Kirim Telegram via MEME_TELEGRAM_BOT_TOKEN ke MEME_TELEGRAM_CHAT_ID
 
 ## Logika Scoring Meme Coin (memes.ts)
 - PUMP_IMMINENT: volume 1H >= 4x rata-rata 6H (diturunkan dari 10x)
 - ACCUMULATION: volume 1H >= 1.5x rata-rata 6H (diturunkan dari 3x)
 - Buy pressure bonus: 70%+ buy ratio = +15 poin, 60%+ = +10, 50%+ = +5, <35% = -10
 - LP_UNLOCKED: hard reject untuk non-Solana, warning saja untuk Solana
+- CoinGecko trending: +20 poin ke buyScore kalau coin masuk trending CoinGecko
+- GeckoTerminal trending: +10 poin ke buyScore kalau fromTrending = true
+- buyVerdict: LAYAK_BELI / WASPADA / HINDARI (berdasarkan calcBuyRecommendation)
 - Hard reject: LIQUIDITY_TOO_THIN (<$50K), TOO_NEW (<12 jam), NO_REAL_VOLUME (<$5K), EXTREME_VOLATILITY (>400%), MCAP_LIQ_MISMATCH, WHALE_CONCENTRATION_EXTREME (>=95%), SINGLE_HOLDER_EXTREME (>50%)
-- earlyGemLabel "GEM": PUMP_IMMINENT ATAU (usia 1-30 hari + volLiqRatio 0.3-15 + liq >$50K + LP locked/burned + konsentrasi <70%)
+
+## Sumber Data Trending Yang Dipakai
+- GeckoTerminal trending_pools — fromTrending field, sudah ada sejak awal
+- CoinGecko /search/trending — fetchCoinGeckoTrending(), cache 15 menit, gratis
+- DexScreener socials — enrichWithDexScreenerSocials(), isi twitter/telegram field
 
 ## Environment Variables di Render
 - TELEGRAM_BOT_TOKEN — bot signal biasa
@@ -51,6 +60,7 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 - MEME_TELEGRAM_BOT_TOKEN — bot khusus meme coin
 - MEME_TELEGRAM_CHAT_ID — chat ID meme coin (305425021)
 - BASE_URL — URL backend Render (https://nexus-alpha-j3yb.onrender.com)
+- LUNARCRUSH_API_KEY — tersimpan tapi tidak dipakai (free tier tidak support)
 
 ## File-File Kunci
 - artifacts/api-server/src/routes/cron.ts — cron job & Telegram sender (signal + meme)
@@ -68,3 +78,10 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 - PUMP_IMMINENT threshold turun 10x → 4x untuk deteksi lebih awal — DONE ✓
 - Buy pressure scoring ditambahkan ke evaluateQuality — DONE ✓
 - LP_UNLOCKED jadi warning untuk Solana, bukan hard reject — DONE ✓
+- calcBuyRecommendation: verdict LAYAK_BELI/WASPADA/HINDARI — DONE ✓
+- Telegram meme alert tampilkan verdict + alasan + red flags — DONE ✓
+- CoinGecko trending enrichment (fetchCoinGeckoTrending, cache 15 menit) — DONE ✓
+
+## Yang Belum Selesai / Perlu Dilanjutkan
+- buyVerdict belum tampil di halaman Memes web app (frontend React) — TODO
+- Test end-to-end: apakah fromCoinGeckoTrending benar terdeteksi di log Render
