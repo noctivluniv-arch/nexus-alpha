@@ -98,9 +98,10 @@ export interface RealtimeSignal {
  * identik dengan backtest-rule-engine.ts.
  */
 export async function computeRealtimeSignal(symbol: string): Promise<RealtimeSignal> {
-  const [daily, h4, fundingRateVal, fgiVal] = await Promise.all([
+  const [daily, h4, h1, fundingRateVal, fgiVal] = await Promise.all([
     fetchKlines(symbol, "1d", 300),
     fetchKlines(symbol, "4h", 300),
+    fetchKlines(symbol, "1", 24),
     fetchLatestFundingRate(symbol),
     fetchLatestFGI(),
   ]);
@@ -161,7 +162,9 @@ export async function computeRealtimeSignal(symbol: string): Promise<RealtimeSig
     macd4h: macd4hVal, macd1d: macd(dCloses),
     bb: bbVal,
     stoch4h: stoch4hVal, stoch1h: null,
-    volAvg30: vp.avg, volRecent: vp.recent, volH1: 0, volH6: 0,
+    volAvg30: vp.avg, volRecent: vp.recent,
+    volH1: h1.volumes.length > 0 ? h1.volumes[h1.volumes.length - 1] : 0,
+    volH6: h1.volumes.length >= 6 ? h1.volumes.slice(-6).reduce((a, b) => a + b, 0) : 0,
     trend4h: trend4hVal, trend1d: trend4hVal,
     bos,
     sup1: swing7d.support, sup2: swing30d.support, sup3: swing90d.support,

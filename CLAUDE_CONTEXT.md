@@ -85,7 +85,49 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 
 ## Yang Belum Selesai / Perlu Dilanjutkan
 - buyVerdict belum tampil di halaman Memes web app (frontend React) — TODO
-- Test end-to-end: apakah fromCoinGeckoTrending benar terdeteksi di log Render
+- Test end-to-end: apakah fromCoinGeckoTrending benar terdeteksi di log Render — DONE ✓ (terdeteksi di log)
+
+## Sesi 2026-06-29 — Bug Fix & Backtest
+
+### Fix Signal Engine — DONE ✓
+- Sweet spot diperlebar 45-55 → 40-65 (awal), lalu akan direvisi lagi setelah backtest
+- CONFIDENCE_THRESHOLD = 58 di cron.ts dihapus (dead code)
+- Tambah Daily trend filter di checkHardRejects() — cegah BUY saat trend1d BEARISH dan sebaliknya
+- volH1 dan volH6 di signal-engine-realtime.ts sudah diisi dari data 1H Bybit nyata (bukan 0)
+
+### Fix SUPPORTED_PAIRS — DONE ✓
+- Hapus ZECUSDT (confidence 9, data tidak reliable)
+- Hapus ASTERUSDT (terlalu baru, data historis kurang)
+- Tambah XRPUSDT, DOGEUSDT, AVAXUSDT (Tier 1 futures)
+- Pairs saat ini: BTCUSDT, ETHUSDT, BNBUSDT, SUIUSDT, SOLUSDT, HYPEUSDT, LINKUSDT, XRPUSDT, DOGEUSDT, AVAXUSDT
+
+### Backtest Sweet Spot — IN PROGRESS
+- Script: scripts/src/backtest-sweet-spot.ts (jalankan: tsx scripts/src/backtest-sweet-spot.ts)
+- Hasil 3124 trades dari 8 pair x 1000 candle daily:
+  - 00-40: WinRate 43.8%, AvgPnL -0.34% ⚠️
+  - 40-45: WinRate 43.9%, AvgPnL -0.62% ⚠️
+  - 45-50: WinRate 42.0%, AvgPnL -0.46% ⚠️
+  - 50-55: WinRate 45.6%, AvgPnL +0.27% ⚠️ (terbaik tapi lemah)
+  - 55-60: WinRate 28.7%, AvgPnL -2.97% ❌
+  - 60-65: WinRate 27.8%, AvgPnL -3.81% ❌
+- Kesimpulan: belum ada bucket benar-benar profitable
+- Root cause: volume 1H data hanya cover ~41 hari (1000 candle 1H) vs 1000 daily (~2.7 tahun)
+- Next step: upgrade backtest dengan breakdown per pair, BUY vs SELL, filter Daily trend jelas
+
+### Sweet Spot Saat Ini di Engine
+- Signal-engine-realtime.ts masih pakai SWEET_SPOT_MIN=40, SWEET_SPOT_MAX=65
+- BELUM diubah kembali — tunggu hasil backtest yang lebih detail dulu
+- Jangan gunakan untuk uang asli sampai backtest menunjukkan profitable zone yang jelas
+
+### GoPlus Rate Limit (TODO)
+- GoPlus API error code 4029 (rate limit) muncul di log meme cron
+- Belum difix — perlu tambah retry/delay
+- Tidak blocking, meme cron tetap berjalan normal
+
+### Telegram Connect Timeout (TODO)
+- ConnectTimeoutError saat kirim signal ke Telegram (149.154.166.110:443)
+- Perlu tambah retry logic di sendTelegram()
+- Signal gagal kirim tanpa fallback
 
 ## Fix Signal Engine 2026-06-29
 - Sweet spot diperlebar 45-55 → 40-65 agar BTC dan pair lain tidak miss — DONE ✓
