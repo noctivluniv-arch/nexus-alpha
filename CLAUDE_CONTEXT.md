@@ -86,6 +86,14 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 - buyVerdict belum tampil di halaman Memes web app (frontend React) — TODO
 - Test end-to-end: apakah fromCoinGeckoTrending benar terdeteksi di log Render
 
+## Fix Signal Engine 2026-06-29
+- Sweet spot diperlebar 45-55 → 40-65 agar BTC dan pair lain tidak miss — DONE ✓
+- CONFIDENCE_THRESHOLD = 58 di cron.ts dihapus (dead code) — DONE ✓
+- Tambah Daily trend filter di checkHardRejects() — DONE ✓
+  - BUY diblokir kalau trend1d BEARISH
+  - SELL diblokir kalau trend1d BULLISH
+  - Mencegah false signal seperti kasus HYPE (4H bounce tapi Daily masih lemah)
+
 ## Update 2026-06-29
 
 ### Fix Signal Sweet Spot — DONE ✓
