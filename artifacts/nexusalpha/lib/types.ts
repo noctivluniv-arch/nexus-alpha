@@ -16,8 +16,10 @@ export const SUPPORTED_PAIRS: TradingPair[] = [
   "SUIUSDT",
   "SOLUSDT",
   "HYPEUSDT",
-  "ASTERUSDT",
   "LINKUSDT",
+  "XRPUSDT",
+  "DOGEUSDT",
+  "AVAXUSDT",
 ];
 
 export interface FearGreedPoint {
