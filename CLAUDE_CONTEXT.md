@@ -18,7 +18,7 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 
 ## State Terkini
 - Data source: Bybit API (Binance ditinggal karena HTTP 418 ban di Render)
-- Signal confidence sweet spot: 45-55 (hasil backtesting)
+- Signal confidence sweet spot: 40-65 (diperlebar dari 45-55 agar BTC dan pair lain tidak miss)
 - Telegram signal biasa: aktif, cron tiap 10 menit via startCron()
 - Telegram meme coin: aktif, cron tiap 15 menit via startMemeCron()
 - escapeHtml() sudah diterapkan di confluences untuk cegah Telegram 400 error
@@ -85,3 +85,24 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 ## Yang Belum Selesai / Perlu Dilanjutkan
 - buyVerdict belum tampil di halaman Memes web app (frontend React) — TODO
 - Test end-to-end: apakah fromCoinGeckoTrending benar terdeteksi di log Render
+
+## Update 2026-06-29
+
+### Fix Signal Sweet Spot — DONE ✓
+- Sweet spot diperlebar dari 45-55 → 40-65
+- Sebelumnya BTC dan pair lain sering miss karena range terlalu sempit (10 poin)
+- CONFIDENCE_THRESHOLD = 58 di cron.ts dihapus (dead code, tidak pernah dipakai)
+
+
+
+### TODO #1 — buyVerdict di frontend — DONE ✓
+- Tambah field ke MemeCoin type (artifacts/nexusalpha/lib/types.ts):
+  - buyVerdict?: "LAYAK_BELI" | "WASPADA" | "HINDARI"
+  - buyScore?: number
+  - buyReasons?: string[]
+  - buyRedFlags?: string[]
+- Tambah komponen BuyVerdictSection di memes.tsx
+  - Tampil di atas spotStrategy
+  - Warna: hijau (LAYAK_BELI), kuning (WASPADA), merah (HINDARI)
+  - Menampilkan: verdict badge, buyScore bar, daftar alasan, daftar red flags
+- Sudah di-commit dan push ke GitHub
