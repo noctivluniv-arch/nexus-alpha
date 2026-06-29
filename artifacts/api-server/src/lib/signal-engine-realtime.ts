@@ -130,6 +130,7 @@ export async function computeRealtimeSignal(symbol: string): Promise<RealtimeSig
   const ema50_4h = ema(h4c, Math.min(50, h4c.length - 1));
   const ema200_4h = ema(h4c, Math.min(200, h4c.length - 1));
   const trend4hVal = trendStructure(ema50_4h, ema200_4h, h4c[h4c.length - 1]);
+  const trend1dVal = trendStructure(ema50Val, ema200Val, price); // Daily: EMA50/200 daily
 
   const bos = bosLevel(h4h, h4l, h4c, 20);
 
@@ -165,7 +166,7 @@ export async function computeRealtimeSignal(symbol: string): Promise<RealtimeSig
     volAvg30: vp.avg, volRecent: vp.recent,
     volH1: h1.volumes.length > 0 ? h1.volumes[h1.volumes.length - 1] : 0,
     volH6: h1.volumes.length >= 6 ? h1.volumes.slice(-6).reduce((a, b) => a + b, 0) : 0,
-    trend4h: trend4hVal, trend1d: trend4hVal,
+    trend4h: trend4hVal, trend1d: trend1dVal,
     bos,
     sup1: swing7d.support, sup2: swing30d.support, sup3: swing90d.support,
     res1: swing7d.resistance, res2: swing30d.resistance, res3: swing90d.resistance,
@@ -179,15 +180,15 @@ export async function computeRealtimeSignal(symbol: string): Promise<RealtimeSig
 
   const scored = scoreSwing(input);
 
-  // Side ditentukan dari bias + sweet spot zone (45-55), konsisten dengan
-  // temuan backtest kamu — BUKAN threshold 58/62 yang sebelumnya kontradiktif.
-  const SWEET_SPOT_MIN = 40;
-  const SWEET_SPOT_MAX = 65;
-  const inSweetSpot = scored.score.total >= SWEET_SPOT_MIN && scored.score.total <= SWEET_SPOT_MAX;
+  // ── Sweet spot split berdasarkan backtest v2 (3124 trades) ──────────────────
+  // BUY : confidence 50–55 → WR 44.7%, AvgPnL +1.23% (satu-satunya zone positif)
+  // SELL: confidence  0–45 → WR 51.3%, AvgPnL +1.13% di 0-40 (zone paling reliable)
+  // Confidence di luar range ini → NO_TRADE (terlalu berisiko berdasarkan data)
+  const conf = scored.score.total;
 
   let side: "BUY" | "SELL" | "NO_TRADE" = "NO_TRADE";
-  if (inSweetSpot && scored.bias === "BULLISH") side = "BUY";
-  else if (inSweetSpot && scored.bias === "BEARISH") side = "SELL";
+  if (scored.bias === "BULLISH" && conf >= 50 && conf <= 55) side = "BUY";
+  else if (scored.bias === "BEARISH" && conf >= 0 && conf <= 45) side = "SELL";
 
   // ATR-based risk management
   let sl: number | null = null;

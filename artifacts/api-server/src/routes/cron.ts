@@ -78,7 +78,8 @@ async function runSignalScan() {
         msg += `━━━━━━━━━━━━━━━\n`;
         msg += `<b>Pair:</b> ${signal.pair}\n`;
         msg += `<b>Signal:</b> ${sideLabel}\n`;
-        msg += `<b>Confidence:</b> ${signal.confidence}/100 🎯 (sweet spot 45-55)\n`;
+        const sweetSpotLabel = signal.side === "BUY" ? "BUY zone 50–55" : "SELL zone 0–45";
+        msg += `<b>Confidence:</b> ${signal.confidence}/100 🎯 (${sweetSpotLabel})\n`;
         msg += `<b>Price:</b> $${fmtPrice(signal.price)}\n\n`;
 
         msg += `<b>📍 Entry:</b> ~$${fmtPrice(signal.price)}\n`;
