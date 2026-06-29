@@ -6,7 +6,6 @@ const router = Router();
 
 const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "305425021";
-const CONFIDENCE_THRESHOLD = 58;
 const MEME_TELEGRAM_API = `https://api.telegram.org/bot${process.env.MEME_TELEGRAM_BOT_TOKEN}`;
 const MEME_CHAT_ID = process.env.MEME_TELEGRAM_CHAT_ID ?? "305425021";
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:10000";
