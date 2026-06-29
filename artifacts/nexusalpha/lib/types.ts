@@ -17,7 +17,6 @@ export const SUPPORTED_PAIRS: TradingPair[] = [
   "SOLUSDT",
   "HYPEUSDT",
   "ASTERUSDT",
-  "ZECUSDT",
   "LINKUSDT",
 ];
 
