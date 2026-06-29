@@ -501,6 +501,13 @@ function checkHardRejects(inp: RuleBasedSignalInput, bias: "BULLISH" | "BEARISH"
   if (inp.trend4h === "BEARISH" && bias === "BULLISH" && inp.rsi1d !== null && inp.rsi1d < 50) {
     return `4H trend bearish tapi bias bullish — konflik timeframe, tunggu konfirmasi`;
   }
+  // Daily trend filter — cegah BUY saat trend1d BEARISH dan sebaliknya
+  if (inp.trend1d === "BEARISH" && bias === "BULLISH") {
+    return `Daily trend BEARISH — BUY signal diabaikan, tunggu konfirmasi reversal di timeframe lebih tinggi`;
+  }
+  if (inp.trend1d === "BULLISH" && bias === "BEARISH") {
+    return `Daily trend BULLISH — SELL signal diabaikan, tunggu konfirmasi breakdown di timeframe lebih tinggi`;
+  }
   return null;
 }
 
