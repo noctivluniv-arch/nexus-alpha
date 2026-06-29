@@ -19,6 +19,7 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 ## State Terkini
 - Data source: Bybit API (Binance ditinggal karena HTTP 418 ban di Render)
 - Signal confidence sweet spot: 40-65 (diperlebar dari 45-55 agar BTC dan pair lain tidak miss)
+- SUPPORTED_PAIRS: BTCUSDT, ETHUSDT, BNBUSDT, SUIUSDT, SOLUSDT, HYPEUSDT, LINKUSDT, XRPUSDT, DOGEUSDT, AVAXUSDT (10 pair)
 - Telegram signal biasa: aktif, cron tiap 10 menit via startCron()
 - Telegram meme coin: aktif, cron tiap 15 menit via startMemeCron()
 - escapeHtml() sudah diterapkan di confluences untuk cegah Telegram 400 error
