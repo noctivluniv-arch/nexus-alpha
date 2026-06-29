@@ -178,8 +178,8 @@ export async function computeRealtimeSignal(symbol: string): Promise<RealtimeSig
 
   // Side ditentukan dari bias + sweet spot zone (45-55), konsisten dengan
   // temuan backtest kamu — BUKAN threshold 58/62 yang sebelumnya kontradiktif.
-  const SWEET_SPOT_MIN = 45;
-  const SWEET_SPOT_MAX = 55;
+  const SWEET_SPOT_MIN = 40;
+  const SWEET_SPOT_MAX = 65;
   const inSweetSpot = scored.score.total >= SWEET_SPOT_MIN && scored.score.total <= SWEET_SPOT_MAX;
 
   let side: "BUY" | "SELL" | "NO_TRADE" = "NO_TRADE";
