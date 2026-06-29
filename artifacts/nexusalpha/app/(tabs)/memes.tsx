@@ -916,6 +916,11 @@ export default function MemesScreen() {
                   </Collapsible>
                 ) : null}
 
+                {/* Buy Recommendation Verdict */}
+                {coin.buyVerdict ? (
+                  <BuyVerdictSection coin={coin} colors={colors} />
+                ) : null}
+
                 {/* Spot Strategy */}
                 <View
                   style={[
@@ -3535,6 +3540,72 @@ function MemeIndicatorRow({
         </View>
       )}
     </Pressable>
+  );
+}
+
+function BuyVerdictSection({ coin, colors }: { coin: MemeCoin; colors: any }) {
+  const verdict = coin.buyVerdict;
+  if (!verdict) return null;
+
+  const isLayak = verdict === "LAYAK_BELI";
+  const isHindari = verdict === "HINDARI";
+  const accent = isLayak ? "#22C55E" : isHindari ? "#EF4444" : "#F59E0B";
+  const bg = isLayak ? "rgba(34,197,94,0.08)" : isHindari ? "rgba(239,68,68,0.08)" : "rgba(245,158,11,0.08)";
+  const border = isLayak ? "rgba(34,197,94,0.35)" : isHindari ? "rgba(239,68,68,0.35)" : "rgba(245,158,11,0.35)";
+  const emoji = isLayak ? "✅" : isHindari ? "🚫" : "⚠️";
+  const label = isLayak ? "LAYAK BELI" : isHindari ? "HINDARI" : "WASPADA";
+
+  return (
+    <View style={[styles.scanSection, { backgroundColor: bg, borderColor: border }]}>
+      <View style={styles.scanHead}>
+        <Text style={[styles.scanTitle, { color: accent, flex: 1 }]}>
+          🎯 REKOMENDASI BELI
+        </Text>
+        <View style={[styles.scanStatusPill, { backgroundColor: accent }]}>
+          <Text style={[styles.scanStatusText, { color: "#0B0E11" }]}>
+            {emoji} {label}
+          </Text>
+        </View>
+      </View>
+
+      {coin.buyScore !== undefined ? (
+        <View style={{ gap: 4, marginTop: 2 }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text style={[styles.scanCellLabel, { color: colors.mutedForeground }]}>BUY SCORE</Text>
+            <Text style={{ color: accent, fontSize: 13, fontFamily: "Helvetica Neue" }}>
+              {coin.buyScore}/100
+            </Text>
+          </View>
+          <View style={[styles.miScoreBar]}>
+            <View style={[styles.miScoreFill, { width: `${Math.min(100, coin.buyScore)}%` as any, backgroundColor: accent }]} />
+          </View>
+        </View>
+      ) : null}
+
+      {coin.buyReasons && coin.buyReasons.length > 0 ? (
+        <View style={{ gap: 4, marginTop: 4 }}>
+          <Text style={[styles.scanCellLabel, { color: colors.mutedForeground }]}>ALASAN</Text>
+          {coin.buyReasons.map((r, i) => (
+            <View key={i} style={{ flexDirection: "row", gap: 6, alignItems: "flex-start" }}>
+              <Text style={{ color: "#22C55E", fontSize: 10, marginTop: 1 }}>✓</Text>
+              <Text style={[styles.scanSummary, { color: colors.foreground, flex: 1 }]}>{r}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {coin.buyRedFlags && coin.buyRedFlags.length > 0 ? (
+        <View style={{ gap: 4, marginTop: 4 }}>
+          <Text style={[styles.scanCellLabel, { color: colors.mutedForeground }]}>RED FLAGS</Text>
+          {coin.buyRedFlags.map((r, i) => (
+            <View key={i} style={{ flexDirection: "row", gap: 6, alignItems: "flex-start" }}>
+              <Text style={{ color: "#EF4444", fontSize: 10, marginTop: 1 }}>✗</Text>
+              <Text style={[styles.scanSummary, { color: colors.foreground, flex: 1 }]}>{r}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
   );
 }
 

@@ -281,6 +281,11 @@ export interface MemeCoin {
   volumeSignalLabel?: string;
   vol1h?: number;
   vol6h?: number;
+  // ─── BUY RECOMMENDATION ────────────────────────────────────────────────────
+  buyVerdict?: "LAYAK_BELI" | "WASPADA" | "HINDARI";
+  buyScore?: number;
+  buyReasons?: string[];
+  buyRedFlags?: string[];
 }
 
 export type ChartTimeframe = "1h" | "24h" | "7d";
