@@ -303,3 +303,18 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 - Internal URL dipakai untuk koneksi dari Render ke Render (lebih cepat, gratis)
 - External URL dipakai untuk koneksi dari lokal MacBook (untuk drizzle-kit push dan seeder)
 - drizzle-kit push BELUM dijalankan — tabel ohlcv_daily belum ada di DB
+
+## Update 2026-06-30 — Option B SELESAI ✅
+
+### Status Final Option B
+- ✅ PostgreSQL dibuat di Render (nexus-alpha-db, Free, Singapore)
+- ✅ DATABASE_URL di-set di environment nexus-alpha (Internal URL)
+- ✅ Tabel ohlcv_daily dibuat via SQL langsung (drizzle-kit skip karena esbuild mismatch)
+- ✅ Seeder dijalankan: 15.449 candles dari 10 pair berhasil masuk DB
+- ✅ startDailySaveCron() diaktifkan di index.ts — simpan candle kemarin tiap 24h
+
+### Catatan Teknis
+- drizzle-kit push gagal karena esbuild versi mismatch (0.27.3 vs 0.28.1)
+- Workaround: buat tabel langsung via node pg SQL
+- External URL perlu ?sslmode=require untuk koneksi dari lokal MacBook
+- Internal URL (tanpa SSL param) dipakai di Render environment variable
