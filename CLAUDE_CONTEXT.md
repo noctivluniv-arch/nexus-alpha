@@ -157,3 +157,68 @@ Crypto trading signal web app. Monorepo dengan pnpm.
   - Warna: hijau (LAYAK_BELI), kuning (WASPADA), merah (HINDARI)
   - Menampilkan: verdict badge, buyScore bar, daftar alasan, daftar red flags
 - Sudah di-commit dan push ke GitHub
+
+## Sesi 2026-06-30 — Backtest v3, Bug Fix, Engine Tuning
+
+### Bug Kritis Ditemukan & Fixed — DONE ✓
+- signal-engine-realtime.ts: `trend1d` selama ini pakai `trend4hVal` (4H EMA), bukan Daily EMA
+- Akibatnya: `checkHardRejects()` Daily trend filter tidak pernah benar-benar bekerja
+- Fix: tambah `const trend1dVal = trendStructure(ema50Val, ema200Val, price)` dan ubah `trend1d: trend1dVal`
+
+### Backtest v3 — DONE ✓
+- Script: scripts/src/backtest-v3-paginated.ts
+- Upgrade dari v2: paginated fetch (daily up to 4000 candle, 4H up to 5000 candle, time-aligned pakai timestamp)
+- volH1/volH6 diapproximasi dari daily volume (eliminasi misalignment 1H di v2)
+- Hasil 2813 trades dari 6 pair:
+
+#### Temuan Utama
+- v2 SELL 00-40 +1.13% ternyata FALSE POSITIVE — karena 1H volume misaligned (data 41 hari terakhir bukan historical)
+- SELL 45-50: WR 48.8%, AvgPnL +0.74%, PF 1.22 — zona paling reliable
+- SELL 50-55: WR 48.2%, AvgPnL +0.34%, PF 1.09 — borderline positif
+- BUY: semua zona negatif kecuali 65-70 (18 trades — sample terlalu kecil, tidak reliable)
+- Daily trend filter (searah trend) justru memperburuk hasil SELL, tidak membantu
+
+#### Sweet Spot Saat Ini di Engine
+- SELL: confidence 45-55 (berdasarkan backtest v3)
+- BUY: DISABLED — semua zona negatif, belum ada bukti profitable
+- Format variabel di engine: `conf` (bukan `scored.score.total`) — pakai `const conf = scored.score.total`
+
+### Step 1 Changes — PARTIALLY DONE
+- trend1d bug fix: DONE ✓
+- Split sweet spot BUY/SELL: DONE ✓ (tapi langsung direvisi lagi berdasarkan v3)
+- Update sweet spot ke SELL 45-55 + BUY disabled: PENDING ⚠️
+
+### PENDING — Sweet Spot Update Gagal di Python
+- Python patch error: "old string not found" karena format kode berbeda
+- Engine saat ini masih pakai format lama: `if (scored.bias === "BULLISH" && conf >= 50 && conf <= 55) side = "BUY";`
+- Perlu lihat baris 185-200 signal-engine-realtime.ts dulu sebelum patch
+- Command untuk diagnose: `sed -n '185,200p' artifacts/api-server/src/lib/signal-engine-realtime.ts`
+- Target setelah fix:
+  - Hapus BUY logic
+  - SELL hanya fire kalau conf >= 45 && conf <= 55 && bias === "BEARISH"
+
+### Option A — DONE ✓
+- Script backtest-v3-paginated.ts sudah ada di scripts/src/
+- Sudah dijalankan dan menghasilkan data valid
+
+### Option B — TODO (belum dimulai)
+- Butuh: cat artifacts/api-server/src/db/schema.ts
+- Rencana:
+  1. Tambah tabel ohlcv_daily di Drizzle schema
+  2. Script seed historical data (pakai logika paginated dari Option A)
+  3. Modifikasi cron: simpan candle harian otomatis ke PostgreSQL
+  4. Tujuan: forward testing — simpan setiap signal + hasil nyata untuk evaluate engine
+
+### Root Cause Engine yang Masih Perlu Diinvestigasi
+- Rule scoring kurang diskriminatif (banyak rule overlap, confidence menumpuk di zona yang sama)
+- TP/SL ratio (ATR 1.5x) mungkin tidak optimal — perlu disesuaikan
+- Belum ada zona BUY yang statistik kuat (WR ≥ 55% + AvgPnL ≥ 1% + n ≥ 50 trades)
+- Jangan gunakan BUY untuk uang asli sampai ada zona yang terbukti profitable
+
+### Per-Pair Status (v3)
+- ⚠️ BTCUSDT: AvgPnL -0.34%, best bucket 40-45
+- ⚠️ ETHUSDT: AvgPnL +0.18%, best bucket 45-50 (WR 56%, AP +1.66%) ← paling menjanjikan
+- ⚠️ BNBUSDT: AvgPnL -0.34%, best bucket 60-65
+- ❌ SOLUSDT: AvgPnL -1.40% ← perlu dikaji ulang apakah tetap di SUPPORTED_PAIRS
+- ⚠️ LINKUSDT: AvgPnL -0.47%
+- ⚠️ DOGEUSDT: AvgPnL -0.95%
