@@ -18,3 +18,4 @@
 //   export type Post = typeof postsTable.$inferSelect;
 
 export * from "./ohlcv-daily";
+export * from "./signal-log";

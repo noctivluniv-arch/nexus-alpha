@@ -1,10 +1,8 @@
 import { Router } from "express";
+import { eq, inArray, and } from "drizzle-orm";
 import { SUPPORTED_PAIRS } from "../../../nexusalpha/lib/types";
 import { computeRealtimeSignal } from "../lib/signal-engine-realtime";
-import { db } from "@workspace/db";
-import { ohlcvDaily } from "@workspace/db";
-import { db } from "@workspace/db";
-import { ohlcvDaily } from "@workspace/db";
+import { db, ohlcvDaily, signalLog } from "@workspace/db";
 
 const router = Router();
 
@@ -64,6 +62,35 @@ function fmtPrice(n: number | null): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
+// ─── FORWARD TESTING: SAVE SIGNAL TO DB ──────────────────────────────────────
+async function saveSignalToLog(signal: {
+  pair: string;
+  side: "BUY" | "SELL" | "NO_TRADE";
+  confidence: number;
+  price: number;
+  sl: number | null;
+  tp1: number | null;
+  tp2: number | null;
+  tp3: number | null;
+}) {
+  try {
+    await (db as any).insert(signalLog).values({
+      pair: signal.pair,
+      side: signal.side,
+      confidence: signal.confidence,
+      entryPrice: signal.price,
+      sl: signal.sl,
+      tp1: signal.tp1,
+      tp2: signal.tp2,
+      tp3: signal.tp3,
+      status: "OPEN",
+    });
+    console.log(`[SIGNAL-LOG] ✅ Saved ${signal.pair} ${signal.side} @ ${signal.price}`);
+  } catch (err) {
+    console.error(`[SIGNAL-LOG] Error saving ${signal.pair}:`, err);
+  }
+}
+
 async function runSignalScan() {
   console.log(`[CRON] Starting REAL-TIME RULE-BASED signal scan for ${SUPPORTED_PAIRS.length} pairs...`);
 
@@ -106,6 +133,9 @@ async function runSignalScan() {
         await sendTelegram(msg);
         console.log(`[CRON] ✅ Signal sent for ${pair}`);
 
+        // Forward testing: simpan signal ke DB untuk dicek hasilnya nanti
+        await saveSignalToLog(signal);
+
         await new Promise((r) => setTimeout(r, 1000));
       }
     } catch (err) {
@@ -129,6 +159,109 @@ router.post("/run", async (_req, res) => {
   res.json({ status: "scan started" });
 });
 
+// ─── FORWARD TESTING: CHECK OPEN SIGNALS (TP/SL HIT?) ───────────────────────
+async function fetchCurrentPrice(pair: string): Promise<number | null> {
+  try {
+    const res = await fetch(`https://api.bybit.com/v5/market/tickers?category=spot&symbol=${pair}`);
+    const json = (await res.json()) as any;
+    if (json.retCode !== 0) return null;
+    const ticker = json.result?.list?.[0];
+    if (!ticker) return null;
+    return parseFloat(ticker.lastPrice);
+  } catch {
+    return null;
+  }
+}
+
+async function checkOpenSignals() {
+  console.log("[SIGNAL-CHECK] Checking open signals...");
+  try {
+    const openSignals = await (db as any)
+      .select()
+      .from(signalLog)
+      .where(inArray(signalLog.status, ["OPEN", "TP1_HIT", "TP2_HIT"]));
+
+    if (openSignals.length === 0) {
+      console.log("[SIGNAL-CHECK] No open signals.");
+      return;
+    }
+
+    // Cache harga per pair biar tidak fetch berkali-kali untuk pair yang sama
+    const priceCache = new Map<string, number | null>();
+
+    for (const sig of openSignals) {
+      if (!priceCache.has(sig.pair)) {
+        priceCache.set(sig.pair, await fetchCurrentPrice(sig.pair));
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      const currentPrice = priceCache.get(sig.pair);
+      if (currentPrice === null || currentPrice === undefined) continue;
+
+      let newStatus: string | null = null;
+      let closed = false;
+
+      if (sig.side === "SELL") {
+        // Profit kalau harga TURUN ke TP, rugi kalau harga NAIK ke SL
+        if (sig.sl !== null && currentPrice >= sig.sl) {
+          newStatus = "SL_HIT"; closed = true;
+        } else if (sig.tp3 !== null && currentPrice <= sig.tp3) {
+          newStatus = "TP3_HIT"; closed = true;
+        } else if (sig.tp2 !== null && currentPrice <= sig.tp2 && sig.status !== "TP2_HIT") {
+          newStatus = "TP2_HIT";
+        } else if (sig.tp1 !== null && currentPrice <= sig.tp1 && sig.status === "OPEN") {
+          newStatus = "TP1_HIT";
+        }
+      } else if (sig.side === "BUY") {
+        // Profit kalau harga NAIK ke TP, rugi kalau harga TURUN ke SL
+        if (sig.sl !== null && currentPrice <= sig.sl) {
+          newStatus = "SL_HIT"; closed = true;
+        } else if (sig.tp3 !== null && currentPrice >= sig.tp3) {
+          newStatus = "TP3_HIT"; closed = true;
+        } else if (sig.tp2 !== null && currentPrice >= sig.tp2 && sig.status !== "TP2_HIT") {
+          newStatus = "TP2_HIT";
+        } else if (sig.tp1 !== null && currentPrice >= sig.tp1 && sig.status === "OPEN") {
+          newStatus = "TP1_HIT";
+        }
+      }
+
+      if (newStatus) {
+        await (db as any)
+          .update(signalLog)
+          .set({
+            status: newStatus,
+            ...(closed ? { closedPrice: currentPrice, closedAt: new Date() } : {}),
+          })
+          .where(eq(signalLog.id, sig.id));
+        console.log(`[SIGNAL-CHECK] ${sig.pair} #${sig.id} → ${newStatus} @ ${currentPrice}`);
+      }
+    }
+
+    console.log("[SIGNAL-CHECK] Done.");
+  } catch (err) {
+    console.error("[SIGNAL-CHECK] Error:", err);
+  }
+}
+
+export function startSignalCheckCron() {
+  const INTERVAL_MS = 15 * 60 * 1000; // tiap 15 menit
+  console.log(`[SIGNAL-CHECK] Forward-test checker started. Interval: ${INTERVAL_MS / 1000}s`);
+  checkOpenSignals();
+  setInterval(checkOpenSignals, INTERVAL_MS);
+}
+
+router.get("/results", async (_req, res) => {
+  try {
+    const all = await (db as any).select().from(signalLog);
+    const closed = all.filter((s: any) => s.status === "TP3_HIT" || s.status === "SL_HIT");
+    const wins = closed.filter((s: any) => s.status !== "SL_HIT").length;
+    const total = closed.length;
+    const winRate = total > 0 ? ((wins / total) * 100).toFixed(1) : "N/A";
+    res.json({ total, wins, losses: total - wins, winRate, signals: all });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 export default router;
 
 // ─── DAILY OHLCV SAVE ────────────────────────────────────────────────────────
@@ -144,7 +277,6 @@ async function saveLatestDailyCandles() {
       if (json.retCode !== 0) continue;
 
       const raw: any[] = json.result?.list ?? [];
-      // raw[1] = candle kemarin (index 0 = hari ini yang belum selesai)
       const k = raw[1];
       if (!k) continue;
 
@@ -168,15 +300,15 @@ async function saveLatestDailyCandles() {
 
 export function startDailySaveCron() {
   const INTERVAL_24H = 24 * 60 * 60 * 1000;
-  saveLatestDailyCandles(); // langsung simpan saat startup
+  saveLatestDailyCandles();
   setInterval(saveLatestDailyCandles, INTERVAL_24H);
   console.log("[DAILY-SAVE] Daily candle saver started (interval 24h)");
 }
 
 // ─── MEME COIN CRON ───────────────────────────────────────────────────────────
-const memeCooldown = new Map<string, number>(); // coinId → last alert timestamp
-const MEME_COOLDOWN_MS = 30 * 60 * 1000; // 30 menit per coin
-const MEME_INTERVAL_MS = 15 * 60 * 1000; // scan tiap 15 menit
+const memeCooldown = new Map<string, number>();
+const MEME_COOLDOWN_MS = 30 * 60 * 1000;
+const MEME_INTERVAL_MS = 15 * 60 * 1000;
 
 async function runMemeScan() {
   console.log("[MEME-CRON] Starting meme coin scan...");
@@ -197,7 +329,6 @@ async function runMemeScan() {
       const isPump = coin.volumeSignal === "PUMP_IMMINENT";
       if (!isGem && !isPump) continue;
 
-      // Skip coin yang verdict HINDARI
       if (coin.buyVerdict === "HINDARI") {
         console.log(`[MEME-CRON] ⛔ Skipped (HINDARI): ${coin.name} — ${coin.buySummary}`);
         continue;
