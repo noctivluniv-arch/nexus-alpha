@@ -412,3 +412,34 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 ### Keputusan
 - TODO #1 DITUTUP — tidak perlu patch tambahan, sistem sudah robust dan terverifikasi dengan data real
 - Kalau nanti suatu saat ditemukan coin dengan security kosong di hasil scan, baru diinvestigasi ulang
+
+## Sesi 2026-06-30 (lanjutan 4) — Meme Coin Forward Testing DIBUAT ✅
+
+### Tujuan
+- Menjawab jujur (dengan data, bukan asumsi): apakah early-gem scoring di memes.ts benar-benar bisa mendeteksi coin yang viral/meledak, atau tidak
+- PENTING: ini BUKAN alat untuk "menemukan next DOGE/SHIB" — ini alat UKUR apakah scoring yang sudah ada efektif. Realita: coin yang benar2 viral ribuan % itu sangat langka (outlier), mayoritas meme coin gagal/rug pull.
+- XRP TIDAK relevan untuk scanner ini — itu coin lama/established, beda kategori dengan "early gem meme coin baru"
+
+### Yang Dibangun
+- Tabel baru `meme_signal_log` (lib/db/src/schema/meme-signal-log.ts) — dibuat di DB via Node pg langsung
+  - Kolom kunci: initial_price, ath_price, ath_multiplier (harga tertinggi / harga awal), status (TRACKING/DEAD/STOPPED)
+- cron.ts dipatch:
+  - saveMemeSignalToLog() — simpan coin yang ditandai GEM/PUMP_IMMINENT setelah alert Telegram terkirim, skip kalau masih TRACKING
+  - fetchDexScreenerData() — ambil harga/liquidity/mcap terbaru by contract address
+  - checkMemeSignals() — cron tiap 6 jam, update ATH multiplier tiap coin TRACKING; liquidity < $1000 → DEAD (kemungkinan rug pull); umur > 60 hari → STOPPED
+  - startMemeSignalCheckCron() dipanggil di index.ts — DONE ✓
+  - Endpoint baru: GET /api/cron/meme-results — ringkasan % coin yang tembus 2x/5x/10x, % DEAD, top performers
+
+### State Saat Ini
+- Forward testing meme coin BARU MULAI hari ini (2026-06-30), 0 data historis
+- Butuh waktu MINGGUAN-BULANAN untuk dapat hasil yang berarti (beda dengan signal trading yang bisa dilihat dalam hitungan hari)
+- Cara cek hasil: GET https://nexus-alpha-j3yb.onrender.com/api/cron/meme-results
+
+### PENTING — Jangan Ambil Kesimpulan Terlalu Cepat
+- Sample kecil (<30-50 coin tracked) tidak cukup untuk menyimpulkan apakah scoring efektif
+- Realistis: mayoritas meme coin akan berakhir DEAD/gagal, itu NORMAL untuk kategori aset ini, bukan berarti scoring-nya salah
+- Tujuan akhir: tahu apakah probabilitas "menang" dari sistem ini lebih baik dari acak, bukan menjamin menemukan gem
+
+### Agenda Tertunda
+- Rotate password database PostgreSQL (sempat di-expose di chat beberapa kali) — PENDING, prioritas keamanan
+- Meme alert volume tinggi (11 alert sekaligus dalam 1 scan) — perlu dipertimbangkan apakah threshold perlu diperketat
