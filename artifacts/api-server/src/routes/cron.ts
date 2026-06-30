@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { SUPPORTED_PAIRS } from "../../../nexusalpha/lib/types";
 import { computeRealtimeSignal } from "../lib/signal-engine-realtime";
+import { db } from "@workspace/db";
+import { ohlcvDaily } from "@workspace/db";
+import { db } from "@workspace/db";
+import { ohlcvDaily } from "@workspace/db";
 
 const router = Router();
 
@@ -126,6 +130,90 @@ router.post("/run", async (_req, res) => {
 });
 
 export default router;
+
+// ─── DAILY OHLCV SAVE ────────────────────────────────────────────────────────
+async function saveLatestDailyCandles() {
+  console.log("[DAILY-SAVE] Saving latest daily candles...");
+  for (const pair of SUPPORTED_PAIRS) {
+    try {
+      await new Promise(r => setTimeout(r, 500));
+      const res  = await fetch(
+        `https://api.bybit.com/v5/market/kline?category=spot&symbol=${pair}&interval=D&limit=3`
+      );
+      const json = (await res.json()) as any;
+      if (json.retCode !== 0) continue;
+
+      const raw: any[] = json.result?.list ?? [];
+      // raw[1] = candle kemarin (index 0 = hari ini yang belum selesai)
+      const k = raw[1];
+      if (!k) continue;
+
+      await (db as any).insert(ohlcvDaily).values({
+        pair,
+        timestampMs: parseInt(k[0], 10),
+        open:   k[1],
+        high:   k[2],
+        low:    k[3],
+        close:  k[4],
+        volume: k[5],
+      }).onConflictDoNothing();
+
+      console.log(`[DAILY-SAVE] ✅ ${pair}`);
+    } catch (err) {
+      console.error(`[DAILY-SAVE] Error ${pair}:`, err);
+    }
+  }
+  console.log("[DAILY-SAVE] Done.");
+}
+
+export function startDailySaveCron() {
+  const INTERVAL_24H = 24 * 60 * 60 * 1000;
+  saveLatestDailyCandles(); // langsung simpan saat startup
+  setInterval(saveLatestDailyCandles, INTERVAL_24H);
+  console.log("[DAILY-SAVE] Daily candle saver started (interval 24h)");
+}
+
+// ─── DAILY OHLCV SAVE ────────────────────────────────────────────────────────
+async function saveLatestDailyCandles() {
+  console.log("[DAILY-SAVE] Saving latest daily candles...");
+  for (const pair of SUPPORTED_PAIRS) {
+    try {
+      await new Promise(r => setTimeout(r, 500));
+      const res  = await fetch(
+        `https://api.bybit.com/v5/market/kline?category=spot&symbol=${pair}&interval=D&limit=3`
+      );
+      const json = (await res.json()) as any;
+      if (json.retCode !== 0) continue;
+
+      const raw: any[] = json.result?.list ?? [];
+      // raw[1] = candle kemarin (index 0 = hari ini yang belum selesai)
+      const k = raw[1];
+      if (!k) continue;
+
+      await (db as any).insert(ohlcvDaily).values({
+        pair,
+        timestampMs: parseInt(k[0], 10),
+        open:   k[1],
+        high:   k[2],
+        low:    k[3],
+        close:  k[4],
+        volume: k[5],
+      }).onConflictDoNothing();
+
+      console.log(`[DAILY-SAVE] ✅ ${pair}`);
+    } catch (err) {
+      console.error(`[DAILY-SAVE] Error ${pair}:`, err);
+    }
+  }
+  console.log("[DAILY-SAVE] Done.");
+}
+
+export function startDailySaveCron() {
+  const INTERVAL_24H = 24 * 60 * 60 * 1000;
+  saveLatestDailyCandles(); // langsung simpan saat startup
+  setInterval(saveLatestDailyCandles, INTERVAL_24H);
+  console.log("[DAILY-SAVE] Daily candle saver started (interval 24h)");
+}
 
 // ─── MEME COIN CRON ───────────────────────────────────────────────────────────
 const memeCooldown = new Map<string, number>(); // coinId → last alert timestamp
