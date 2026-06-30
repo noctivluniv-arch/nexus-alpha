@@ -443,3 +443,7 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 ### Agenda Tertunda
 - Rotate password database PostgreSQL (sempat di-expose di chat beberapa kali) — PENDING, prioritas keamanan
 - Meme alert volume tinggi (11 alert sekaligus dalam 1 scan) — perlu dipertimbangkan apakah threshold perlu diperketat
+
+## Verifikasi Live 2026-06-30 (setelah deploy meme forward testing)
+- [MEME-CHECK] cron 6 jam aktif dan jalan normal — DONE ✓
+- [SIGNAL-LOG] anti-duplikat TERBUKTI bekerja di production: SOLUSDT/XRPUSDT/AVAXUSDT signal yang sama berhasil di-skip dari pencatatan dobel, tapi tetap terkirim ke Telegram seperti biasa — DONE ✓
