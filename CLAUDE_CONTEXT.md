@@ -222,3 +222,52 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 - ❌ SOLUSDT: AvgPnL -1.40% ← perlu dikaji ulang apakah tetap di SUPPORTED_PAIRS
 - ⚠️ LINKUSDT: AvgPnL -0.47%
 - ⚠️ DOGEUSDT: AvgPnL -0.95%
+
+## Update 2026-06-30 — Option B (PostgreSQL OHLCV)
+
+### Status Option B — PARTIALLY DONE
+- Schema dan seed script sudah dibuat, tapi belum di-apply ke repo
+- Perlu diselesaikan di sesi berikutnya
+
+### File Yang Perlu Di-copy dari Downloads
+1. `~/Downloads/ohlcv-daily.ts` → `lib/db/src/schema/ohlcv-daily.ts`
+2. `~/Downloads/seed-ohlcv.ts` → `scripts/src/seed-ohlcv.ts`
+
+### Langkah Option B Yang Belum Selesai (lanjutkan di sesi berikutnya)
+1. Copy ohlcv-daily.ts ke lib/db/src/schema/
+2. Tambah export ke lib/db/src/schema/index.ts:
+   echo 'export * from "./ohlcv-daily";' >> lib/db/src/schema/index.ts
+3. Migrasi DB: cd lib/db && pnpm drizzle-kit push
+4. Copy seed-ohlcv.ts ke scripts/src/
+5. Jalankan seeder: DATABASE_URL="..." tsx scripts/src/seed-ohlcv.ts
+6. Patch cron.ts — tambah import db + ohlcvDaily + fungsi saveLatestDailyCandles() + export startDailySaveCron()
+7. Patch index.ts — panggil startDailySaveCron() di entry point (perlu lihat isi index.ts dulu)
+8. Commit semua
+
+### Desain Tabel ohlcv_daily
+- Lokasi schema: lib/db/src/schema/ohlcv-daily.ts
+- Kolom: id, pair (varchar 20), timestamp_ms (bigint), open/high/low/close/volume (text), created_at
+- Unique constraint: (pair, timestamp_ms)
+- onConflictDoNothing() → idempotent, aman dijalankan berulang
+
+### Struktur DB yang Sudah Diketahui
+- Config: lib/db/drizzle.config.ts
+- Schema index: lib/db/src/schema/index.ts (sebelumnya kosong)
+- DB client: lib/db/src/index.ts (export db, pool)
+- Import di api-server: from "@workspace/db"
+- Dialect: postgresql (node-postgres)
+
+### State Engine Saat Ini (setelah semua fix hari ini)
+- SELL: confidence 45-55, bias BEARISH → FIRE
+- BUY: DISABLED (semua bucket negatif di backtest v3)
+- trend1d bug: FIXED (sekarang pakai daily EMA)
+- Daily trend filter: aktif tapi data v3 menunjukkan tidak signifikan efeknya
+- Backtest terbaik: SELL 45-50 (PF 1.22, AvgPnL +0.74%, 256 trades)
+
+### Summary Semua Pekerjaan Hari Ini
+- ✅ Bug fix: trend1d pakai 4H EMA → fixed ke daily EMA
+- ✅ Step 1: Split BUY/SELL sweet spot → revisi lagi berdasarkan v3
+- ✅ Engine: SELL 45-55, BUY disabled
+- ✅ Backtest v3: paginated, time-aligned, vol approx — 2813 trades, 6 pairs, ~5 tahun
+- ✅ Backtest v3 script: scripts/src/backtest-v3-paginated.ts
+- ⏳ Option B: file sudah dibuat, belum di-apply ke repo
