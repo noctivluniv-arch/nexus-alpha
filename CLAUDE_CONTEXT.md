@@ -318,3 +318,38 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 - Workaround: buat tabel langsung via node pg SQL
 - External URL perlu ?sslmode=require untuk koneksi dari lokal MacBook
 - Internal URL (tanpa SSL param) dipakai di Render environment variable
+
+## Agenda Sesi Berikutnya
+
+### TODO #1 — GoPlus Rate Limit (Priority: Medium)
+- Error: GoPlus API error code 4029 (rate limit) di log meme cron
+- Fix: tambah retry logic dengan exponential backoff + delay antar request
+- File: artifacts/api-server/src/routes/memes.ts
+
+### TODO #2 — Telegram Connect Timeout (Priority: High)
+- Error: ConnectTimeoutError saat kirim signal ke Telegram (149.154.166.110:443)
+- Fix: tambah retry logic di sendTelegram() dengan max 3x retry
+- File: artifacts/api-server/src/routes/cron.ts
+
+### TODO #3 — Forward Testing / Signal Tracker (Priority: High)
+- Tujuan: validasi apakah signal yang dikirim Telegram menghasilkan profit nyata
+- Rencana:
+  1. Tambah tabel signal_log di PostgreSQL (pair, side, confidence, entry_price, tp, sl, timestamp)
+  2. Setiap signal yang dikirim → simpan ke DB
+  3. Cron harian: cek apakah TP atau SL sudah kena berdasarkan harga aktual
+  4. Tampilkan win rate aktual di frontend
+- Ini adalah langkah kritis sebelum pakai uang asli
+
+### Masalah Fundamental Engine (Perlu Investigasi)
+1. WR 48.8% masih di bawah 50% — hanya profitable karena TP > SL ratio
+   - Jika kondisi market berubah, bisa langsung merugi
+2. Backtest pakai data daily, engine pakai 4H — mismatch timeframe belum divalidasi
+3. Sample kecil: hanya 256 trades di bucket terbaik (SELL 45-50) dari 5 tahun data
+4. Belum ada forward testing — hasil nyata di Telegram belum pernah divalidasi
+5. GoPlus + Telegram timeout menyebabkan signal kadang gagal terkirim
+
+### Rekomendasi Sebelum Pakai Uang Asli
+- Paper trading dulu: catat setiap signal Telegram, cek manual TP/SL
+- Kumpulkan minimal 50-100 trade nyata
+- Target yang layak: WR >= 52%, AvgPnL >= 1%, PF >= 1.3 dari forward test
+- Jangan gunakan uang asli sampai forward test menunjukkan profitabilitas konsisten
