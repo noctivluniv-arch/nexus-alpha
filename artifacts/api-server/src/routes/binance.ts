@@ -11,9 +11,10 @@ export const SYMBOL_TO_ID: Record<string, string> = {
   SUIUSDT: "sui",
   SOLUSDT: "solana",
   HYPEUSDT: "hyperliquid",
-  ASTERUSDT: "aster-2",
-  ZECUSDT: "zcash",
   LINKUSDT: "chainlink",
+  XRPUSDT: "ripple",
+  DOGEUSDT: "dogecoin",
+  AVAXUSDT: "avalanche-2",
 };
 
 interface PriceEntry {

@@ -121,8 +121,9 @@ const PAIR_TO_OKX: Record<string, string> = {
   SUIUSDT: "SUI",
   LINKUSDT: "LINK",
   HYPEUSDT: "HYPE",
-  ASTERUSDT: "ASTER",
-  ZECUSDT: "ZEC",
+  XRPUSDT: "XRP",
+  DOGEUSDT: "DOGE",
+  AVAXUSDT: "AVAX",
 };
 
 interface DerivData {
