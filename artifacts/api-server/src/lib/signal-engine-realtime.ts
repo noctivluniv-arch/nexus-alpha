@@ -182,13 +182,13 @@ export async function computeRealtimeSignal(symbol: string): Promise<RealtimeSig
 
   // ── Sweet spot split berdasarkan backtest v2 (3124 trades) ──────────────────
   // BUY : confidence 50–55 → WR 44.7%, AvgPnL +1.23% (satu-satunya zone positif)
-  // SELL: confidence  0–45 → WR 51.3%, AvgPnL +1.13% di 0-40 (zone paling reliable)
+  // SELL: confidence 45–55 → PF 1.22 (45-50), PF 1.09 (50-55) — backtest v3, 2813 trades
   // Confidence di luar range ini → NO_TRADE (terlalu berisiko berdasarkan data)
   const conf = scored.score.total;
 
   let side: "BUY" | "SELL" | "NO_TRADE" = "NO_TRADE";
-  if (scored.bias === "BULLISH" && conf >= 50 && conf <= 55) side = "BUY";
-  else if (scored.bias === "BEARISH" && conf >= 0 && conf <= 45) side = "SELL";
+  if (scored.bias === "BEARISH" && conf >= 45 && conf <= 55) side = "SELL";
+  // BUY disabled — re-enable setelah ada bukti zona profitable (backtest v3: semua bucket negatif)
 
   // ATR-based risk management
   let sl: number | null = null;
