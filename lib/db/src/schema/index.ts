@@ -19,3 +19,4 @@
 
 export * from "./ohlcv-daily";
 export * from "./signal-log";
+export * from "./meme-signal-log";

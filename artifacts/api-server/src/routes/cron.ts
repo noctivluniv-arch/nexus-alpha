@@ -2,7 +2,7 @@ import { Router } from "express";
 import { eq, inArray, and } from "drizzle-orm";
 import { SUPPORTED_PAIRS } from "../../../nexusalpha/lib/types";
 import { computeRealtimeSignal } from "../lib/signal-engine-realtime";
-import { db, ohlcvDaily, signalLog } from "@workspace/db";
+import { db, ohlcvDaily, signalLog, memeSignalLog } from "@workspace/db";
 
 const router = Router();
 
@@ -290,6 +290,169 @@ export function startSignalCheckCron() {
   setInterval(checkOpenSignals, INTERVAL_MS);
 }
 
+// ─── MEME COIN FORWARD TESTING ────────────────────────────────────────────────
+async function saveMemeSignalToLog(coin: any, triggerLabel: string) {
+  try {
+    const existing = await (db as any)
+      .select()
+      .from(memeSignalLog)
+      .where(and(eq(memeSignalLog.coinId, String(coin.id)), eq(memeSignalLog.status, "TRACKING")));
+
+    if (existing.length > 0) {
+      console.log(`[MEME-LOG] ⏭️ Skip ${coin.symbol} — masih TRACKING (id #${existing[0].id})`);
+      return;
+    }
+
+    const price = parseFloat(String(coin.price)) || 0;
+    if (price <= 0) {
+      console.log(`[MEME-LOG] ⏭️ Skip ${coin.symbol} — harga tidak valid`);
+      return;
+    }
+
+    await (db as any).insert(memeSignalLog).values({
+      coinId: String(coin.id),
+      name: coin.name,
+      symbol: coin.symbol,
+      network: coin.network,
+      contractAddress: coin.contractAddress ?? "",
+      initialPrice: price,
+      initialMcap: coin.marketCap ? parseFloat(String(coin.marketCap)) || null : null,
+      initialLiquidity: coin.liquidity ? parseFloat(String(coin.liquidity)) || null : null,
+      earlyGemScore: coin.earlyGemScore ?? null,
+      buyVerdict: coin.buyVerdict ?? null,
+      triggerLabel,
+      lastPrice: price,
+      athPrice: price,
+      athMultiplier: 1,
+      status: "TRACKING",
+    });
+    console.log(`[MEME-LOG] ✅ Saved ${coin.symbol} @ $${price}`);
+  } catch (err) {
+    console.error(`[MEME-LOG] Error saving ${coin.symbol}:`, err);
+  }
+}
+
+async function fetchDexScreenerData(contractAddress: string): Promise<{ price: number; liquidity: number; mcap: number } | null> {
+  try {
+    if (!contractAddress) return null;
+    const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${contractAddress}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as any;
+    const pairs = json?.pairs;
+    if (!pairs || pairs.length === 0) return null;
+    // Ambil pair dengan liquidity terbesar (paling representatif)
+    const best = pairs.reduce((a: any, b: any) =>
+      (parseFloat(b?.liquidity?.usd ?? "0") > parseFloat(a?.liquidity?.usd ?? "0") ? b : a)
+    );
+    return {
+      price: parseFloat(best.priceUsd ?? "0"),
+      liquidity: parseFloat(best?.liquidity?.usd ?? "0"),
+      mcap: parseFloat(best.fdv ?? best.marketCap ?? "0"),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function checkMemeSignals() {
+  console.log("[MEME-CHECK] Checking tracked meme signals...");
+  try {
+    const tracking = await (db as any)
+      .select()
+      .from(memeSignalLog)
+      .where(eq(memeSignalLog.status, "TRACKING"));
+
+    if (tracking.length === 0) {
+      console.log("[MEME-CHECK] No coins being tracked.");
+      return;
+    }
+
+    const SIXTY_DAYS_MS = 60 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    for (const sig of tracking) {
+      await new Promise((r) => setTimeout(r, 300)); // jaga rate limit DexScreener
+
+      const detectedTime = sig.detectedAt ? new Date(sig.detectedAt).getTime() : now;
+      if (now - detectedTime > SIXTY_DAYS_MS) {
+        await (db as any)
+          .update(memeSignalLog)
+          .set({ status: "STOPPED", lastCheckedAt: new Date() })
+          .where(eq(memeSignalLog.id, sig.id));
+        console.log(`[MEME-CHECK] ⏹️ ${sig.symbol} — 60 hari tercapai, stop tracking`);
+        continue;
+      }
+
+      const data = await fetchDexScreenerData(sig.contractAddress);
+      if (!data || data.price <= 0) {
+        console.log(`[MEME-CHECK] ⚠️ ${sig.symbol} — data DexScreener tidak tersedia, skip`);
+        continue;
+      }
+
+      const newAth = Math.max(sig.athPrice ?? sig.initialPrice, data.price);
+      const athMultiplier = newAth / sig.initialPrice;
+      const isDead = data.liquidity < 1000;
+
+      await (db as any)
+        .update(memeSignalLog)
+        .set({
+          lastPrice: data.price,
+          lastMcap: data.mcap || null,
+          lastLiquidity: data.liquidity,
+          athPrice: newAth,
+          athMultiplier,
+          lastCheckedAt: new Date(),
+          status: isDead ? "DEAD" : "TRACKING",
+        })
+        .where(eq(memeSignalLog.id, sig.id));
+
+      console.log(`[MEME-CHECK] ${sig.symbol} → price $${data.price}, ATH x${athMultiplier.toFixed(2)}${isDead ? " — DEAD (liquidity habis)" : ""}`);
+    }
+
+    console.log("[MEME-CHECK] Done.");
+  } catch (err) {
+    console.error("[MEME-CHECK] Error:", err);
+  }
+}
+
+export function startMemeSignalCheckCron() {
+  const INTERVAL_6H = 6 * 60 * 60 * 1000;
+  console.log(`[MEME-CHECK] Meme forward-test checker started. Interval: ${INTERVAL_6H / 1000}s`);
+  checkMemeSignals();
+  setInterval(checkMemeSignals, INTERVAL_6H);
+}
+
+router.get("/meme-results", async (_req, res) => {
+  try {
+    const all = await (db as any).select().from(memeSignalLog);
+    const withMultiplier = all.filter((c: any) => c.athMultiplier !== null);
+    const total = all.length;
+    const dead = all.filter((c: any) => c.status === "DEAD").length;
+    const above2x = withMultiplier.filter((c: any) => c.athMultiplier >= 2).length;
+    const above5x = withMultiplier.filter((c: any) => c.athMultiplier >= 5).length;
+    const above10x = withMultiplier.filter((c: any) => c.athMultiplier >= 10).length;
+    const topPerformers = [...all]
+      .sort((a: any, b: any) => (b.athMultiplier ?? 0) - (a.athMultiplier ?? 0))
+      .slice(0, 10)
+      .map((c: any) => ({ symbol: c.symbol, name: c.name, athMultiplier: c.athMultiplier, status: c.status }));
+
+    res.json({
+      total,
+      dead,
+      deadPct: total > 0 ? ((dead / total) * 100).toFixed(1) + "%" : "N/A",
+      above2xPct: total > 0 ? ((above2x / total) * 100).toFixed(1) + "%" : "N/A",
+      above5xPct: total > 0 ? ((above5x / total) * 100).toFixed(1) + "%" : "N/A",
+      above10xPct: total > 0 ? ((above10x / total) * 100).toFixed(1) + "%" : "N/A",
+      topPerformers,
+      allSignals: all,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 router.get("/results", async (_req, res) => {
   try {
     const all = await (db as any).select().from(signalLog);
@@ -421,6 +584,9 @@ async function runMemeScan() {
       await sendMemeTelegram(msg);
       memeCooldown.set(coin.id, now);
       sent++;
+
+      // Forward testing: simpan coin ke meme_signal_log untuk dipantau ATH-nya
+      await saveMemeSignalToLog(coin, label.includes("GEM") && label.includes("PUMP") ? "BOTH" : isGem ? "GEM" : "PUMP_IMMINENT");
       console.log(`[MEME-CRON] ✅ Alert sent: ${coin.name} (${coin.symbol})`);
       await new Promise((r) => setTimeout(r, 1000));
     }
