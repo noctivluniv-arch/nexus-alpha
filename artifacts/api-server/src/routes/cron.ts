@@ -466,6 +466,118 @@ router.get("/results", async (_req, res) => {
   }
 });
 
+router.get("/dashboard", (_req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>NexusAlpha — Forward Test Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font-family: -apple-system, sans-serif; background:#0d1117; color:#e6edf3; margin:0; padding:20px; }
+  h1 { font-size:22px; margin-bottom:4px; }
+  .sub { color:#8b949e; font-size:13px; margin-bottom:24px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:24px; }
+  .card { background:#161b22; border:1px solid #30363d; border-radius:8px; padding:16px; }
+  .card .label { font-size:12px; color:#8b949e; margin-bottom:6px; }
+  .card .value { font-size:24px; font-weight:700; }
+  .green { color:#3fb950; }
+  .red { color:#f85149; }
+  .yellow { color:#d29922; }
+  section { margin-bottom:32px; }
+  h2 { font-size:16px; border-bottom:1px solid #30363d; padding-bottom:8px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:8px; border-bottom:1px solid #21262d; }
+  th { color:#8b949e; font-weight:500; }
+  .badge { padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+  .badge-open { background:#1f6feb33; color:#58a6ff; }
+  .badge-win { background:#3fb95033; color:#3fb950; }
+  .badge-loss { background:#f8514933; color:#f85149; }
+  .badge-dead { background:#f8514933; color:#f85149; }
+  .badge-tracking { background:#d2992233; color:#d29922; }
+  .loading { color:#8b949e; text-align:center; padding:40px; }
+  .note { background:#1f2937; border-left:3px solid #d29922; padding:12px 16px; border-radius:4px; font-size:13px; color:#c9d1d9; margin-bottom:24px; }
+</style>
+</head>
+<body>
+  <h1>📊 NexusAlpha — Forward Test Dashboard</h1>
+  <div class="sub">Data real dari production, auto-refresh tiap 60 detik. Terakhir diupdate: <span id="ts">-</span></div>
+
+  <div class="note">⚠️ Sample kecil belum bisa disimpulkan. Tunggu minimal 50 trade closed (signal) atau 30-50 coin tracked (meme) sebelum percaya angka win rate / multiplier ini.</div>
+
+  <section>
+    <h2>🎯 Signal Trading (BUY/SELL)</h2>
+    <div class="grid" id="signal-stats"><div class="loading">Memuat...</div></div>
+    <table id="signal-table"><thead><tr><th>Pair</th><th>Side</th><th>Conf.</th><th>Entry</th><th>Status</th><th>Closed Price</th><th>Sent</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section>
+    <h2>💎 Meme Coin (Early Gem Tracker)</h2>
+    <div class="grid" id="meme-stats"><div class="loading">Memuat...</div></div>
+    <table id="meme-table"><thead><tr><th>Coin</th><th>Network</th><th>Entry Price</th><th>ATH Multiplier</th><th>Status</th><th>Detected</th></tr></thead><tbody></tbody></table>
+  </section>
+
+<script>
+async function load() {
+  document.getElementById('ts').textContent = new Date().toLocaleString('id-ID');
+  try {
+    const sigRes = await fetch('/api/cron/results').then(r => r.json());
+    const sigStats = document.getElementById('signal-stats');
+    sigStats.innerHTML = \`
+      <div class="card"><div class="label">Total Closed</div><div class="value">\${sigRes.total}</div></div>
+      <div class="card"><div class="label">Wins</div><div class="value green">\${sigRes.wins}</div></div>
+      <div class="card"><div class="label">Losses</div><div class="value red">\${sigRes.losses}</div></div>
+      <div class="card"><div class="label">Win Rate</div><div class="value yellow">\${sigRes.winRate}\${sigRes.winRate !== 'N/A' ? '%' : ''}</div></div>
+    \`;
+    const sigBody = document.querySelector('#signal-table tbody');
+    sigBody.innerHTML = sigRes.signals.slice().reverse().map(s => {
+      let badge = 'badge-open', label = s.status;
+      if (s.status === 'SL_HIT') { badge = 'badge-loss'; }
+      else if (s.status === 'TP3_HIT') { badge = 'badge-win'; }
+      return \`<tr>
+        <td>\${s.pair}</td><td>\${s.side}</td><td>\${s.confidence}</td>
+        <td>\${s.entryPrice}</td>
+        <td><span class="badge \${badge}">\${label}</span></td>
+        <td>\${s.closedPrice ?? '-'}</td>
+        <td>\${new Date(s.sentAt).toLocaleString('id-ID')}</td>
+      </tr>\`;
+    }).join('');
+  } catch (e) {
+    document.getElementById('signal-stats').innerHTML = '<div class="loading">Gagal memuat data signal.</div>';
+  }
+
+  try {
+    const memeRes = await fetch('/api/cron/meme-results').then(r => r.json());
+    const memeStats = document.getElementById('meme-stats');
+    memeStats.innerHTML = \`
+      <div class="card"><div class="label">Total Tracked</div><div class="value">\${memeRes.total}</div></div>
+      <div class="card"><div class="label">≥ 2x</div><div class="value green">\${memeRes.above2xPct}</div></div>
+      <div class="card"><div class="label">≥ 5x</div><div class="value green">\${memeRes.above5xPct}</div></div>
+      <div class="card"><div class="label">≥ 10x</div><div class="value green">\${memeRes.above10xPct}</div></div>
+      <div class="card"><div class="label">Dead / Rug</div><div class="value red">\${memeRes.deadPct}</div></div>
+    \`;
+    const memeBody = document.querySelector('#meme-table tbody');
+    memeBody.innerHTML = memeRes.allSignals.slice().reverse().map(c => {
+      let badge = c.status === 'DEAD' ? 'badge-dead' : c.status === 'TRACKING' ? 'badge-tracking' : 'badge-open';
+      return \`<tr>
+        <td>\${c.name} (\${c.symbol})</td><td>\${c.network}</td>
+        <td>$\${c.initialPrice}</td>
+        <td>\${c.athMultiplier ? 'x' + c.athMultiplier.toFixed(2) : '-'}</td>
+        <td><span class="badge \${badge}">\${c.status}</span></td>
+        <td>\${new Date(c.detectedAt).toLocaleString('id-ID')}</td>
+      </tr>\`;
+    }).join('');
+  } catch (e) {
+    document.getElementById('meme-stats').innerHTML = '<div class="loading">Gagal memuat data meme coin.</div>';
+  }
+}
+load();
+setInterval(load, 60000);
+</script>
+</body>
+</html>`);
+});
+
 export default router;
 
 // ─── DAILY OHLCV SAVE ────────────────────────────────────────────────────────
