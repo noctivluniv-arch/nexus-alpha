@@ -400,3 +400,15 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 
 ### Belum Dikerjakan
 - TODO #1: GoPlus Rate Limit (code 4029) — masih muncul di log, belum di-fix, tidak blocking
+
+## Sesi 2026-06-30 (lanjutan 3) — TODO #1 GoPlus Rate Limit: DIVERIFIKASI, TIDAK PERLU FIX
+
+### Hasil Investigasi
+- Kode gpFetchWithRetry() di memes.ts SUDAH punya retry robust: 4x percobaan, backoff 1.2s/2.4s/4.8s, deteksi error 4029 (bukan cuma HTTP 429)
+- Ada juga "second pass" retry sekuensial untuk token yang masih gagal di percobaan pertama
+- Test nyata: panggil /api/ai/memes, cek 20 coin hasil scan — 0 dari 20 punya data security kosong
+- Kesimpulan: error 4029 di log Render adalah retry yang SEDANG bekerja, bukan kegagalan akhir. Tidak ada dampak ke akurasi data.
+
+### Keputusan
+- TODO #1 DITUTUP — tidak perlu patch tambahan, sistem sudah robust dan terverifikasi dengan data real
+- Kalau nanti suatu saat ditemukan coin dengan security kosong di hasil scan, baru diinvestigasi ulang
