@@ -353,3 +353,36 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 - Kumpulkan minimal 50-100 trade nyata
 - Target yang layak: WR >= 52%, AvgPnL >= 1%, PF >= 1.3 dari forward test
 - Jangan gunakan uang asli sampai forward test menunjukkan profitabilitas konsisten
+
+## Sesi 2026-06-30 (lanjutan) — TODO #3 Forward Testing SELESAI ✅
+
+### Yang Sudah Dikerjakan
+- Tabel baru `signal_log` dibuat di PostgreSQL (via Node pg langsung, sama seperti ohlcv_daily)
+  - Kolom: id, pair, side, confidence, entry_price, sl, tp1, tp2, tp3, status, closed_price, closed_at, sent_at
+  - Schema Drizzle: lib/db/src/schema/signal-log.ts
+- cron.ts dipatch:
+  - Bug duplikat import (db, ohlcvDaily 2x) — FIXED ✓
+  - saveSignalToLog() — setiap signal yang dikirim ke Telegram otomatis tersimpan ke signal_log — DONE ✓
+  - checkOpenSignals() — cron baru tiap 15 menit, cek harga real dari Bybit, update status OPEN → TP1_HIT/TP2_HIT/TP3_HIT/SL_HIT — DONE ✓
+  - startSignalCheckCron() dipanggil di index.ts — DONE ✓
+  - Endpoint baru: GET /api/cron/results — kasih ringkasan win rate dari signal yang sudah closed — DONE ✓
+- Bug duplikat signal ditemukan & di-fix:
+  - Masalah: cron scan tiap 10 menit menyimpan signal yang SAMA berkali-kali kalau kondisi market belum berubah (cth: SOLUSDT SELL tersimpan 2x dalam 10 menit, harga nyaris sama)
+  - Fix: saveSignalToLog() sekarang cek dulu — skip kalau pair+side yang sama masih OPEN/TP1_HIT/TP2_HIT — DONE ✓
+- Live test pertama (sebelum fix duplikat): SOLUSDT, XRPUSDT, AVAXUSDT semua SELL, semua tersimpan dengan benar ke DB
+
+### State Saat Ini
+- Forward testing AKTIF di production — semua signal SELL yang terkirim Telegram otomatis tercatat dan akan otomatis dicek TP/SL-nya
+- Belum ada signal yang closed (semua masih OPEN, baru mulai hari ini)
+- Cara cek hasil: GET https://nexus-alpha-j3yb.onrender.com/api/cron/results
+
+### PENTING — Jangan Pakai Uang Asli Dulu
+- Data forward test baru mulai dikumpulkan hari ini (2026-06-30), masih 0 trade closed
+- Tunggu minimal 50-100 trade closed (TP3_HIT atau SL_HIT) sebelum menyimpulkan apa-apa
+- Target kelayakan: WR >= 52%, AvgPnL >= 1%, PF >= 1.3 (sesuai rekomendasi sebelumnya)
+- JANGAN ambil kesimpulan dari sample kecil (<20 trade) — risiko overfitting ke kebetulan jangka pendek
+
+### Belum Dikerjakan (lanjutkan nanti)
+- TODO #1: GoPlus Rate Limit (code 4029) — masih muncul di log, belum di-fix, tidak blocking
+- TODO #2: Telegram Connect Timeout — belum dikerjakan
+- Frontend belum nampilin data signal_log / win rate (baru endpoint API mentah)
