@@ -12,22 +12,53 @@ const MEME_TELEGRAM_API = `https://api.telegram.org/bot${process.env.MEME_TELEGR
 const MEME_CHAT_ID = process.env.MEME_TELEGRAM_CHAT_ID ?? "305425021";
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:10000";
 
+
+// ─── RETRY HELPER UNTUK TELEGRAM (atasi ConnectTimeoutError) ─────────────────
+async function sendWithRetry(
+  url: string,
+  payload: any,
+  label: string,
+  maxRetries = 3,
+): Promise<any> {
+  let lastErr: any = null;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        throw new Error(`Telegram sendMessage failed: ${json?.description ?? res.statusText}`);
+      }
+      if (attempt > 1) {
+        console.log(`[${label}] ✅ Berhasil setelah retry ke-${attempt}`);
+      }
+      return json;
+    } catch (err) {
+      lastErr = err;
+      console.error(`[${label}] ⚠️ Percobaan ${attempt}/${maxRetries} gagal:`, (err as Error).message);
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, attempt * 2000)); // 2s, 4s, ...
+      }
+    }
+  }
+  console.error(`[${label}] ❌ Gagal total setelah ${maxRetries}x percobaan.`);
+  throw lastErr;
+}
+
 async function sendMemeTelegram(text: string): Promise<void> {
-  const res = await fetch(`${MEME_TELEGRAM_API}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  await sendWithRetry(
+    `${MEME_TELEGRAM_API}/sendMessage`,
+    {
       chat_id: MEME_CHAT_ID,
       text,
       parse_mode: "HTML",
       disable_web_page_preview: true,
-    }),
-  });
-  const json = await res.json().catch(() => null);
-  if (!res.ok || !json?.ok) {
-    console.error(`[MEME-TELEGRAM] Send failed:`, JSON.stringify(json));
-    throw new Error(`Telegram sendMessage failed: ${json?.description ?? res.statusText}`);
-  }
+    },
+    "MEME-TELEGRAM",
+  );
 }
 
 function escapeHtml(text: string): string {
@@ -38,23 +69,16 @@ function escapeHtml(text: string): string {
 }
 
 async function sendTelegram(text: string): Promise<void> {
-  const res = await fetch(`${TELEGRAM_API}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  await sendWithRetry(
+    `${TELEGRAM_API}/sendMessage`,
+    {
       chat_id: CHAT_ID,
       text,
       parse_mode: "HTML",
       disable_web_page_preview: true,
-    }),
-  });
-
-  const json = await res.json().catch(() => null);
-
-  if (!res.ok || !json?.ok) {
-    console.error(`[TELEGRAM] Send failed (status ${res.status}):`, JSON.stringify(json));
-    throw new Error(`Telegram sendMessage failed: ${json?.description ?? res.statusText}`);
-  }
+    },
+    "TELEGRAM",
+  );
 }
 
 function fmtPrice(n: number | null): string {
