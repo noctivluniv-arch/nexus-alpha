@@ -447,3 +447,10 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 ## Verifikasi Live 2026-06-30 (setelah deploy meme forward testing)
 - [MEME-CHECK] cron 6 jam aktif dan jalan normal — DONE ✓
 - [SIGNAL-LOG] anti-duplikat TERBUKTI bekerja di production: SOLUSDT/XRPUSDT/AVAXUSDT signal yang sama berhasil di-skip dari pencatatan dobel, tapi tetap terkirim ke Telegram seperti biasa — DONE ✓
+
+## Update Keamanan 2026-06-30 — SELESAI ✅
+- Password database di-rotate via Render Dashboard (kredensial baru: nexusalphadb_u6z5_user)
+- DATABASE_URL di environment variable nexus-alpha (backend) sudah diupdate ke kredensial baru
+- Verifikasi: backend redeploy sukses, semua cron (DAILY-SAVE, SIGNAL-LOG, MEME-CHECK) jalan normal tanpa error koneksi
+- Kredensial lama (nexus_alpha_db_user) sudah DIHAPUS dari Render — password lama yang sempat ter-paste di chat sekarang tidak berguna lagi
+- Topik keamanan database DITUTUP
