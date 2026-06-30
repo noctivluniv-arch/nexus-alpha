@@ -74,6 +74,23 @@ async function saveSignalToLog(signal: {
   tp3: number | null;
 }) {
   try {
+    // Cegah duplikat: skip kalau pair ini masih punya signal yang belum closed (sama arahnya)
+    const existing = await (db as any)
+      .select()
+      .from(signalLog)
+      .where(
+        and(
+          eq(signalLog.pair, signal.pair),
+          eq(signalLog.side, signal.side),
+          inArray(signalLog.status, ["OPEN", "TP1_HIT", "TP2_HIT"]),
+        ),
+      );
+
+    if (existing.length > 0) {
+      console.log(`[SIGNAL-LOG] ⏭️ Skip ${signal.pair} ${signal.side} — masih ada signal OPEN yang sama (id #${existing[0].id})`);
+      return;
+    }
+
     await (db as any).insert(signalLog).values({
       pair: signal.pair,
       side: signal.side,
