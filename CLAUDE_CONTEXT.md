@@ -484,3 +484,23 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 - Pantau hasil forward test beberapa hari-minggu ke depan (jangan ambil kesimpulan dari sample kecil)
 - Meme alert volume tinggi (11 alert sekaligus per scan) — pertimbangkan perketat threshold kalau dirasa kebanyakan
 - Frontend React utama belum nampilkan data signal_log/meme_signal_log secara native (dashboard sementara via /api/cron/dashboard sudah cukup untuk sekarang)
+
+## Bug Fix 2026-06-30 — Web App "Generate Pro Signal" gagal untuk XRP/DOGE/AVAX
+
+### Penyebab
+- Web app NexusAlpha (nexus-alpha-api-server.vercel.app/signals) pakai endpoint terpisah: POST /api/ai/signal (AI-generated, beda dari cron rule-based engine yang ke Telegram)
+- Endpoint ini validasi pair lewat SYMBOL_TO_ID (di binance.ts) dan PAIR_TO_OKX (di ai.ts) — DUA map terpisah yang harus manual diupdate
+- Waktu SUPPORTED_PAIRS diupdate (tambah XRP/DOGE/AVAX, hapus ZEC/ASTER) di sesi sebelumnya, SYMBOL_TO_ID dan PAIR_TO_OKX TIDAK ikut terupdate
+- Akibat: pilih XRP/DOGE/AVAX di web app → "Failed to generate AI signal" (request ditolak di awal karena unsupported pair)
+
+### Fix — DONE ✓
+- SYMBOL_TO_ID (binance.ts): tambah XRPUSDT→ripple, DOGEUSDT→dogecoin, AVAXUSDT→avalanche-2; hapus ASTERUSDT/ZECUSDT
+- PAIR_TO_OKX (ai.ts): tambah XRPUSDT→XRP, DOGEUSDT→DOGE, AVAXUSDT→AVAX; hapus ASTERUSDT/ZECUSDT
+- Catatan: data source untuk endpoint ini SUDAH pakai OKX (primer) + CoinGecko (fallback) — BUKAN Binance lagi meskipun nama filenya binance.ts. Catatan lama soal "Binance 418 ban" sudah tidak relevan untuk file ini.
+
+### PENTING — Untuk Penambahan/Perubahan Pair di Masa Depan
+Kalau nanti SUPPORTED_PAIRS diubah lagi, WAJIB cek & update semua tempat ini bersamaan (jangan cuma satu):
+1. artifacts/nexusalpha/lib/types.ts — TradingPair type + SUPPORTED_PAIRS array
+2. artifacts/api-server/src/routes/binance.ts — SYMBOL_TO_ID (untuk CoinGecko fallback ID)
+3. artifacts/api-server/src/routes/ai.ts — PAIR_TO_OKX (untuk funding rate/OKX data) dan SYMBOL_TO_ID import (dipakai validasi /ai/signal)
+4. Cron rule-based engine (cron.ts, signal-engine-realtime.ts) pakai SUPPORTED_PAIRS langsung dari types.ts — otomatis ikut, TIDAK perlu diubah terpisah
