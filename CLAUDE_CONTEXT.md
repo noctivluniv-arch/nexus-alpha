@@ -504,3 +504,35 @@ Kalau nanti SUPPORTED_PAIRS diubah lagi, WAJIB cek & update semua tempat ini ber
 2. artifacts/api-server/src/routes/binance.ts — SYMBOL_TO_ID (untuk CoinGecko fallback ID)
 3. artifacts/api-server/src/routes/ai.ts — PAIR_TO_OKX (untuk funding rate/OKX data) dan SYMBOL_TO_ID import (dipakai validasi /ai/signal)
 4. Cron rule-based engine (cron.ts, signal-engine-realtime.ts) pakai SUPPORTED_PAIRS langsung dari types.ts — otomatis ikut, TIDAK perlu diubah terpisah
+
+## Penutup Sesi 2026-06-30 (final) — Konsistensi Signal & Anti-Spam Telegram
+
+### Masalah yang Ditemukan User
+1. Web app (Gemini AI) dan Telegram (rule-based) kasih hasil BERBEDA untuk pair yang sama — membingungkan
+2. Telegram tetap kirim notifikasi berulang untuk sinyal yang sama meski anti-duplikat DB sudah aktif (karena anti-duplikat itu cuma cegah simpan dobel ke DB, bukan cegah kirim Telegram ulang)
+
+### Fix — DONE ✓ (terverifikasi live di production)
+1. **Cooldown Telegram**: cron.ts sekarang cek dulu apakah pair+side masih ada signal OPEN/TP1_HIT/TP2_HIT di signal_log SEBELUM kirim Telegram. Kalau masih ada → skip total (tidak kirim, tidak proses lebih lanjut). Verified log: "[CRON] ⏭️ Skip kirim Telegram XRPUSDT SELL — masih ada signal OPEN (id #2)"
+2. **Web app pakai otak yang sama dengan Telegram**: endpoint POST /api/ai/signal di ai.ts SUDAH TIDAK PAKAI GEMINI lagi. Sekarang manggil computeRealtimeSignal() dari signal-engine-realtime.ts (sama persis dengan cron). Response time turun drastis dari ~beberapa detik (Gemini) ke ~240ms (rule-based) — bukti konkret perubahan berhasil.
+3. Kode Gemini lama di ai.ts TIDAK dihapus, hanya jadi dead code (tidak pernah tereksekusi karena ada early return). Aman dihapus nanti kalau sudah yakin tidak dibutuhkan lagi.
+
+### State Akhir
+- SATU sumber kebenaran sekarang: signal-engine-realtime.ts dipakai oleh CRON (Telegram) DAN web app (/api/ai/signal) — tidak ada lagi inkonsistensi
+- Telegram tidak lagi spam — sinyal yang sama hanya dikirim sekali sampai closed (TP/SL kena)
+- Gemini AI (@workspace/integrations-gemini-ai) masih ter-install tapi sudah tidak dipakai untuk /ai/signal — bisa dipertimbangkan dihapus dependency-nya di masa depan kalau tidak ada fitur lain yang masih pakai
+
+### Ringkasan Penuh Hari Ini (2026-06-30)
+1. Forward testing signal trading (signal_log) — DONE, aktif
+2. Telegram retry logic — DONE, aktif
+3. GoPlus rate limit — diverifikasi sudah robust, tidak perlu fix
+4. Forward testing meme coin (meme_signal_log) — DONE, aktif, 19 coin tracked
+5. Dashboard visual (/api/cron/dashboard) — DONE, live
+6. Database password rotation — DONE, kredensial lama dihapus
+7. Data duplikat signal_log — dibersihkan
+8. Bug fix: pair XRP/DOGE/AVAX gagal di web app AI signal (SYMBOL_TO_ID/PAIR_TO_OKX belum diupdate) — FIXED
+9. Cooldown Telegram + unifikasi otak web app+Telegram — DONE
+
+### Agenda Selanjutnya
+- Pantau hasil forward test signal & meme coin beberapa hari-minggu ke depan
+- Pertimbangkan hapus dependency Gemini AI kalau tidak dipakai fitur lain
+- Meme alert volume — pantau apakah masih terlalu banyak per scan
