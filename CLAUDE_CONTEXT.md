@@ -386,3 +386,17 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 - TODO #1: GoPlus Rate Limit (code 4029) — masih muncul di log, belum di-fix, tidak blocking
 - TODO #2: Telegram Connect Timeout — belum dikerjakan
 - Frontend belum nampilin data signal_log / win rate (baru endpoint API mentah)
+
+## Sesi 2026-06-30 (lanjutan 2) — TODO #2 Telegram Retry SELESAI ✅
+
+### Yang Sudah Dikerjakan
+- Tambah fungsi sendWithRetry() generik di cron.ts — retry max 3x dengan jeda 2s/4s antar percobaan
+- sendTelegram() dan sendMemeTelegram() sekarang pakai sendWithRetry()
+- Tujuan: atasi ConnectTimeoutError ke Telegram (149.154.166.110:443) yang sebelumnya langsung gagal tanpa retry
+
+### Cara Verifikasi
+- Cek log Render: kalau timeout terjadi, akan muncul "[TELEGRAM] ⚠️ Percobaan X/3 gagal" lalu "✅ Berhasil setelah retry ke-X"
+- Kalau gagal total 3x, muncul "[TELEGRAM] ❌ Gagal total setelah 3x percobaan" — ini sinyal Telegram API benar-benar down
+
+### Belum Dikerjakan
+- TODO #1: GoPlus Rate Limit (code 4029) — masih muncul di log, belum di-fix, tidak blocking
