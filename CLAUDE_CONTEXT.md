@@ -454,3 +454,33 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 - Verifikasi: backend redeploy sukses, semua cron (DAILY-SAVE, SIGNAL-LOG, MEME-CHECK) jalan normal tanpa error koneksi
 - Kredensial lama (nexus_alpha_db_user) sudah DIHAPUS dari Render — password lama yang sempat ter-paste di chat sekarang tidak berguna lagi
 - Topik keamanan database DITUTUP
+
+## Penutup Sesi 2026-06-30 — Dashboard + Cleanup
+
+### Dashboard Forward Test — DONE ✅
+- Endpoint baru: GET /api/cron/dashboard — halaman HTML visual, auto-refresh 60 detik
+- Menampilkan ringkasan + tabel detail untuk signal trading dan meme coin tracker
+- Tidak mengubah frontend React utama — terpisah aman di backend
+
+### Insiden & Fix: DATABASE_URL belum terupdate setelah rotate password
+- Setelah rotate password DB, env var DATABASE_URL di service nexus-alpha sempat belum diupdate ke kredensial baru
+- Akibat: /api/cron/results dan /api/cron/meme-results sempat error 500 ("role nexus_alpha_db_user is not permitted to log in") karena masih pakai username lama yang sudah dihapus
+- Fix: DATABASE_URL diupdate ke kredensial baru (nexusalphadb_u6z5_user), redeploy, semua normal kembali
+- PELAJARAN untuk sesi berikutnya: setiap kali rotate DB credential, WAJIB cross-check env var DATABASE_URL di SEMUA service yang connect ke DB (bukan cuma database-nya sendiri) sebelum hapus kredensial lama
+
+### Cleanup Data Duplikat (sisa dari sebelum fix anti-duplikat live)
+- 6 baris signal_log duplikat (entry SOLUSDT/XRPUSDT/AVAXUSDT yang sama, tercatat 3x sebelum fix anti-duplikat aktif) dihapus manual via SQL
+- Tersisa 3 signal unik, semua status OPEN, menunggu TP/SL
+- Tidak ada duplikat lagi sejak fix anti-duplikat live (dikonfirmasi dari log: "[SIGNAL-LOG] ⏭️ Skip" muncul normal sejak ~jam 02:58)
+
+### State Akhir Hari Ini (2026-06-30)
+- Forward testing signal trading: AKTIF, 3 signal OPEN (SOLUSDT, XRPUSDT, AVAXUSDT, semua SELL)
+- Forward testing meme coin: AKTIF, 18 coin TRACKING, 1 coin (AIB) sudah ATH x1.40
+- Dashboard visual: LIVE di /api/cron/dashboard
+- Database credential: sudah dirotate, kredensial lama dihapus, env var sudah sinkron
+- Keputusan user: tidak perlu hindari paste connection string di chat untuk project ini (personal project)
+
+### Belum Dikerjakan / Agenda Selanjutnya
+- Pantau hasil forward test beberapa hari-minggu ke depan (jangan ambil kesimpulan dari sample kecil)
+- Meme alert volume tinggi (11 alert sekaligus per scan) — pertimbangkan perketat threshold kalau dirasa kebanyakan
+- Frontend React utama belum nampilkan data signal_log/meme_signal_log secara native (dashboard sementara via /api/cron/dashboard sudah cukup untuk sekarang)
