@@ -143,6 +143,23 @@ async function runSignalScan() {
       console.log(`[CRON] ${pair} → confidence: ${signal.confidence}, side: ${signal.side}, bias: ${signal.bias}`);
 
       if (signal.side !== "NO_TRADE") {
+        // Cooldown: skip kirim Telegram kalau pair+side ini masih ada signal OPEN
+        const stillOpen = await (db as any)
+          .select()
+          .from(signalLog)
+          .where(
+            and(
+              eq(signalLog.pair, signal.pair),
+              eq(signalLog.side, signal.side),
+              inArray(signalLog.status, ["OPEN", "TP1_HIT", "TP2_HIT"]),
+            ),
+          );
+        if (stillOpen.length > 0) {
+          console.log(`[CRON] ⏭️ Skip kirim Telegram ${signal.pair} ${signal.side} — masih ada signal OPEN (id #${stillOpen[0].id})`);
+          await new Promise((r) => setTimeout(r, 500));
+          continue;
+        }
+
         const sideLabel = signal.side === "BUY" ? "🟢 BUY/LONG" : "🔴 SELL/SHORT";
         const emoji = signal.side === "BUY" ? "📈" : "📉";
 

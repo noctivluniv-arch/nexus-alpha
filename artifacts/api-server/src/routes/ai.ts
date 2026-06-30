@@ -3,6 +3,7 @@ import { ai } from "@workspace/integrations-gemini-ai";
 import { type GenerateContentResponse, Type } from "@google/genai";
 import { aiLimiter, requireAppSecret } from "../middlewares/rateLimiter";
 import { getOHLC, SYMBOL_TO_ID } from "./binance";
+import { computeRealtimeSignal } from "../lib/signal-engine-realtime";
 import {
   ema,
   rsi,
@@ -801,6 +802,70 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
     return res.status(400).json({ error: "unsupported pair" });
   }
   const lang: "id" | "en" = rawLang === "en" ? "en" : "id";
+
+  // ─── RULE-BASED ENGINE (mengganti Gemini AI) ────────────────────────────
+  // Web app sekarang pakai otak yang SAMA PERSIS dengan cron Telegram
+  // (signal-engine-realtime.ts), supaya tidak ada lagi hasil yang
+  // berbeda/membingungkan antara web app dan notifikasi Telegram.
+  try {
+    const rtSignal = await computeRealtimeSignal(String(pair));
+    const isId = lang === "id";
+
+    const marketStructure: "BULLISH" | "BEARISH" | "RANGING" =
+      rtSignal.bias === "BULLISH" ? "BULLISH" : rtSignal.bias === "BEARISH" ? "BEARISH" : "RANGING";
+
+    const noTrade = rtSignal.side === "NO_TRADE";
+    const noTradeReason = noTrade
+      ? (isId
+          ? `Confidence ${rtSignal.confidence}/100 di luar sweet spot yang sudah divalidasi backtest (SELL 45-55), atau bias tidak cukup kuat. Tidak ada rekomendasi entry saat ini.`
+          : `Confidence ${rtSignal.confidence}/100 is outside the backtest-validated sweet spot (SELL 45-55), or bias isn't strong enough. No entry recommended right now.`)
+      : undefined;
+
+    const reasoning = noTrade
+      ? noTradeReason!
+      : (isId
+          ? `Sinyal ${rtSignal.side} dengan confidence ${rtSignal.confidence}/100, bias pasar ${rtSignal.bias}. Berdasarkan ${rtSignal.confluences.length} confluence teknikal: ${rtSignal.confluences.slice(0, 3).join(", ")}.`
+          : `${rtSignal.side} signal with ${rtSignal.confidence}/100 confidence, market bias ${rtSignal.bias}. Based on ${rtSignal.confluences.length} technical confluences: ${rtSignal.confluences.slice(0, 3).join(", ")}.`);
+
+    const payload = {
+      pair: String(pair),
+      side: rtSignal.side,
+      entryRange: rtSignal.price ? `$${rtSignal.price.toFixed(4)}` : "N/A",
+      entryPrice: rtSignal.price ? rtSignal.price.toFixed(4) : "N/A",
+      takeProfit: [rtSignal.tp1, rtSignal.tp2, rtSignal.tp3].map((v) => (v ? v.toFixed(4) : "N/A")),
+      takeProfitRR: ["1:1.5", "1:2.5", "1:4.0"],
+      stopLoss: rtSignal.sl ? rtSignal.sl.toFixed(4) : "N/A",
+      stopLossRiskPct: rtSignal.atr14 && rtSignal.price ? `${((rtSignal.atr14 * 1.5 / rtSignal.price) * 100).toFixed(2)}%` : "N/A",
+      confidence: rtSignal.confidence,
+      timestamp: Date.now(),
+      reasoning,
+      traderStyle: isId ? "Rule-based, deterministik (bukan AI generatif)" : "Rule-based, deterministic (not generative AI)",
+      leverage: isId ? "Sesuai manajemen risiko pribadi, max 3-5x disarankan" : "Per personal risk management, max 3-5x suggested",
+      expertMindset: isId
+        ? "Sinyal ini murni hasil perhitungan matematis (EMA, RSI, MACD, dll), sedang dalam tahap forward-testing untuk validasi profitabilitas nyata."
+        : "This signal is purely from mathematical calculation (EMA, RSI, MACD, etc.), currently in forward-testing to validate real profitability.",
+      spotEntry: rtSignal.price ? `$${rtSignal.price.toFixed(4)}` : "N/A",
+      longTermTarget: "N/A — engine ini fokus jangka pendek/menengah (swing), bukan investasi jangka panjang",
+      marketStructure,
+      riskReward: "1:1.5 (TP1), 1:2.5 (TP2), 1:4.0 (TP3)",
+      invalidation: rtSignal.sl ? `Sinyal batal jika harga menembus $${rtSignal.sl.toFixed(4)}` : "N/A",
+      keySupport: "N/A",
+      keyResistance: "N/A",
+      confluences: rtSignal.confluences,
+      noTrade,
+      noTradeReason,
+      scoreBreakdown: rtSignal.scoreBreakdown,
+      isFallback: false,
+    };
+
+    return res.json(payload);
+  } catch (err: any) {
+    req.log.error({ err: err?.message, pair }, "Rule-based signal generation failed");
+    return res.status(500).json({ error: "Failed to generate signal. Check your connection." });
+  }
+  // ─── KODE DI BAWAH INI SUDAH TIDAK TERPAKAI (Gemini AI, lama) ───────────
+  // Dibiarkan sebagai referensi, tidak pernah tereksekusi karena sudah
+  // return di atas. Aman dihapus nanti kalau sudah yakin tidak dibutuhkan.
 
   // 1. Check the cache for the requested language first (fast path).
   const cacheKey = `${String(pair)}:${lang}`;
