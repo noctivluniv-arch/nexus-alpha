@@ -271,3 +271,35 @@ Crypto trading signal web app. Monorepo dengan pnpm.
 - ✅ Backtest v3: paginated, time-aligned, vol approx — 2813 trades, 6 pairs, ~5 tahun
 - ✅ Backtest v3 script: scripts/src/backtest-v3-paginated.ts
 - ⏳ Option B: file sudah dibuat, belum di-apply ke repo
+
+## Update 2026-06-30 — Option B PostgreSQL Setup
+
+### Status Saat Ini
+- nexus-alpha-db: PostgreSQL Free tier dibuat di Render (Singapore), belum Available
+- DATABASE_URL belum di-set di environment variable nexus-alpha
+- Build sudah sukses tapi runtime crash karena DATABASE_URL belum ada
+
+### Langkah yang Sudah Selesai
+- ✅ ohlcv-daily.ts schema dibuat di lib/db/src/schema/
+- ✅ seed-ohlcv.ts dibuat di scripts/src/
+- ✅ cron.ts: startDailySaveCron() + saveLatestDailyCandles() ditambahkan
+- ✅ index.ts schema diperbaiki (hapus duplikat export)
+- ✅ cron.ts diperbaiki (hapus duplikat startDailySaveCron)
+- ✅ Semua di-commit dan push ke GitHub
+
+### Langkah Berikutnya (lanjutkan di sesi berikutnya)
+1. Tunggu nexus-alpha-db Available di Render
+2. Copy Internal Database URL dari Connections tab
+3. Set DATABASE_URL di Environment nexus-alpha → Save → redeploy
+4. Jalankan drizzle-kit push dari lokal:
+   cd lib/db && DATABASE_URL="..." pnpm drizzle-kit push
+5. Jalankan seeder dari lokal:
+   cd ~/nexus-alpha && DATABASE_URL="..." tsx scripts/src/seed-ohlcv.ts
+6. Tambah startDailySaveCron() di index.ts (artifacts/api-server/src/index.ts)
+7. Commit dan push
+
+### Catatan Penting
+- Free tier Render Postgres: expire 90 hari, cukup untuk development
+- Internal URL dipakai untuk koneksi dari Render ke Render (lebih cepat, gratis)
+- External URL dipakai untuk koneksi dari lokal MacBook (untuk drizzle-kit push dan seeder)
+- drizzle-kit push BELUM dijalankan — tabel ohlcv_daily belum ada di DB
