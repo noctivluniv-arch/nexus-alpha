@@ -536,3 +536,35 @@ Kalau nanti SUPPORTED_PAIRS diubah lagi, WAJIB cek & update semua tempat ini ber
 - Pantau hasil forward test signal & meme coin beberapa hari-minggu ke depan
 - Pertimbangkan hapus dependency Gemini AI kalau tidak dipakai fitur lain
 - Meme alert volume — pantau apakah masih terlalu banyak per scan
+
+## Sesi 2026-07-02 — Cek Forward Test + Dashboard PnL
+
+### Status Forward Test Saat Ini
+- Signal trading: 6 signal OPEN (LINKUSDT, ETHUSDT, SUIUSDT, AVAXUSDT, XRPUSDT, SOLUSDT), 0 closed
+- Meme coin: 47 coin tracked, PnL sekarang -$1,284.75 dari $4,700 modal virtual
+  - Hanya 2.1% coin yang tembus ≥2x, 0% yang ≥5x atau ≥10x
+  - PnL ATH terbaik +$581.19 (kalau sempat jual di harga tertinggi tiap coin)
+  - Mayoritas coin merugi dalam 2 hari pertama — ini konfirmasi awal bahwa threshold GEM terlalu longgar
+
+### Yang Dikerjakan Hari Ini
+- Dashboard paper trading: tambah kolom PnL per trade (realized + unrealized) dan meme coin — DONE ✓
+- Unrealized PnL real-time untuk signal OPEN (berdasarkan harga pasar via /api/binance/tickers) — DONE ✓, sudah di-push, menunggu Render deploy
+- Fix pair XRP/DOGE/AVAX gagal di web app AI signal — DONE ✓ (sesi sebelumnya)
+- Cooldown Telegram + unifikasi web app dengan rule-based engine — DONE ✓ (sesi sebelumnya)
+
+### Observasi Penting Meme Coin
+- Scanner sekarang bereaksi SETELAH coin sudah listed di GeckoTerminal/DexScreener — bukan early detection sesungguhnya
+- Coin yang benar-benar "early gem" biasanya sudah naik 5-20x sebelum masuk agregator data
+- Kemungkinan yang terdeteksi sekarang adalah coin di fase distribusi (smart money jual ke pembeli baru)
+- Diskusi soal perbaikan meme scanner DITUNDA — tunggu data 2-3 minggu dulu sebelum ubah threshold
+- Opsi perbaikan yang dibahas: perketat filter (lebih sedikit coin, lebih selektif) vs monitor social media untuk narrative awal (butuh API berbayar)
+
+### BTC Tidak Keluar Sinyal
+- BTC confidence selalu 57-61 (NEUTRAL/BEARISH) — di luar sweet spot SELL 45-55
+- Engine menilai kondisi BTC belum cukup kuat untuk entry — ini NORMAL, bukan bug
+- Perlu divalidasi dari forward-test: apakah engine terlalu ketat untuk BTC atau memang kondisi market jarang masuk zona teruji
+
+### Agenda Selanjutnya
+- Pantau dashboard tiap 2-3 hari, beri pembacaan awal setelah 15-20 trade closed
+- Setelah 2-3 minggu data meme coin terkumpul, evaluasi ulang threshold GEM (apakah perlu diperketat)
+- Diskusi lanjutan soal early detection meme coin yang lebih akurat
