@@ -498,9 +498,8 @@ router.get("/dashboard", (_req, res) => {
   .card { background:#161b22; border:1px solid #30363d; border-radius:8px; padding:16px; }
   .card .label { font-size:12px; color:#8b949e; margin-bottom:6px; }
   .card .value { font-size:24px; font-weight:700; }
-  .green { color:#3fb950; }
-  .red { color:#f85149; }
-  .yellow { color:#d29922; }
+  .card .sublabel { font-size:11px; color:#8b949e; margin-top:4px; }
+  .green { color:#3fb950; } .red { color:#f85149; } .yellow { color:#d29922; } .blue { color:#58a6ff; }
   section { margin-bottom:32px; }
   h2 { font-size:16px; border-bottom:1px solid #30363d; padding-bottom:8px; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -512,79 +511,175 @@ router.get("/dashboard", (_req, res) => {
   .badge-loss { background:#f8514933; color:#f85149; }
   .badge-dead { background:#f8514933; color:#f85149; }
   .badge-tracking { background:#d2992233; color:#d29922; }
+  .badge-stopped { background:#30363d; color:#8b949e; }
+  .pnl-pos { color:#3fb950; font-weight:600; }
+  .pnl-neg { color:#f85149; font-weight:600; }
+  .pnl-neutral { color:#8b949e; }
   .loading { color:#8b949e; text-align:center; padding:40px; }
   .note { background:#1f2937; border-left:3px solid #d29922; padding:12px 16px; border-radius:4px; font-size:13px; color:#c9d1d9; margin-bottom:24px; }
+  .paper-note { background:#161b22; border:1px solid #1f6feb; border-radius:6px; padding:8px 12px; font-size:12px; color:#58a6ff; margin-bottom:16px; display:inline-block; }
 </style>
 </head>
 <body>
   <h1>📊 NexusAlpha — Forward Test Dashboard</h1>
   <div class="sub">Data real dari production, auto-refresh tiap 60 detik. Terakhir diupdate: <span id="ts">-</span></div>
-
-  <div class="note">⚠️ Sample kecil belum bisa disimpulkan. Tunggu minimal 50 trade closed (signal) atau 30-50 coin tracked (meme) sebelum percaya angka win rate / multiplier ini.</div>
+  <div class="note">⚠️ Sample kecil belum bisa disimpulkan. Tunggu minimal 50 trade closed (signal) atau 30-50 coin tracked (meme) sebelum percaya angka ini untuk keputusan nyata.</div>
+  <div class="paper-note">🎮 Simulasi Paper Trading — Modal virtual $100 per trade & $100 per coin. Uang tidak nyata, harga nyata.</div>
 
   <section>
     <h2>🎯 Signal Trading (BUY/SELL)</h2>
     <div class="grid" id="signal-stats"><div class="loading">Memuat...</div></div>
-    <table id="signal-table"><thead><tr><th>Pair</th><th>Side</th><th>Conf.</th><th>Entry</th><th>Status</th><th>Closed Price</th><th>Sent</th></tr></thead><tbody></tbody></table>
+    <table id="signal-table">
+      <thead><tr><th>Pair</th><th>Side</th><th>Conf.</th><th>Entry ($)</th><th>Status</th><th>Close ($)</th><th>PnL (dari $100)</th><th>Sent</th></tr></thead>
+      <tbody></tbody>
+    </table>
   </section>
 
   <section>
     <h2>💎 Meme Coin (Early Gem Tracker)</h2>
     <div class="grid" id="meme-stats"><div class="loading">Memuat...</div></div>
-    <table id="meme-table"><thead><tr><th>Coin</th><th>Network</th><th>Entry Price</th><th>ATH Multiplier</th><th>Status</th><th>Detected</th></tr></thead><tbody></tbody></table>
+    <table id="meme-table">
+      <thead><tr><th>Coin</th><th>Network</th><th>Entry ($)</th><th>Harga Skrg ($)</th><th>ATH x</th><th>PnL Skrg</th><th>PnL ATH</th><th>Status</th><th>Detected</th></tr></thead>
+      <tbody></tbody>
+    </table>
   </section>
 
 <script>
+const MODAL = 100; // modal virtual per trade/coin
+
+function pnlHtml(pnl) {
+  if (pnl === null || isNaN(pnl)) return '<span class="pnl-neutral">—</span>';
+  const sign = pnl >= 0 ? '+' : '';
+  const cls = pnl > 0 ? 'pnl-pos' : pnl < 0 ? 'pnl-neg' : 'pnl-neutral';
+  return '<span class="' + cls + '">' + sign + '$' + pnl.toFixed(2) + '</span>';
+}
+
 async function load() {
   document.getElementById('ts').textContent = new Date().toLocaleString('id-ID');
+
+  // ── SIGNAL TRADING ────────────────────────────────────────────────
   try {
     const sigRes = await fetch('/api/cron/results').then(r => r.json());
+    
+    let totalPnl = 0;
+    let closedCount = 0;
+    let winCount = 0;
+    let lossCount = 0;
+    
+    const rows = sigRes.signals.slice().reverse().map(s => {
+      let pnl = null;
+      let pnlLabel = '—';
+      let badge = 'badge-open';
+      
+      if (s.closedPrice && s.entryPrice) {
+        // PnL untuk SELL: profit kalau harga turun
+        const pct = s.side === 'SELL'
+          ? (s.entryPrice - s.closedPrice) / s.entryPrice
+          : (s.closedPrice - s.entryPrice) / s.entryPrice;
+        pnl = pct * MODAL;
+        totalPnl += pnl;
+        closedCount++;
+        if (pnl > 0) { winCount++; badge = 'badge-win'; }
+        else { lossCount++; badge = 'badge-loss'; }
+      } else if (s.status !== 'OPEN') {
+        // TP1_HIT/TP2_HIT — belum closed tapi sebagian profit
+        badge = 'badge-open';
+      }
+      
+      // Estimasi unrealized untuk posisi OPEN (pakai jarak ke TP1 sebagai potensi)
+      let unrealizedHint = '';
+      if (!s.closedPrice && s.tp1 && s.sl && s.entryPrice) {
+        const potProfit = s.side === 'SELL'
+          ? ((s.entryPrice - s.tp1) / s.entryPrice * MODAL).toFixed(2)
+          : ((s.tp1 - s.entryPrice) / s.entryPrice * MODAL).toFixed(2);
+        const potLoss = s.side === 'SELL'
+          ? ((s.sl - s.entryPrice) / s.entryPrice * MODAL).toFixed(2)
+          : ((s.entryPrice - s.sl) / s.entryPrice * MODAL).toFixed(2);
+        unrealizedHint = '<span class="pnl-neutral" style="font-size:11px">TP1: +$' + potProfit + ' / SL: -$' + potLoss + '</span>';
+      }
+      
+      return '<tr>' +
+        '<td>' + s.pair + '</td>' +
+        '<td>' + s.side + '</td>' +
+        '<td>' + s.confidence + '</td>' +
+        '<td>' + s.entryPrice + '</td>' +
+        '<td><span class="badge ' + badge + '">' + s.status + '</span></td>' +
+        '<td>' + (s.closedPrice || '-') + '</td>' +
+        '<td>' + (pnl !== null ? pnlHtml(pnl) : unrealizedHint) + '</td>' +
+        '<td>' + new Date(s.sentAt).toLocaleString('id-ID') + '</td>' +
+        '</tr>';
+    });
+    
+    const winRate = closedCount > 0 ? (winCount / closedCount * 100).toFixed(1) + '%' : 'N/A';
     const sigStats = document.getElementById('signal-stats');
-    sigStats.innerHTML = \`
-      <div class="card"><div class="label">Total Closed</div><div class="value">\${sigRes.total}</div></div>
-      <div class="card"><div class="label">Wins</div><div class="value green">\${sigRes.wins}</div></div>
-      <div class="card"><div class="label">Losses</div><div class="value red">\${sigRes.losses}</div></div>
-      <div class="card"><div class="label">Win Rate</div><div class="value yellow">\${sigRes.winRate}\${sigRes.winRate !== 'N/A' ? '%' : ''}</div></div>
-    \`;
-    const sigBody = document.querySelector('#signal-table tbody');
-    sigBody.innerHTML = sigRes.signals.slice().reverse().map(s => {
-      let badge = 'badge-open', label = s.status;
-      if (s.status === 'SL_HIT') { badge = 'badge-loss'; }
-      else if (s.status === 'TP3_HIT') { badge = 'badge-win'; }
-      return \`<tr>
-        <td>\${s.pair}</td><td>\${s.side}</td><td>\${s.confidence}</td>
-        <td>\${s.entryPrice}</td>
-        <td><span class="badge \${badge}">\${label}</span></td>
-        <td>\${s.closedPrice ?? '-'}</td>
-        <td>\${new Date(s.sentAt).toLocaleString('id-ID')}</td>
-      </tr>\`;
-    }).join('');
-  } catch (e) {
+    sigStats.innerHTML =
+      '<div class="card"><div class="label">Total Closed</div><div class="value">' + closedCount + '</div><div class="sublabel">dari ' + sigRes.signals.length + ' signal</div></div>' +
+      '<div class="card"><div class="label">Wins</div><div class="value green">' + winCount + '</div></div>' +
+      '<div class="card"><div class="label">Losses</div><div class="value red">' + lossCount + '</div></div>' +
+      '<div class="card"><div class="label">Win Rate</div><div class="value yellow">' + winRate + '</div></div>' +
+      '<div class="card"><div class="label">Total PnL</div><div class="value ' + (totalPnl >= 0 ? 'green' : 'red') + '">' + (totalPnl >= 0 ? '+' : '') + '$' + totalPnl.toFixed(2) + '</div><div class="sublabel">dari modal $' + (sigRes.signals.length * MODAL) + ' virtual</div></div>';
+    
+    document.querySelector('#signal-table tbody').innerHTML = rows.join('');
+  } catch(e) {
     document.getElementById('signal-stats').innerHTML = '<div class="loading">Gagal memuat data signal.</div>';
   }
 
+  // ── MEME COIN ────────────────────────────────────────────────────
   try {
     const memeRes = await fetch('/api/cron/meme-results').then(r => r.json());
+    
+    let totalMemePnlNow = 0;
+    let totalMemePnlAth = 0;
+    
+    const rows = memeRes.allSignals.slice().reverse().map(c => {
+      const badge = c.status === 'DEAD' ? 'badge-dead' : c.status === 'TRACKING' ? 'badge-tracking' : 'badge-stopped';
+      
+      // PnL sekarang
+      let pnlNow = null;
+      if (c.status === 'DEAD') {
+        pnlNow = -MODAL; // total loss
+      } else if (c.lastPrice && c.initialPrice && c.initialPrice > 0) {
+        pnlNow = (c.lastPrice / c.initialPrice - 1) * MODAL;
+      }
+      
+      // PnL ATH (best case yang pernah dicapai)
+      let pnlAth = null;
+      if (c.athMultiplier && c.initialPrice > 0) {
+        pnlAth = (c.athMultiplier - 1) * MODAL;
+      }
+      
+      if (pnlNow !== null) totalMemePnlNow += pnlNow;
+      if (pnlAth !== null) totalMemePnlAth += pnlAth;
+      
+      const lastPriceDisplay = c.lastPrice ? '$' + c.lastPrice.toFixed(8) : '-';
+      const athDisplay = c.athMultiplier ? 'x' + c.athMultiplier.toFixed(2) : '-';
+      
+      return '<tr>' +
+        '<td>' + c.name + ' (' + c.symbol + ')</td>' +
+        '<td>' + c.network + '</td>' +
+        '<td>$' + (c.initialPrice ? c.initialPrice.toFixed(8) : '-') + '</td>' +
+        '<td>' + lastPriceDisplay + '</td>' +
+        '<td>' + athDisplay + '</td>' +
+        '<td>' + pnlHtml(pnlNow) + '</td>' +
+        '<td>' + pnlHtml(pnlAth) + '</td>' +
+        '<td><span class="badge ' + badge + '">' + c.status + '</span></td>' +
+        '<td>' + new Date(c.detectedAt).toLocaleString('id-ID') + '</td>' +
+        '</tr>';
+    });
+    
+    const total = memeRes.total;
     const memeStats = document.getElementById('meme-stats');
-    memeStats.innerHTML = \`
-      <div class="card"><div class="label">Total Tracked</div><div class="value">\${memeRes.total}</div></div>
-      <div class="card"><div class="label">≥ 2x</div><div class="value green">\${memeRes.above2xPct}</div></div>
-      <div class="card"><div class="label">≥ 5x</div><div class="value green">\${memeRes.above5xPct}</div></div>
-      <div class="card"><div class="label">≥ 10x</div><div class="value green">\${memeRes.above10xPct}</div></div>
-      <div class="card"><div class="label">Dead / Rug</div><div class="value red">\${memeRes.deadPct}</div></div>
-    \`;
-    const memeBody = document.querySelector('#meme-table tbody');
-    memeBody.innerHTML = memeRes.allSignals.slice().reverse().map(c => {
-      let badge = c.status === 'DEAD' ? 'badge-dead' : c.status === 'TRACKING' ? 'badge-tracking' : 'badge-open';
-      return \`<tr>
-        <td>\${c.name} (\${c.symbol})</td><td>\${c.network}</td>
-        <td>$\${c.initialPrice}</td>
-        <td>\${c.athMultiplier ? 'x' + c.athMultiplier.toFixed(2) : '-'}</td>
-        <td><span class="badge \${badge}">\${c.status}</span></td>
-        <td>\${new Date(c.detectedAt).toLocaleString('id-ID')}</td>
-      </tr>\`;
-    }).join('');
-  } catch (e) {
+    memeStats.innerHTML =
+      '<div class="card"><div class="label">Total Tracked</div><div class="value">' + total + '</div><div class="sublabel">Modal virtual $' + (total * MODAL) + '</div></div>' +
+      '<div class="card"><div class="label">≥ 2x</div><div class="value green">' + memeRes.above2xPct + '</div></div>' +
+      '<div class="card"><div class="label">≥ 5x</div><div class="value green">' + memeRes.above5xPct + '</div></div>' +
+      '<div class="card"><div class="label">≥ 10x</div><div class="value green">' + memeRes.above10xPct + '</div></div>' +
+      '<div class="card"><div class="label">Dead / Rug</div><div class="value red">' + memeRes.deadPct + '</div></div>' +
+      '<div class="card"><div class="label">PnL Sekarang</div><div class="value ' + (totalMemePnlNow >= 0 ? 'green' : 'red') + '">' + (totalMemePnlNow >= 0 ? '+' : '') + '$' + totalMemePnlNow.toFixed(2) + '</div><div class="sublabel">vs modal $' + (total * MODAL) + '</div></div>' +
+      '<div class="card"><div class="label">PnL ATH Terbaik</div><div class="value blue">+$' + totalMemePnlAth.toFixed(2) + '</div><div class="sublabel">kalau jual di harga tertinggi</div></div>';
+    
+    document.querySelector('#meme-table tbody').innerHTML = rows.join('');
+  } catch(e) {
     document.getElementById('meme-stats').innerHTML = '<div class="loading">Gagal memuat data meme coin.</div>';
   }
 }
