@@ -584,3 +584,54 @@ Kalau nanti SUPPORTED_PAIRS diubah lagi, WAJIB cek & update semua tempat ini ber
 - XRPUSDT SELL entry $1.0487 → -$0.98 (-0.98%) @ $1.059 (rugi)
 - SOLUSDT SELL entry $74.32 → -$5.10 (-5.10%) @ $78.11 (rugi terbesar)
 - Catatan: SOLUSDT merugi -5.10% → SOL naik dari $74 ke $78, engine SELL ternyata salah arah untuk ini
+
+## Sesi 2026-07-02 (lanjutan) — DexScreener Early Radar
+
+### Status Implementasi: IN PROGRESS (belum di-push)
+
+### Rancangan DexScreener Early Radar
+- Tujuan: deteksi token yang sedang aktif marketing SEBELUM masuk GeckoTerminal/meme scanner biasa
+- Sumber data:
+  - DexScreener Token Boosts (/token-boosts/latest/v1) — token yang bayar untuk di-boost
+  - DexScreener Token Profiles (/token-profiles/latest/v1) — token yang baru pasang social profile
+- Logika: crossmatch kedua list → kalau token yang sama muncul di KEDUANYA = sinyal aktif launch/marketing
+- Filter tambahan: harus punya Twitter atau website, chain harus supported (solana/ethereum/bsc/base/arbitrum/polygon)
+- Alert ke Telegram meme coin channel dengan label "🔍 EARLY RADAR" (beda dari label GEM biasa)
+- Cooldown: 1 jam per token address
+- Interval: tiap 15 menit (sama dengan meme scan)
+
+### Test API (VERIFIED ✅)
+- DexScreener Boosted: ✅ return 30 token, struktur {tokenAddress, chainId, url, links, totalAmount}
+- DexScreener Token Profiles: ✅ return 30 token, struktur {tokenAddress, chainId, url, description, links, cto}
+- Reddit r/CryptoMoonShots: ❌ DIBLOKIR — tidak bisa dipakai tanpa API key berbayar
+
+### Yang Belum Dikerjakan (lanjutkan sesi berikutnya)
+1. Jalankan patch cron.ts untuk tambah fungsi startDexRadarCron()
+2. Patch index.ts untuk panggil startDexRadarCron()
+3. Commit & push ke GitHub
+4. Verifikasi log Render: "[DEX-RADAR] DexScreener early radar started"
+5. Pantau apakah ada crossmatch alert yang terkirim ke Telegram
+
+### Catatan Penting
+- DexScreener Boosted = token yang BAYAR untuk promosi, bukan sinyal organik murni
+- Justru berguna: team yang keluar uang untuk boost biasanya sedang aktif marketing
+- Crossmatch Boosted+Profiles lebih "early" dari GeckoTerminal karena DexScreener update lebih cepat
+- SANGAT SPEKULATIF — belum ada validasi profit/loss, ini eksperimen deteksi awal
+- Jangan gunakan untuk uang asli sampai ada data forward-test yang cukup (sama seperti signal trading)
+
+### Kode Yang Sudah Disiapkan (tinggal dijalankan)
+- Fungsi: runDexRadarScan(), fetchDexScreenerBoosted(), fetchDexScreenerProfiles(), startDexRadarCron()
+- File: artifacts/api-server/src/routes/cron.ts (patch Python sudah siap, belum dijalankan)
+- File: artifacts/api-server/src/index.ts (patch Python sudah siap, belum dijalankan)
+
+### Command Untuk Lanjutkan Di Sesi Berikutnya
+Jalankan patch cron.ts dulu:
+  python3 << patch script dari sesi ini >>
+Cek syntax:
+  node --check artifacts/api-server/src/routes/cron.ts
+Patch index.ts:
+  python3 << patch script dari sesi ini >>
+Commit & push:
+  git add artifacts/api-server/src/routes/cron.ts artifacts/api-server/src/index.ts
+  git commit -m "Add DexScreener early radar: crossmatch Boosted+Profiles for pre-hype token detection"
+  git push
