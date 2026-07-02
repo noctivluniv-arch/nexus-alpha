@@ -561,13 +561,18 @@ async function load() {
   try {
     const sigRes = await fetch('/api/cron/results').then(r => r.json());
     
-    // Fetch harga terkini untuk semua pair yang masih OPEN
+    // Fetch harga terkini untuk semua pair yang masih OPEN (satu per satu, lebih reliable)
     const openPairs = [...new Set(sigRes.signals.filter(s => !s.closedPrice).map(s => s.pair))];
     let currentPrices = {};
     if (openPairs.length > 0) {
       try {
-        const tickerRes = await fetch('/api/binance/tickers?symbols=' + openPairs.join(',')).then(r => r.json());
-        tickerRes.forEach(t => { currentPrices[t.symbol] = parseFloat(t.lastPrice); });
+        const pricePromises = openPairs.map(pair =>
+          fetch('/api/binance/ticker?symbol=' + pair)
+            .then(r => r.json())
+            .then(t => { if (t && t.lastPrice) currentPrices[t.symbol] = parseFloat(t.lastPrice); })
+            .catch(() => {})
+        );
+        await Promise.all(pricePromises);
       } catch(e) { /* harga tidak tersedia, abaikan */ }
     }
     
