@@ -568,3 +568,19 @@ Kalau nanti SUPPORTED_PAIRS diubah lagi, WAJIB cek & update semua tempat ini ber
 - Pantau dashboard tiap 2-3 hari, beri pembacaan awal setelah 15-20 trade closed
 - Setelah 2-3 minggu data meme coin terkumpul, evaluasi ulang threshold GEM (apakah perlu diperketat)
 - Diskusi lanjutan soal early detection meme coin yang lebih akurat
+
+## Update 2026-07-02 — Dashboard PnL Real-Time SELESAI ✅
+
+### Fix Unrealized PnL
+- Bug: /api/binance/tickers (plural) return [] karena koma di URL ter-encode saat fetch dari JS
+- Fix: ganti fetch ke /api/binance/ticker (singular) per pair secara paralel — DONE ✓
+- Dashboard sekarang tampilkan unrealized PnL real-time berdasarkan harga pasar: "+$1.00 (+1.00%) @ $7.46"
+
+### Snapshot Posisi Saat Ini (2026-07-02, ~15:22 WIB)
+- LINKUSDT SELL entry $7.535 → +$1.00 (+1.00%) @ $7.46 (profit tipis)
+- ETHUSDT SELL entry $1628.45 → +$0.70 (+0.70%) @ $1617.11 (profit tipis)
+- SUIUSDT SELL entry $0.7149 → -$1.63 (-1.63%) @ $0.72656 (rugi)
+- AVAXUSDT SELL entry $6.645 → -$0.38 (-0.38%) @ $6.67 (rugi tipis)
+- XRPUSDT SELL entry $1.0487 → -$0.98 (-0.98%) @ $1.059 (rugi)
+- SOLUSDT SELL entry $74.32 → -$5.10 (-5.10%) @ $78.11 (rugi terbesar)
+- Catatan: SOLUSDT merugi -5.10% → SOL naik dari $74 ke $78, engine SELL ternyata salah arah untuk ini
