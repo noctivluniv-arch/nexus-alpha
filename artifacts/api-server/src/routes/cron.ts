@@ -561,6 +561,16 @@ async function load() {
   try {
     const sigRes = await fetch('/api/cron/results').then(r => r.json());
     
+    // Fetch harga terkini untuk semua pair yang masih OPEN
+    const openPairs = [...new Set(sigRes.signals.filter(s => !s.closedPrice).map(s => s.pair))];
+    let currentPrices = {};
+    if (openPairs.length > 0) {
+      try {
+        const tickerRes = await fetch('/api/binance/tickers?symbols=' + openPairs.join(',')).then(r => r.json());
+        tickerRes.forEach(t => { currentPrices[t.symbol] = parseFloat(t.lastPrice); });
+      } catch(e) { /* harga tidak tersedia, abaikan */ }
+    }
+    
     let totalPnl = 0;
     let closedCount = 0;
     let winCount = 0;
@@ -586,16 +596,28 @@ async function load() {
         badge = 'badge-open';
       }
       
-      // Estimasi unrealized untuk posisi OPEN (pakai jarak ke TP1 sebagai potensi)
+      // Unrealized PnL berdasarkan harga pasar sekarang
       let unrealizedHint = '';
-      if (!s.closedPrice && s.tp1 && s.sl && s.entryPrice) {
-        const potProfit = s.side === 'SELL'
-          ? ((s.entryPrice - s.tp1) / s.entryPrice * MODAL).toFixed(2)
-          : ((s.tp1 - s.entryPrice) / s.entryPrice * MODAL).toFixed(2);
-        const potLoss = s.side === 'SELL'
-          ? ((s.sl - s.entryPrice) / s.entryPrice * MODAL).toFixed(2)
-          : ((s.entryPrice - s.sl) / s.entryPrice * MODAL).toFixed(2);
-        unrealizedHint = '<span class="pnl-neutral" style="font-size:11px">TP1: +$' + potProfit + ' / SL: -$' + potLoss + '</span>';
+      if (!s.closedPrice && s.entryPrice) {
+        const curPrice = currentPrices[s.pair];
+        if (curPrice) {
+          const pct = s.side === 'SELL'
+            ? (s.entryPrice - curPrice) / s.entryPrice
+            : (curPrice - s.entryPrice) / s.entryPrice;
+          const unrealizedPnl = pct * MODAL;
+          const sign = unrealizedPnl >= 0 ? '+' : '';
+          const cls = unrealizedPnl > 0 ? 'pnl-pos' : unrealizedPnl < 0 ? 'pnl-neg' : 'pnl-neutral';
+          const pct100 = (pct * 100).toFixed(2);
+          unrealizedHint = '<span class="' + cls + '">' + sign + '$' + unrealizedPnl.toFixed(2) + '</span> <span style="font-size:11px;color:#8b949e">(' + sign + pct100 + '%) @ $' + curPrice + '</span>';
+        } else if (s.tp1 && s.sl) {
+          const potProfit = s.side === 'SELL'
+            ? ((s.entryPrice - s.tp1) / s.entryPrice * MODAL).toFixed(2)
+            : ((s.tp1 - s.entryPrice) / s.entryPrice * MODAL).toFixed(2);
+          const potLoss = s.side === 'SELL'
+            ? ((s.sl - s.entryPrice) / s.entryPrice * MODAL).toFixed(2)
+            : ((s.entryPrice - s.sl) / s.entryPrice * MODAL).toFixed(2);
+          unrealizedHint = '<span class="pnl-neutral" style="font-size:11px">TP1: +$' + potProfit + ' / SL: -$' + potLoss + '</span>';
+        }
       }
       
       return '<tr>' +
