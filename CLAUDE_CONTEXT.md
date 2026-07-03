@@ -635,3 +635,31 @@ Commit & push:
   git add artifacts/api-server/src/routes/cron.ts artifacts/api-server/src/index.ts
   git commit -m "Add DexScreener early radar: crossmatch Boosted+Profiles for pre-hype token detection"
   git push
+
+## Sesi 2026-07-03 — Bug Fix + DexScreener Radar + Dashboard Link
+
+### Yang Dikerjakan
+- Fix duplikat startDexRadarCron di cron.ts (build error) — FIXED ✓
+- Sanity check anomali harga meme coin: kalau athMultiplier > 500x kemungkinan bug DexScreener (denominasi ETH bukan USD) → skip update — DONE ✓
+- Reset data corrupt TAIKO (x11324 → x1.00) di database — DONE ✓
+- Tambah kolom dex_url ke tabel meme_signal_log di DB dan schema Drizzle — DONE ✓
+- Isi dex_url otomatis dari contract_address + network untuk semua coin existing — DONE ✓
+- Dashboard: tambah kolom Chart dengan link DexScreener per coin — DONE ✓
+- saveMemeSignalToLog() sekarang simpan dexUrl dari coin.dexUrl — DONE ✓
+
+### Konfirmasi Masalah Fundamental Meme Scanner
+- TERBUKTI dari data: coin banyak terdeteksi SETELAH pump tinggi — scanner reaktif, bukan predictive
+- GeckoTerminal baru index pool setelah ada volume/liquidity signifikan = pump awal sudah terjadi
+- DexScreener Early Radar (baru deploy) diharapkan lebih awal — belum ada data forward-test
+
+### DexScreener Early Radar — Status
+- Sudah live di production (startDexRadarCron aktif, interval 15 menit)
+- Logika: crossmatch Token Boosts + Token Profiles → alert ke Telegram meme channel dengan label "🔍 EARLY RADAR"
+- Filter: harus punya Twitter atau website, chain supported (solana/eth/bsc/base/arbitrum/polygon)
+- Cooldown: 1 jam per token address
+- Belum ada data forward-test — pantau beberapa hari ke depan
+
+### Agenda Selanjutnya
+- Pantau DexScreener Early Radar: apakah crossmatch alerts yang masuk ke Telegram benar-benar lebih early dari GeckoTerminal scanner
+- Evaluasi meme scanner setelah 2-3 minggu data: threshold GEM kemungkinan perlu diperketat
+- Pantau signal trading forward-test — belum ada yang closed (semua masih OPEN)
