@@ -2,7 +2,7 @@ import { Router } from "express";
 import { eq, inArray, and } from "drizzle-orm";
 import { SUPPORTED_PAIRS } from "../../../nexusalpha/lib/types";
 import { computeRealtimeSignal } from "../lib/signal-engine-realtime";
-import { db, ohlcvDaily, signalLog, memeSignalLog } from "@workspace/db";
+import { db, ohlcvDaily, signalLog, memeSignalLog, whaleAlerts } from "@workspace/db";
 
 const router = Router();
 
@@ -10,6 +10,8 @@ const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOK
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "305425021";
 const MEME_TELEGRAM_API = `https://api.telegram.org/bot${process.env.MEME_TELEGRAM_BOT_TOKEN}`;
 const MEME_CHAT_ID = process.env.MEME_TELEGRAM_CHAT_ID ?? "305425021";
+const WHALE_TELEGRAM_API = `https://api.telegram.org/bot${process.env.WHALE_TELEGRAM_BOT_TOKEN}`;
+const WHALE_CHAT_ID = process.env.WHALE_TELEGRAM_CHAT_ID ?? "305425021";
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:10000";
 
 
@@ -58,6 +60,19 @@ async function sendMemeTelegram(text: string): Promise<void> {
       disable_web_page_preview: true,
     },
     "MEME-TELEGRAM",
+  );
+}
+
+async function sendWhaleTelegram(text: string): Promise<void> {
+  await sendWithRetry(
+    `${WHALE_TELEGRAM_API}/sendMessage`,
+    {
+      chat_id: WHALE_CHAT_ID,
+      text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+    },
+    "WHALE-TELEGRAM",
   );
 }
 
@@ -869,6 +884,129 @@ export function startDexRadarCron() {
   console.log(`[DEX-RADAR] DexScreener early radar started. Interval: ${INTERVAL_MS / 1000}s`);
   runDexRadarScan();
   setInterval(runDexRadarScan, INTERVAL_MS);
+}
+
+// ─── WHALE / SMART MONEY TRACKER (GMGN) ──────────────────────────────────────
+// Data source: gmgn-cli `track smartmoney` — daftar wallet "smart money" versi
+// GMGN sendiri (bukan wallet pilihan manual kita), diklasifikasikan dari
+// track record trading mereka di platform GMGN.
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+const execFileAsync = promisify(execFile);
+
+const whaleAlertCooldown = new Map<string, number>(); // key: chain:wallet:token
+const WHALE_COOLDOWN_MS = 30 * 60 * 1000; // 30 menit per wallet+token, cegah spam
+
+interface GmgnSmartMoneyTrade {
+  wallet_address?: string;
+  maker?: string;
+  token_address?: string;
+  token_symbol?: string;
+  symbol?: string;
+  side?: string;         // buy | sell
+  event_type?: string;
+  amount_usd?: number;
+  usd_value?: number;
+  price_usd?: number;
+  price?: number;
+  tx_hash?: string;
+  timestamp?: number;
+}
+
+async function fetchGmgnSmartMoney(chain: string): Promise<GmgnSmartMoneyTrade[]> {
+  try {
+    const { stdout } = await execFileAsync(
+      "npx",
+      ["--yes", "gmgn-cli", "track", "smartmoney", "--chain", chain, "--side", "buy", "--limit", "30", "--raw"],
+      {
+        env: { ...process.env, GMGN_API_KEY: process.env.GMGN_API_KEY },
+        timeout: 20000,
+      },
+    );
+    const json = JSON.parse(stdout);
+    const list = json?.list ?? json?.data?.list ?? json;
+    return Array.isArray(list) ? list : [];
+  } catch (err) {
+    console.error(`[WHALE] gmgn-cli error (${chain}):`, (err as Error).message);
+    return [];
+  }
+}
+
+async function runWhaleScan() {
+  console.log("[WHALE] Starting smart money scan...");
+  if (!process.env.GMGN_API_KEY) {
+    console.error("[WHALE] GMGN_API_KEY belum di-set, skip scan.");
+    return;
+  }
+
+  const chains = ["sol", "eth"];
+  let sent = 0;
+
+  for (const chain of chains) {
+    const trades = await fetchGmgnSmartMoney(chain);
+    console.log(`[WHALE] ${chain}: ${trades.length} trade ditemukan dari smart money`);
+
+    const now = Date.now();
+
+    for (const trade of trades) {
+      const wallet = trade.wallet_address ?? trade.maker;
+      const token = trade.token_address;
+      if (!wallet || !token) continue;
+
+      const key = `${chain}:${wallet}:${token}`;
+      const lastSent = whaleAlertCooldown.get(key) ?? 0;
+      if (now - lastSent < WHALE_COOLDOWN_MS) continue;
+
+      const amountUsd = trade.amount_usd ?? trade.usd_value ?? 0;
+      const priceUsd = trade.price_usd ?? trade.price ?? 0;
+      const symbol = trade.token_symbol ?? trade.symbol ?? "?";
+
+      const chainLabel = chain === "sol" ? "Solana" : chain === "eth" ? "Ethereum" : chain.toUpperCase();
+
+      let msg = `🐋 <b>WHALE ALERT — SMART MONEY BUY</b>\n`;
+      msg += `━━━━━━━━━━━━━━━\n`;
+      msg += `<b>Chain:</b> ${escapeHtml(chainLabel)}\n`;
+      msg += `<b>Token:</b> ${escapeHtml(symbol)}\n`;
+      msg += `<b>Token Address:</b> <code>${escapeHtml(token)}</code>\n`;
+      if (amountUsd) msg += `<b>Nilai Transaksi:</b> $${amountUsd.toLocaleString("en-US", { maximumFractionDigits: 0 })}\n`;
+      if (priceUsd) msg += `<b>Harga saat beli:</b> $${priceUsd}\n`;
+      msg += `<b>Wallet:</b> <code>${escapeHtml(wallet)}</code>\n`;
+      msg += `\n<i>⏰ ${new Date().toLocaleString("id-ID")}</i>\n`;
+      msg += `━━━━━━━━━━━━━━━\n`;
+      msg += `<i>⚠️ Ini data mengikuti klasifikasi "smart money" versi GMGN. Belum ada forward-test — DYOR sebelum ikut beli.</i>`;
+
+      try {
+        await sendWhaleTelegram(msg);
+        whaleAlertCooldown.set(key, now);
+        sent++;
+
+        await (db as any).insert(whaleAlerts).values({
+          chain,
+          walletAddress: wallet,
+          side: "buy",
+          tokenAddress: token,
+          tokenSymbol: symbol,
+          amountUsd,
+          priceAtAlert: priceUsd,
+          txHash: trade.tx_hash ?? null,
+        });
+
+        console.log(`[WHALE] ✅ Alert terkirim: ${symbol} (${chain}) oleh ${wallet.slice(0, 8)}...`);
+        await new Promise((r) => setTimeout(r, 1000));
+      } catch (err) {
+        console.error("[WHALE] Gagal kirim/simpan alert:", err);
+      }
+    }
+  }
+
+  console.log(`[WHALE] Scan selesai. ${sent} alert terkirim.`);
+}
+
+export function startWhaleCron() {
+  const INTERVAL_MS = 15 * 60 * 1000;
+  console.log(`[WHALE] Whale/smart money tracker started. Interval: ${INTERVAL_MS / 1000}s`);
+  runWhaleScan();
+  setInterval(runWhaleScan, INTERVAL_MS);
 }
 
 export default router;
