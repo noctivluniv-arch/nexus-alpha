@@ -862,6 +862,142 @@ export function startDexRadarCron() {
   setInterval(runDexRadarScan, INTERVAL_MS);
 }
 
+// ─── DEXSCREENER EARLY RADAR ─────────────────────────────────────────────────
+const dexRadarCooldown = new Map<string, number>();
+const DEX_RADAR_COOLDOWN_MS = 60 * 60 * 1000; // 1 jam per token
+
+interface DexToken {
+  tokenAddress: string;
+  chainId: string;
+  url: string;
+  description?: string;
+  links?: { type?: string; label?: string; url: string }[];
+  amount?: number;
+  totalAmount?: number;
+  cto?: boolean;
+}
+
+async function fetchDexScreenerBoosted(): Promise<DexToken[]> {
+  try {
+    const res = await fetch("https://api.dexscreener.com/token-boosts/latest/v1", {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as DexToken[];
+    return Array.isArray(data) ? data : [];
+  } catch { return []; }
+}
+
+async function fetchDexScreenerProfiles(): Promise<DexToken[]> {
+  try {
+    const res = await fetch("https://api.dexscreener.com/token-profiles/latest/v1", {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as DexToken[];
+    return Array.isArray(data) ? data : [];
+  } catch { return []; }
+}
+
+async function runDexRadarScan() {
+  console.log("[DEX-RADAR] Starting DexScreener early radar scan...");
+  try {
+    const [boosted, profiles] = await Promise.all([
+      fetchDexScreenerBoosted(),
+      fetchDexScreenerProfiles(),
+    ]);
+
+    console.log(`[DEX-RADAR] Boosted: ${boosted.length}, Profiles: ${profiles.length}`);
+
+    const profileMap = new Map<string, DexToken>();
+    for (const p of profiles) {
+      profileMap.set(p.tokenAddress.toLowerCase(), p);
+    }
+
+    const now = Date.now();
+    let sent = 0;
+
+    for (const token of boosted) {
+      const addr = token.tokenAddress.toLowerCase();
+      const profile = profileMap.get(addr);
+      if (!profile) continue;
+
+      const lastSent = dexRadarCooldown.get(addr) ?? 0;
+      if (now - lastSent < DEX_RADAR_COOLDOWN_MS) continue;
+
+      const supportedChains = ["solana", "ethereum", "bsc", "base", "arbitrum", "polygon"];
+      if (!supportedChains.includes(token.chainId)) continue;
+
+      const allLinks = [...(token.links ?? []), ...(profile.links ?? [])];
+      const twitter = allLinks.find(l => l.type === "twitter" || l.url?.includes("twitter.com") || l.url?.includes("x.com"))?.url ?? null;
+      const website = allLinks.find(l => l.label === "Website" || (!l.type && l.url?.includes("http")))?.url ?? null;
+
+      if (!twitter && !website) continue;
+
+      const chainLabel = token.chainId.charAt(0).toUpperCase() + token.chainId.slice(1);
+      const boostAmount = token.totalAmount ?? token.amount ?? 0;
+      const isCto = profile.cto === true;
+
+      let msg = `🔍 <b>EARLY RADAR — DEXSCREENER CROSSMATCH</b>
+`;
+      msg += `━━━━━━━━━━━━━━━
+`;
+      msg += `⚡ Token baru terdeteksi aktif marketing:
+`;
+      msg += `  • Masuk DexScreener Boosted ($${boostAmount} boost)
+`;
+      msg += `  • Punya Token Profile lengkap
+`;
+      if (isCto) msg += `  • CTO (Community Takeover)
+`;
+      msg += `
+`;
+      msg += `<b>Network:</b> ${escapeHtml(chainLabel)}
+`;
+      msg += `<b>Address:</b> <code>${escapeHtml(token.tokenAddress)}</code>
+`;
+      if (profile.description) msg += `<b>Deskripsi:</b> ${escapeHtml(profile.description.slice(0, 100))}
+`;
+      msg += `
+`;
+      if (twitter) msg += `<b>🐦 Twitter:</b> ${escapeHtml(twitter)}
+`;
+      if (website) msg += `<b>🌐 Website:</b> ${escapeHtml(website)}
+`;
+      msg += `<b>🔗 Chart:</b> ${escapeHtml(token.url)}
+`;
+      msg += `
+`;
+      msg += `<i>⏰ ${new Date().toLocaleString("id-ID")}</i>
+`;
+      msg += `━━━━━━━━━━━━━━━
+`;
+      msg += `<i>⚠️ SANGAT SPEKULATIF — DYOR, belum ada validasi harga/liquidity. High risk.</i>`;
+
+      try {
+        await sendMemeTelegram(msg);
+        dexRadarCooldown.set(addr, now);
+        sent++;
+        console.log(`[DEX-RADAR] ✅ Alert: ${token.tokenAddress.slice(0, 8)}... (${token.chainId})`);
+        await new Promise(r => setTimeout(r, 1000));
+      } catch (err) {
+        console.error(`[DEX-RADAR] Failed to send alert:`, err);
+      }
+    }
+
+    console.log(`[DEX-RADAR] Scan complete. ${sent} crossmatch alerts sent.`);
+  } catch (err) {
+    console.error("[DEX-RADAR] Error:", err);
+  }
+}
+
+export function startDexRadarCron() {
+  const INTERVAL_MS = 15 * 60 * 1000;
+  console.log(`[DEX-RADAR] DexScreener early radar started. Interval: ${INTERVAL_MS / 1000}s`);
+  runDexRadarScan();
+  setInterval(runDexRadarScan, INTERVAL_MS);
+}
+
 export default router;
 
 // ─── DAILY OHLCV SAVE ────────────────────────────────────────────────────────
