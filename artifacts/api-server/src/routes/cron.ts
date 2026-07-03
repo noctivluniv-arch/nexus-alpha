@@ -338,6 +338,7 @@ async function saveMemeSignalToLog(coin: any, triggerLabel: string) {
       earlyGemScore: coin.earlyGemScore ?? null,
       buyVerdict: coin.buyVerdict ?? null,
       triggerLabel,
+      dexUrl: coin.dexUrl ?? null,
       lastPrice: price,
       athPrice: price,
       athMultiplier: 1,
@@ -405,6 +406,15 @@ async function checkMemeSignals() {
       const data = await fetchDexScreenerData(sig.contractAddress);
       if (!data || data.price <= 0) {
         console.log(`[MEME-CHECK] ⚠️ ${sig.symbol} — data DexScreener tidak tersedia, skip`);
+        continue;
+      }
+
+      // Sanity check: kalau harga baru > 500x dari initial, kemungkinan bug data DexScreener
+      // (misal harga dalam denominasi ETH bukan USD, atau pair yang salah)
+      // Skip update harga untuk kasus ini supaya data tidak corrupt
+      const priceRatio = data.price / sig.initialPrice;
+      if (priceRatio > 500) {
+        console.log(`[MEME-CHECK] ⚠️ ${sig.symbol} — harga anomali (x${priceRatio.toFixed(0)}), kemungkinan bug DexScreener data, skip`);
         continue;
       }
 
@@ -539,7 +549,7 @@ router.get("/dashboard", (_req, res) => {
     <h2>💎 Meme Coin (Early Gem Tracker)</h2>
     <div class="grid" id="meme-stats"><div class="loading">Memuat...</div></div>
     <table id="meme-table">
-      <thead><tr><th>Coin</th><th>Network</th><th>Entry ($)</th><th>Harga Skrg ($)</th><th>ATH x</th><th>PnL Skrg</th><th>PnL ATH</th><th>Status</th><th>Detected</th></tr></thead>
+      <thead><tr><th>Coin</th><th>Network</th><th>Entry ($)</th><th>Harga Skrg ($)</th><th>ATH x</th><th>PnL Skrg</th><th>PnL ATH</th><th>Status</th><th>Detected</th><th>Chart</th></tr></thead>
       <tbody></tbody>
     </table>
   </section>
@@ -691,6 +701,7 @@ async function load() {
         '<td>' + pnlHtml(pnlAth) + '</td>' +
         '<td><span class="badge ' + badge + '">' + c.status + '</span></td>' +
         '<td>' + new Date(c.detectedAt).toLocaleString('id-ID') + '</td>' +
+        '<td>' + (c.dexUrl ? '<a href="' + c.dexUrl + '" target="_blank" style="color:#58a6ff;font-size:12px">📊 Chart</a>' : '-') + '</td>' +
         '</tr>';
     });
     

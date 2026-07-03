@@ -34,6 +34,7 @@ export const memeSignalLog = pgTable("meme_signal_log", {
   athMultiplier:    real("ath_multiplier"),  // athPrice / initialPrice
   lastCheckedAt:    timestamp("last_checked_at"),
 
+  dexUrl:           text("dex_url"),
   status:           varchar("status", { length: 20 }).notNull().default("TRACKING"), // TRACKING | DEAD | STOPPED
   detectedAt:       timestamp("detected_at").defaultNow(),
 });
