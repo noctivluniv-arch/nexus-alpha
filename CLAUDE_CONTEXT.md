@@ -663,3 +663,27 @@ Commit & push:
 - Pantau DexScreener Early Radar: apakah crossmatch alerts yang masuk ke Telegram benar-benar lebih early dari GeckoTerminal scanner
 - Evaluasi meme scanner setelah 2-3 minggu data: threshold GEM kemungkinan perlu diperketat
 - Pantau signal trading forward-test — belum ada yang closed (semua masih OPEN)
+
+## Agenda Berikutnya — Whale/Smart Wallet Tracker (PLANNED, belum dimulai)
+
+### Keputusan
+- Target chain: Solana + Ethereum/BSC (keduanya)
+- Pendekatan: bangun otomatis dari data historis (lebih akurat, lebih kompleks)
+- Saran Claude: mulai dengan hybrid approach (fase 1: seed wallet publik dulu, fase 2: auto-scoring, fase 3: full historical analysis)
+
+### Rencana Fase 1 (prioritas berikutnya)
+- Seed 20-30 wallet smart money yang sudah dikenal publik (dari gmgn.ai, Twitter research)
+- API yang akan ditest: Helius (Solana, free tier 100k credit/bulan), Etherscan (Ethereum, free 5 req/detik)
+- Monitor transaksi tiap 15-30 menit → alert Telegram kalau ada wallet beli token baru
+- Simpan ke tabel baru: wallet_watchlist (address, chain, label, win_rate) dan whale_alerts (wallet, token, chain, amount, timestamp)
+
+### Yang Perlu Dilakukan Sebelum Mulai Kode
+1. Test Helius API: daftar di helius.dev untuk dapat API key gratis
+2. Test Etherscan API: daftar di etherscan.io untuk dapat API key gratis
+3. Research 20-30 smart wallet addresses yang sudah dikenal (gmgn.ai → filter by PnL)
+4. Baru mulai implementasi setelah API key tersedia dan wallet list siap
+
+### Catatan Penting
+- Ini fitur paling kompleks yang pernah dibangun di NexusAlpha — estimasi 5-10 sesi
+- Jangan mulai sampai forward-test signal trading punya minimal 15-20 trade closed
+- Infrastruktur Render free tier mungkin perlu di-upgrade untuk fase 3 (historical analysis)
