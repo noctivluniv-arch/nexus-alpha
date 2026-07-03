@@ -687,3 +687,121 @@ Commit & push:
 - Ini fitur paling kompleks yang pernah dibangun di NexusAlpha — estimasi 5-10 sesi
 - Jangan mulai sampai forward-test signal trading punya minimal 15-20 trade closed
 - Infrastruktur Render free tier mungkin perlu di-upgrade untuk fase 3 (historical analysis)
+
+## Sesi 2026-07-03 (lanjutan) — Whale/Smart Money Tracker (GMGN) — TAHAP 1 DONE
+
+### Keputusan Desain
+- TIDAK riset manual 20-30 wallet — dipakai fitur `gmgn-cli track smartmoney` dari GMGN
+  yang sudah mengklasifikasikan sendiri wallet "smart money" berdasarkan track record
+  mereka di platform GMGN. Sumber data terverifikasi dari dokumentasi resmi:
+  https://github.com/GMGNAI/gmgn-skills/blob/main/docs/cli-usage.md
+- Alasan: lebih real-time, tidak perlu manual maintenance daftar wallet.
+
+### Yang Sudah Dibuat (belum di-deploy, menunggu langkah selanjutnya)
+- Schema: lib/db/src/schema/whale-alerts.ts (tabel whale_alerts)
+- Export ditambahkan ke lib/db/src/schema/index.ts
+- Script buat tabel: scripts/src/create-whale-alerts-table.ts (idempotent, IF NOT EXISTS)
+- cron.ts dipatch:
+  - Konstanta WHALE_TELEGRAM_API, WHALE_CHAT_ID (dari env WHALE_TELEGRAM_BOT_TOKEN, WHALE_TELEGRAM_CHAT_ID)
+  - sendWhaleTelegram() — kirim pesan pakai sendWithRetry() yang sudah ada
+  - fetchGmgnSmartMoney(chain) — panggil `npx gmgn-cli track smartmoney --chain <chain> --side buy --limit 30 --raw` via child_process, parse JSON
+  - runWhaleScan() — loop chain sol & eth, filter cooldown 30 menit per wallet+token, kirim Telegram + simpan ke whale_alerts
+  - startWhaleCron() — interval 15 menit
+- index.ts: import & panggil startWhaleCron() di app.listen()
+- package.json api-server: tambah dependency "gmgn-cli": "^1.5.0" (versi asli dicek dari npm registry, bukan tebakan)
+
+### Environment Variables Baru yang PERLU di-set di Render
+- GMGN_API_KEY = gmgn_407b853bad4c7f57945e16ab2ddf2713
+- WHALE_TELEGRAM_BOT_TOKEN = 8600452403:AAEiXLbLg9xDCTISZCI0UFm50K-HR-Y5j-U
+- WHALE_TELEGRAM_CHAT_ID = 305425021
+
+### Belum Dikerjakan (lanjutkan sesi berikutnya)
+1. Jalankan scripts/src/create-whale-alerts-table.ts dari lokal (buat tabel di DB)
+2. Set 3 env variable di atas ke Render dashboard
+3. Commit & push kode ke GitHub, tunggu Render auto-deploy
+4. Cek log Render: cari "[WHALE] Whale/smart money tracker started"
+5. Pantau apakah alert masuk ke Telegram Whale channel
+6. Kalau gmgn-cli error di log (auth/format berubah), evaluasi ulang — JANGAN asumsikan asal jalan
+7. PENTING: catatan ada endpoint LAMA /api/ai/whales yang generate data whale PAKAI GEMINI AI
+   (bukan data asli) — berpotensi data halusinasi. Belum didiskusikan apakah masih dipakai
+   frontend atau perlu dihapus/diganti dengan data whale_alerts yang asli.
+8. Belum ada checkMemeSignals-style cron untuk update ATH/status whale_alerts (forward-test)
+   — perlu dibuat mirip checkMemeSignals() supaya bisa evaluasi performa whale tracker.
+9. Belum ada dashboard section untuk whale_alerts di /api/cron/dashboard
+10. GMGN_PRIVATE_KEY TIDAK di-set (sengaja) — kita hanya butuh READ, bukan trading otomatis
+
+### Catatan Penting — Verifikasi, Bukan Asumsi
+- Command gmgn-cli yang dipakai sudah diverifikasi dari dokumentasi resmi GitHub GMGNAI/gmgn-skills,
+  bukan tebakan endpoint. TAPI belum pernah dites langsung (sandbox kerja tidak bisa akses gmgn.ai).
+  Testing sesungguhnya baru bisa dilakukan setelah deploy ke Render — WAJIB cek log untuk pastikan
+  sukses, jangan asumsikan otomatis benar.
+
+## Sesi 2026-07-03 (lanjutan) — Deploy Whale Tracker: TROUBLESHOOTING LOCKFILE (BELUM SELESAI)
+
+### Status Saat Ini
+- Kode whale tracker (schema, cron.ts, index.ts) SUDAH benar dan sudah ter-push ke GitHub
+- Deploy ke Render BERULANG KALI GAGAL karena masalah pnpm-lock.yaml tidak sinkron dengan berbagai package.json
+- Sudah diperbaiki bertahap: root package.json, lib/db/package.json, scripts/package.json — masing-masing sempat outdated
+
+### Masalah Terakhir yang Sedang Diperbaiki (BELUM SELESAI — lanjutkan di sini)
+- Error baru: `[ERR_PNPM_IGNORED_BUILDS] Ignored build scripts: @google/genai@1.52.0`
+- Ini terjadi karena versi pnpm baru butuh approval eksplisit untuk package yang punya build script (security feature)
+- @google/genai ini dependency Gemini AI yang statusnya SUDAH DEAD CODE (tidak dipakai lagi untuk /ai/signal, lihat sesi 2026-06-30)
+- Fix yang SEDANG dijalankan (user diminta jalankan, belum ada konfirmasi hasil):
+  ```bash
+  cd ~/nexus-alpha
+  python3 << 'PYEOF'
+  import json
+  path = "package.json"
+  with open(path) as f:
+      data = json.load(f)
+  if "pnpm" not in data:
+      data["pnpm"] = {}
+  data["pnpm"]["onlyBuiltDependencies"] = ["@google/genai"]
+  with open(path, "w") as f:
+      json.dump(data, f, indent=2)
+      f.write("\n")
+  print("✅ package.json diperbaiki")
+  PYEOF
+  cat package.json | head -20
+  ```
+  Lalu:
+  ```bash
+  rm -rf node_modules pnpm-lock.yaml
+  pnpm install
+  git status --short pnpm-lock.yaml package.json
+  ```
+
+### LANGKAH SELANJUTNYA (lanjutkan sesi berikutnya)
+1. Cek hasil `cat package.json | head -20` — pastikan field `"pnpm": {"onlyBuiltDependencies": ["@google/genai"]}` masuk dengan benar
+2. Cek hasil `git status --short pnpm-lock.yaml package.json` — HARUS cuma 2 file itu yang berubah (bukan node_modules)
+3. Kalau bersih: `git diff package.json` dulu untuk verifikasi, baru:
+   ```bash
+   git add pnpm-lock.yaml package.json
+   git commit -m "Approve @google/genai build script to fix pnpm ignored-builds error"
+   git push
+   ```
+4. Tunggu Render redeploy, cek Logs tab — cari "Build succeeded" dan "[WHALE] Whale/smart money tracker started"
+5. KALAU MASIH ADA package.json lain yang mismatch lagi (pola error yang sama berulang: "specifiers in the lockfile don't match..."), REPEAT proses yang sama:
+   - `git diff <file>.json` untuk lihat apa yang berubah
+   - Kalau perubahan itu file dependency asing/tidak diminta (misal ada versi macOS-specific atau package tidak dikenal) → `git checkout -- <file>` dulu untuk buang, baru cek ulang
+   - Kalau perubahan itu legit (misal cuma nomor versi beda tipis) → biarkan, lanjut commit
+   - Selalu regenerate dengan `rm -rf node_modules pnpm-lock.yaml && pnpm install` sebelum commit final, supaya SEMUA package.json dan lockfile benar-benar sinkron sekali jalan
+
+### PENTING — Root Cause Masalah Ini
+- Project ini sepertinya SERING dikerjakan dari mesin/sesi Claude Code berbeda-beda dengan cache pnpm lokal yang beda-beda, menyebabkan pnpm-lock.yaml sering "kebawa" perubahan kecil tidak disengaja
+- Solusi jangka panjang (TODO nanti, bukan sekarang): pastikan tiap sesi kerja SELALU `git pull` dulu sebelum mulai edit, dan SELALU cek `git status` sebelum commit supaya tidak ada file tidak sengaja ikut ter-commit
+- node_modules SEHARUSNYA di .gitignore tapi ternyata ada isi node_modules yang ke-track di git (lihat banyak sekali " M node_modules/..." di git status sepanjang sesi ini) — ini bug lama di repo, TIDAK diperbaiki sesi ini karena high-risk, hanya dihindari dengan cara TIDAK PERNAH `git add node_modules` atau `git add .`, SELALU add file spesifik satu-satu
+
+### Environment Variables yang MASIH PERLU di-set di Render (belum dikerjakan, tunggu deploy sukses dulu)
+- GMGN_API_KEY = gmgn_407b853bad4c7f57945e16ab2ddf2713
+- WHALE_TELEGRAM_BOT_TOKEN = 8600452403:AAEiXLbLg9xDCTISZCI0UFm50K-HR-Y5j-U
+- WHALE_TELEGRAM_CHAT_ID = 305425021
+
+### Command Untuk Lanjut Sesi Berikutnya (copy-paste langsung)
+```bash
+cd ~/nexus-alpha
+cat package.json | head -20
+git status --short pnpm-lock.yaml package.json
+```
+Baru lanjutkan dari situ sesuai LANGKAH SELANJUTNYA di atas.
