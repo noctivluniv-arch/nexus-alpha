@@ -572,7 +572,7 @@ async function load() {
     const sigRes = await fetch('/api/cron/results').then(r => r.json());
     
     // Fetch harga terkini untuk semua pair yang masih OPEN (satu per satu, lebih reliable)
-    const openPairs = [...new Set(sigRes.signals.filter(s => !s.closedPrice).map(s => s.pair))];
+    const openPairs = [...new Set(sigRes.signals.map(s => s.pair))];
     let currentPrices = {};
     if (openPairs.length > 0) {
       try {
@@ -593,11 +593,11 @@ async function load() {
     
     const rows = sigRes.signals.slice().reverse().map(s => {
       let pnl = null;
-      let pnlLabel = '—';
       let badge = 'badge-open';
-      
-      if (s.closedPrice && s.entryPrice) {
-        // PnL untuk SELL: profit kalau harga turun
+      const isClosed = s.status === 'SL_HIT' || s.status === 'TP3_HIT';
+
+      if (isClosed && s.closedPrice && s.entryPrice) {
+        // PnL realized — sudah final, tidak berubah lagi
         const pct = s.side === 'SELL'
           ? (s.entryPrice - s.closedPrice) / s.entryPrice
           : (s.closedPrice - s.entryPrice) / s.entryPrice;
@@ -606,14 +606,11 @@ async function load() {
         closedCount++;
         if (pnl > 0) { winCount++; badge = 'badge-win'; }
         else { lossCount++; badge = 'badge-loss'; }
-      } else if (s.status !== 'OPEN') {
-        // TP1_HIT/TP2_HIT — belum closed tapi sebagian profit
-        badge = 'badge-open';
       }
-      
-      // Unrealized PnL berdasarkan harga pasar sekarang
+
+      // PnL unrealized (hanya untuk posisi yang belum final)
       let unrealizedHint = '';
-      if (!s.closedPrice && s.entryPrice) {
+      if (!isClosed && s.entryPrice) {
         const curPrice = currentPrices[s.pair];
         if (curPrice) {
           const pct = s.side === 'SELL'
@@ -623,25 +620,35 @@ async function load() {
           const sign = unrealizedPnl >= 0 ? '+' : '';
           const cls = unrealizedPnl > 0 ? 'pnl-pos' : unrealizedPnl < 0 ? 'pnl-neg' : 'pnl-neutral';
           const pct100 = (pct * 100).toFixed(2);
-          unrealizedHint = '<span class="' + cls + '">' + sign + '$' + unrealizedPnl.toFixed(2) + '</span> <span style="font-size:11px;color:#8b949e">(' + sign + pct100 + '%) @ $' + curPrice + '</span>';
+          let tpSlRef = '';
+          if (s.tp1 && s.sl) {
+            const potTP1 = s.side === 'SELL'
+              ? ((s.entryPrice - s.tp1) / s.entryPrice * MODAL).toFixed(2)
+              : ((s.tp1 - s.entryPrice) / s.entryPrice * MODAL).toFixed(2);
+            const potSL = s.side === 'SELL'
+              ? ((s.sl - s.entryPrice) / s.entryPrice * MODAL).toFixed(2)
+              : ((s.entryPrice - s.sl) / s.entryPrice * MODAL).toFixed(2);
+            tpSlRef = '<br><span style="font-size:10px;color:#8b949e">TP1: +$' + potTP1 + ' | SL: -$' + potSL + '</span>';
+          }
+          unrealizedHint = '<span class="' + cls + '">' + sign + '$' + unrealizedPnl.toFixed(2) + ' (' + sign + pct100 + '%)</span><br><span style="font-size:11px;color:#8b949e">@ $' + curPrice + '</span>' + tpSlRef;
         } else if (s.tp1 && s.sl) {
-          const potProfit = s.side === 'SELL'
+          const potTP1 = s.side === 'SELL'
             ? ((s.entryPrice - s.tp1) / s.entryPrice * MODAL).toFixed(2)
             : ((s.tp1 - s.entryPrice) / s.entryPrice * MODAL).toFixed(2);
-          const potLoss = s.side === 'SELL'
+          const potSL = s.side === 'SELL'
             ? ((s.sl - s.entryPrice) / s.entryPrice * MODAL).toFixed(2)
             : ((s.entryPrice - s.sl) / s.entryPrice * MODAL).toFixed(2);
-          unrealizedHint = '<span class="pnl-neutral" style="font-size:11px">TP1: +$' + potProfit + ' / SL: -$' + potLoss + '</span>';
+          unrealizedHint = '<span class="pnl-neutral" style="font-size:11px">TP1: +$' + potTP1 + ' / SL: -$' + potSL + '</span>';
         }
       }
-      
+
       return '<tr>' +
         '<td>' + s.pair + '</td>' +
         '<td>' + s.side + '</td>' +
         '<td>' + s.confidence + '</td>' +
         '<td>' + s.entryPrice + '</td>' +
         '<td><span class="badge ' + badge + '">' + s.status + '</span></td>' +
-        '<td>' + (s.closedPrice || '-') + '</td>' +
+        '<td>' + (s.closedPrice ? '$' + s.closedPrice : '-') + '</td>' +
         '<td>' + (pnl !== null ? pnlHtml(pnl) : unrealizedHint) + '</td>' +
         '<td>' + new Date(s.sentAt).toLocaleString('id-ID') + '</td>' +
         '</tr>';
