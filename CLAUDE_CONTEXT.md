@@ -864,3 +864,39 @@ Baru lanjutkan dari situ sesuai LANGKAH SELANJUTNYA di atas.
      apakah masih dipakai frontend, kalau iya perlu diganti dengan data whale_alerts asli
    - Belum ada cron forward-test (ATH/status update) untuk whale_alerts
    - Belum ada dashboard section untuk whale_alerts di `/api/cron/dashboard`
+
+---
+
+## Update sesi 4 Juli 2026 — Whale Tracker Fix & Repo Cleanup
+
+### 1. Bug fix kritis: whale tracker 0 alert terkirim
+Root cause: field `trade.token_address` yang dipakai kode tidak pernah ada di response asli GMGN API (field asli `base_address`). Akibatnya `token` selalu `undefined` dan semua trade ke-skip di baris `if (!wallet || !token) continue`.
+Fix: fallback ke `base_address`, `base_token.symbol`, `transaction_hash`.
+Status: **VERIFIED WORKING** — log Render menunjukkan `[WHALE] Scan selesai. 22 alert terkirim.`
+
+### 2. Forward-test cron untuk whale_alerts (baru)
+- `checkWhaleAlerts()` + `startWhaleCheckCron()` — jalan tiap 6 jam, reuse `fetchDexScreenerData()`.
+- Update `lastPrice`/`athPrice`/`athMultiplier` otomatis. Status `DEAD` kalau liquidity < $1000, `STOPPED` setelah 30 hari.
+- Endpoint baru: `GET /api/cron/whale-results` — ringkasan total alert, %≥2x, %≥5x, %dead, top performers.
+- Dashboard `/api/cron/dashboard` — section baru "🐋 Whale / Smart Money Tracker".
+
+### 3. Warning badge token lookalike/scam (baru)
+Ditemukan whale alert sering kirim token dengan nama lookalike scam (contoh: МУДЭНГ vs МУДЕНГ, лосось/лось pakai huruf Cyrillic niru token asli). Diputuskan **tidak pakai filter blocking GoPlus** (mahal, rawan rate limit, nambah delay) — cukup regex simpel deteksi karakter non-ASCII di symbol, tambahin baris `⚠️ WARNING: nama token pakai karakter non-Latin` di pesan Telegram. Catatan: GoPlus security check itu HANYA dipakai di meme scanner (`memes.ts`), TIDAK PERNAH terhubung ke whale scan (`cron.ts`) — jadi whale tracker dari awal memang tanpa filter keamanan token.
+
+### 4. Repo cleanup: node_modules ke-track di git
+Ditemukan root `.gitignore` cuma exclude `.DS_Store`, tidak ada `node_modules/` — 53.951 file node_modules ke-track ke GitHub. Sudah di-fix:
+- `.gitignore` root diperbaiki (node_modules, dist, .env, *.backup, *.bak*, dll)
+- `git rm -r --cached .` + `git add .` untuk untrack node_modules & file backup lama
+- Sempat ada regresi kecil: `pnpm-workspace.yaml` allowBuilds `'@google/genai'` sempat balik ke `false` (bakal break build Gemini) — sudah dikembalikan ke `true` sebelum commit.
+
+### Status whale tracker sekarang: FULLY OPERATIONAL
+- Scan tiap 15 menit ✅
+- Forward-test tiap 6 jam ✅
+- Dashboard section ✅
+- Warning badge lookalike token ✅
+- Belum ada: filter keamanan blocking (sengaja tidak dipasang, sesuai keputusan trade-off di atas)
+
+### Belum Dikerjakan (update)
+- Monitor beberapa hari: apakah 22 alert/scan itu wajar atau kebanyakan noise (cooldown-nya sudah pas?)
+- Belum dicek: apakah channel Telegram whale terpisah dari channel signal/meme (biar tidak campur aduk)
+- `/api/ai/whales` (Gemini-based) dikonfirmasi dead code, tidak dipakai frontend manapun — aman dihapus kapan saja kalau mau beres-beres lebih lanjut
