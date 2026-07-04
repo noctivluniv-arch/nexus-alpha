@@ -942,3 +942,41 @@ Untuk token yang lolos dari 2 filter di atas tapi tetap namanya pakai karakter n
 - Belum dicek: apakah channel Telegram whale terpisah dari channel signal/meme
 - `/api/ai/whales` (Gemini-based) masih dead code, aman dihapus kapan saja
 - **Investigasi belum jalan:** kenapa signal SELL forward-test 0% win rate (4/4 loss saat terakhir dicek) — backtest bilang 48.8% WR, realita jauh di bawah. Perlu di-follow-up.
+
+---
+
+## Update sesi 4 Juli 2026 (lanjutan) — Investigasi Signal SELL 0% Win Rate
+
+### Temuan awal
+4 signal closed terakhir semuanya SL_HIT (0% WR), semuanya SELL, padahal backtest v3 klaim WR ~45-49%. Semua 12 signal terakhir (termasuk yang OPEN) juga SELL semua, tidak ada BUY — ternyata ini **BY DESIGN**, bukan bug:
+```ts
+// signal-engine-realtime.ts baris ~190
+if (scored.bias === "BEARISH" && conf >= 45 && conf <= 55) side = "SELL";
+// BUY disabled — re-enable setelah ada bukti zona profitable (backtest v3: semua bucket negatif)
+```
+
+### Hasil re-run backtest-v3-paginated.ts (2809 signals, 6 pair: BTC/ETH/BNB/SOL/LINK/DOGE, ~5 tahun data)
+Angka SELL 45-55 yang dipakai production **valid diambil dari tabel "SELL saja" (unfiltered)**:
+- 45-50: 488 trades, WR 48.8%, PF 1.22 ⚠️
+- 50-55: 659 trades, WR 49.5%, PF 1.14 ⚠️
+- **Kedua bucket ini ditandai ⚠️ oleh tools-nya sendiri, BUKAN ✅** — cuma bucket 65-70 (50 trades, sample kecil) yang ✅ bersih.
+
+**Temuan kritis:** kode live TIDAK PERNAH cek `trend1d` (EMA50/200 structure), padahal backtest nunjukkin filter searah-trend bikin hasil lebih baik:
+- "Searah trend — SELL" 45-50: WR 50.0%, PF 1.17 ✅ (126 trades, lebih baik dari unfiltered)
+- "Searah trend — SELL" 50-55: WR 50.0%, PF 1.04 ✅ (198 trades)
+
+Kesimpulan: **edge yang ada di seluruh sistem ini TIPIS di semua kombinasi yang dites** (PF mayoritas 0.7-1.2 di semua confidence bucket, semua pair). Ini bukan strategi dengan edge kuat — backtest sendiri menandai hampir semua hasil dengan ⚠️, bukan ✅.
+
+### Keputusan/arahan dari user
+Tujuan utama: profit konsisten, benerin fondasi dulu sebelum kejar profit besar. User paham risiko edge tipis dan setuju prioritas:
+1. Circuit breaker otomatis (auto-pause SELL kalau loss beruntun) — **BELUM DIKERJAKAN**
+2. Filter trend1d ke kondisi live signal engine — **BELUM DIKERJAKAN**
+3. Walk-forward / out-of-sample validation (backtest saat ini in-sample, rawan overfitting) — **BELUM DIKERJAKAN**
+4. Tambahan fitur baru yang diminta: **saran leverage & position sizing di tiap alert Telegram sinyal** (sifatnya cuma masukan/tidak mengikat, keputusan akhir tetap di tangan trader) — **BELUM DIKERJAKAN**
+
+### Belum Dikerjakan (prioritas signal engine, urutan disepakati)
+1. Circuit breaker: auto-pause kalau N loss beruntun dalam periode tertentu
+2. Filter trend1d: tambahkan syarat trend1d harus align sebelum kirim sinyal SELL
+3. Walk-forward validation: pisah data training vs testing biar tau edge asli atau overfit
+4. Tambah rekomendasi leverage + position sizing (non-binding) di pesan Telegram sinyal
+5. (Longer term) Evaluasi apakah pendekatan TA lagging (EMA/RSI/MACD) masih punya edge di market yang makin efisien, atau perlu pivot ke sumber informasi lain (whale tracker dinilai lebih menjanjikan karena ngikutin transaksi riil, bukan pola grafik)
