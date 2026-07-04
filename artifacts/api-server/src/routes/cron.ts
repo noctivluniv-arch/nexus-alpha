@@ -2,7 +2,7 @@ import { Router } from "express";
 import { eq, inArray, and } from "drizzle-orm";
 import { SUPPORTED_PAIRS } from "../../../nexusalpha/lib/types";
 import { computeRealtimeSignal } from "../lib/signal-engine-realtime";
-import { db, ohlcvDaily, signalLog, memeSignalLog, whaleAlerts } from "@workspace/db";
+import { db, ohlcvDaily, signalLog, memeSignalLog, whaleAlerts, circuitBreaker } from "@workspace/db";
 
 const router = Router();
 
@@ -147,6 +147,59 @@ async function saveSignalToLog(signal: {
   }
 }
 
+// ─── CIRCUIT BREAKER ──────────────────────────────────────────────────────
+async function isCircuitBreakerPaused(pair: string): Promise<boolean> {
+  try {
+    const rows = await (db as any).select().from(circuitBreaker).where(eq(circuitBreaker.pair, pair));
+    const row = rows[0];
+    if (!row || !row.pausedUntil) return false;
+    return new Date(row.pausedUntil).getTime() > Date.now();
+  } catch (err) {
+    console.error(`[CIRCUIT-BREAKER] Error checking ${pair}, izinkan sinyal jalan (fail-safe):`, err);
+    return false;
+  }
+}
+
+async function recordCircuitBreakerResult(pair: string, status: string) {
+  try {
+    const existing = await (db as any).select().from(circuitBreaker).where(eq(circuitBreaker.pair, pair));
+    const row = existing[0];
+
+    if (status === "SL_HIT") {
+      const newCount = (row?.consecutiveLosses ?? 0) + 1;
+      const shouldPause = newCount >= 4;
+      const pausedUntil = shouldPause ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) : (row?.pausedUntil ?? null);
+
+      if (row) {
+        await (db as any).update(circuitBreaker).set({
+          consecutiveLosses: newCount,
+          lastLossAt: new Date(),
+          pausedUntil,
+          updatedAt: new Date(),
+        }).where(eq(circuitBreaker.pair, pair));
+      } else {
+        await (db as any).insert(circuitBreaker).values({
+          pair, consecutiveLosses: newCount, lastLossAt: new Date(), pausedUntil,
+        });
+      }
+      if (shouldPause) {
+        console.log(`[CIRCUIT-BREAKER] ⛔ ${pair} DI-PAUSE 7 hari — ${newCount}x SL beruntun`);
+      } else {
+        console.log(`[CIRCUIT-BREAKER] ${pair} loss ke-${newCount} (belum di-pause, threshold 4x)`);
+      }
+    } else if (status === "TP3_HIT" && row) {
+      await (db as any).update(circuitBreaker).set({
+        consecutiveLosses: 0,
+        pausedUntil: null,
+        updatedAt: new Date(),
+      }).where(eq(circuitBreaker.pair, pair));
+      console.log(`[CIRCUIT-BREAKER] ${pair} menang — hitungan loss direset ke 0`);
+    }
+  } catch (err) {
+    console.error(`[CIRCUIT-BREAKER] Error mencatat hasil ${pair}:`, err);
+  }
+}
+
 async function runSignalScan() {
   console.log(`[CRON] Starting REAL-TIME RULE-BASED signal scan for ${SUPPORTED_PAIRS.length} pairs...`);
 
@@ -158,6 +211,14 @@ async function runSignalScan() {
       console.log(`[CRON] ${pair} → confidence: ${signal.confidence}, side: ${signal.side}, bias: ${signal.bias}`);
 
       if (signal.side !== "NO_TRADE") {
+        // Circuit breaker: skip kalau pair ini sedang di-pause karena loss beruntun
+        const isPaused = await isCircuitBreakerPaused(pair);
+        if (isPaused) {
+          console.log(`[CIRCUIT-BREAKER] ⏭️ Skip kirim Telegram ${pair} — sedang di-pause`);
+          await new Promise((r) => setTimeout(r, 500));
+          continue;
+        }
+
         // Cooldown: skip kirim Telegram kalau pair+side ini masih ada signal OPEN
         const stillOpen = await (db as any)
           .select()
@@ -230,6 +291,29 @@ export function startCron() {
 router.post("/run", async (_req, res) => {
   runSignalScan();
   res.json({ status: "scan started" });
+});
+
+router.get("/circuit-breaker/status", async (_req, res) => {
+  try {
+    const rows = await (db as any).select().from(circuitBreaker);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+router.post("/circuit-breaker/reset/:pair", async (req, res) => {
+  const { pair } = req.params;
+  try {
+    await (db as any).update(circuitBreaker).set({
+      consecutiveLosses: 0,
+      pausedUntil: null,
+      updatedAt: new Date(),
+    }).where(eq(circuitBreaker.pair, pair));
+    res.json({ status: "reset", pair });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 // ─── FORWARD TESTING: CHECK OPEN SIGNALS (TP/SL HIT?) ───────────────────────
@@ -306,6 +390,10 @@ async function checkOpenSignals() {
           })
           .where(eq(signalLog.id, sig.id));
         console.log(`[SIGNAL-CHECK] ${sig.pair} #${sig.id} → ${newStatus} @ ${currentPrice}`);
+
+        if (closed) {
+          await recordCircuitBreakerResult(sig.pair, newStatus);
+        }
       }
     }
 

@@ -21,3 +21,4 @@ export * from "./ohlcv-daily";
 export * from "./signal-log";
 export * from "./meme-signal-log";
 export * from "./whale-alerts";
+export * from "./circuit-breaker";
