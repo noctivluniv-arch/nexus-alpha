@@ -805,3 +805,62 @@ cat package.json | head -20
 git status --short pnpm-lock.yaml package.json
 ```
 Baru lanjutkan dari situ sesuai LANGKAH SELANJUTNYA di atas.
+
+## Sesi 2026-07-04 — Deploy Whale Tracker: LOCKFILE FIXED, DEPLOY SUKSES ✓
+
+### Root Cause Sebenarnya (bukan yang diduga sesi sebelumnya)
+- Field `"pnpm": {"onlyBuiltDependencies": [...]}` di `package.json` **TIDAK BERGUNA** di pnpm v11 —
+  field itu sudah dipindah lokasinya oleh pnpm v11, package.json tidak dibaca lagi untuk setting ini.
+  pnpm v11 kasih WARNING soal ini kalau field itu ada, tapi tetap jalan (diabaikan diam-diam).
+- Lokasi setting yang BENAR untuk pnpm v11: file `pnpm-workspace.yaml`, field `allowBuilds`
+  (bukan `onlyBuiltDependencies` lagi — nama field-nya juga berubah).
+- Saat `pnpm install` dijalankan, pnpm OTOMATIS menambahkan entry baru ke `pnpm-workspace.yaml`
+  untuk dependency yang build script-nya di-skip, tapi dengan nilai **`false`** (placeholder,
+  artinya "tetap diblokir") — bukan `true`. Harus diubah manual jadi `true` untuk approve.
+
+### Fix yang Berhasil — DONE ✓
+1. Revert perubahan `package.json` (field `pnpm.onlyBuiltDependencies` dibuang, karena percuma) —
+   `git checkout -- package.json`
+2. Edit `pnpm-workspace.yaml`, ubah baris yang pnpm auto-generate:
+   `'@google/genai': false` → `'@google/genai': true` (di bagian `allowBuilds:`)
+3. `rm -rf node_modules pnpm-lock.yaml && pnpm install` — warning ERR_PNPM_IGNORED_BUILDS hilang,
+   malah muncul `Running preinstall script, done` untuk @google/genai
+4. `pnpm-lock.yaml` ternyata regenerate jadi identik dengan versi lama (tidak berubah) — cuma
+   `pnpm-workspace.yaml` yang perlu di-commit
+5. Commit & push: `git commit -m "Allow @google/genai build script (pnpm v11 allowBuilds) to fix Render deploy"`
+
+### Catatan Bug Lama yang Ditemukan (BELUM diperbaiki, TODO nanti)
+- Saat `git status` dijalankan tanpa filter file spesifik, muncul RIBUAN baris
+  `D node_modules/.pnpm/react-native@.../...` — artinya ada isi node_modules yang ke-track
+  di git sejak lama (bug lama, sudah dicatat sesi sebelumnya, high-risk untuk diperbaiki sekarang).
+- MITIGASI yang dipakai: SELALU `git status --short -- <file spesifik>` dan
+  `git add <file spesifik>` satu-satu, JANGAN PERNAH `git add .` atau `git add -A`.
+- Solusi permanen (bersihkan node_modules dari git tracking) masih belum dikerjakan — risiko
+  tinggi, perlu sesi terpisah yang fokus khusus untuk ini.
+
+### Hasil Deploy — VERIFIED DARI LOG RENDER ✓
+- `==> Build successful 🎉`
+- `==> Your service is live 🎉`
+- `[WHALE] Whale/smart money tracker started. Interval: 900s`
+- `[WHALE] sol: 10 trade ditemukan dari smart money`
+- `[WHALE] eth: 15 trade ditemukan dari smart money`
+- `[WHALE] Scan selesai. 0 alert terkirim.` — gmgn-cli BENAR-BENAR jalan dan dapat data asli,
+  tapi belum ada bukti alert Telegram konkret terkirim (bisa jadi semua kena cooldown filter,
+  atau belum ada trade baru yang lolos). BELUM DIVERIFIKASI apakah pesan Telegram whale
+  benar-benar sampai ke channel.
+- Semua sistem lain (signal cron, meme scanner, dex radar, daily-save) tetap jalan normal,
+  tidak ada regresi.
+
+### Belum Dikerjakan (lanjutkan sesi berikutnya)
+1. Verifikasi 3 env variable sudah ke-set di Render dashboard:
+   GMGN_API_KEY, WHALE_TELEGRAM_BOT_TOKEN, WHALE_TELEGRAM_CHAT_ID
+   (nilai-nilainya ada di sesi 2026-07-03 sebelumnya di file ini)
+2. Cek apakah tabel `whale_alerts` sudah dibuat di database — jalankan
+   `scripts/src/create-whale-alerts-table.ts` dari lokal kalau belum
+3. Pantau beberapa jam/hari untuk lihat apakah ada alert Telegram whale yang BENAR-BENAR
+   terkirim ke channel (bukan cuma "0 alert terkirim" terus-terusan)
+4. Item lama yang masih belum dikerjakan dari sesi 2026-07-03:
+   - Endpoint lama `/api/ai/whales` (pakai Gemini AI, data berpotensi halusinasi) — putuskan
+     apakah masih dipakai frontend, kalau iya perlu diganti dengan data whale_alerts asli
+   - Belum ada cron forward-test (ATH/status update) untuk whale_alerts
+   - Belum ada dashboard section untuk whale_alerts di `/api/cron/dashboard`
