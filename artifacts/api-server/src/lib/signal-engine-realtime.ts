@@ -187,7 +187,9 @@ export async function computeRealtimeSignal(symbol: string): Promise<RealtimeSig
   const conf = scored.score.total;
 
   let side: "BUY" | "SELL" | "NO_TRADE" = "NO_TRADE";
-  if (scored.bias === "BEARISH" && conf >= 45 && conf <= 55) side = "SELL";
+  // Filter trend1d ditambahkan 5 Juli 2026: SELL hanya kalau Daily trend juga BEARISH (searah)
+  // Backtest v3: versi searah-trend WR 50.0% (✅) vs 48.8% unfiltered (⚠️)
+  if (scored.bias === "BEARISH" && conf >= 45 && conf <= 55 && trend1dVal === "BEARISH") side = "SELL";
   // BUY disabled — re-enable setelah ada bukti zona profitable (backtest v3: semua bucket negatif)
 
   // ATR-based risk management
