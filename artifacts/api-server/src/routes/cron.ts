@@ -1004,11 +1004,18 @@ async function runWhaleScan() {
       const amountUsd = trade.amount_usd ?? trade.usd_value ?? 0;
       const priceUsd = trade.price_usd ?? trade.price ?? 0;
       const symbol = trade.token_symbol ?? trade.symbol ?? trade.base_token?.symbol ?? "?";
+      // Deteksi simpel: token dengan karakter non-ASCII (Cyrillic, CJK, dll) sering
+      // dipakai buat niru nama token asli (lookalike scam). Bukan filter blocking,
+      // cuma kasih warning visual di pesan Telegram.
+      const isSuspiciousSymbol = /[^\x00-\x7F]/.test(symbol);
 
       const chainLabel = chain === "sol" ? "Solana" : chain === "eth" ? "Ethereum" : chain.toUpperCase();
 
       let msg = `🐋 <b>WHALE ALERT — SMART MONEY BUY</b>\n`;
       msg += `━━━━━━━━━━━━━━━\n`;
+      if (isSuspiciousSymbol) {
+        msg += `⚠️ <b>WARNING:</b> nama token pakai karakter non-Latin — waspada lookalike/scam token.\n`;
+      }
       msg += `<b>Chain:</b> ${escapeHtml(chainLabel)}\n`;
       msg += `<b>Token:</b> ${escapeHtml(symbol)}\n`;
       msg += `<b>Token Address:</b> <code>${escapeHtml(token)}</code>\n`;
