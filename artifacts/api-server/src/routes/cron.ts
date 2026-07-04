@@ -947,6 +947,16 @@ const WASH_TRADE_WINDOW_MS = 10 * 60 * 1000; // 10 menit
 const WASH_TRADE_WALLET_THRESHOLD = 3; // >=3 wallet berbeda dalam window = mencurigakan
 const WASH_TRADE_SUPPRESS_MS = 24 * 60 * 60 * 1000; // token yang ke-flag di-skip 24 jam
 
+// Lapisan kedua: scammer sering deploy BANYAK kontrak berbeda dengan simbol
+// sama/mirip (misal лосось vs ЛОСОСЬ = 2 alamat token berbeda, nama "sama").
+// Filter alamat-kontrak di atas tidak nangkep ini. Di sini kita lacak per
+// (chain + simbol dinormalisasi), bukan per alamat token.
+function normalizeSymbol(symbol: string): string {
+  return symbol.trim().toLowerCase();
+}
+const whaleSymbolBuyerHistory = new Map<string, { wallet: string; token: string; ts: number }[]>(); // key: chain:normalizedSymbol
+const whaleSuspiciousSymbols = new Map<string, number>(); // key: chain:normalizedSymbol -> expiry timestamp
+
 interface GmgnSmartMoneyTrade {
   wallet_address?: string;
   maker?: string;
@@ -1010,7 +1020,10 @@ async function runWhaleScan() {
       const lastSent = whaleAlertCooldown.get(key) ?? 0;
       if (now - lastSent < WHALE_COOLDOWN_MS) continue;
 
-      // ── Cek wash trading ──────────────────────────────────────────
+      const symbol = trade.token_symbol ?? trade.symbol ?? trade.base_token?.symbol ?? "?";
+      const normalizedSymbol = normalizeSymbol(symbol);
+
+      // ── Cek wash trading: per alamat kontrak token ──────────────────
       const tokenKey = `${chain}:${token}`;
       const suspiciousUntil = whaleSuspiciousTokens.get(tokenKey) ?? 0;
       if (now < suspiciousUntil) {
@@ -1031,9 +1044,39 @@ async function runWhaleScan() {
         continue;
       }
 
+      // ── Cek wash trading: per nama simbol (nangkep scammer yang deploy ──
+      // banyak kontrak berbeda dengan nama sama/mirip, misal лосось vs ЛОСОСЬ) ──
+      if (normalizedSymbol && normalizedSymbol !== "?") {
+        const symbolKey = `${chain}:${normalizedSymbol}`;
+        const symbolSuspiciousUntil = whaleSuspiciousSymbols.get(symbolKey) ?? 0;
+        if (now < symbolSuspiciousUntil) {
+          console.log(`[WHALE] 🚨 Skip — simbol "${symbol}" (${chain}) ditandai wash trading, masih dalam masa suppress`);
+          continue;
+        }
+
+        const symbolHistory = (whaleSymbolBuyerHistory.get(symbolKey) ?? []).filter(
+          (b) => now - b.ts < WASH_TRADE_WINDOW_MS
+        );
+        symbolHistory.push({ wallet, token, ts: now });
+        whaleSymbolBuyerHistory.set(symbolKey, symbolHistory);
+
+        const walletTokensForSymbol = new Map<string, Set<string>>();
+        for (const b of symbolHistory) {
+          if (!walletTokensForSymbol.has(b.wallet)) walletTokensForSymbol.set(b.wallet, new Set());
+          walletTokensForSymbol.get(b.wallet)!.add(b.token);
+        }
+        const sameWalletMultiContract = [...walletTokensForSymbol.values()].some((s) => s.size >= 2);
+        const distinctWalletsForSymbol = walletTokensForSymbol.size;
+
+        if (sameWalletMultiContract || distinctWalletsForSymbol >= WASH_TRADE_WALLET_THRESHOLD) {
+          whaleSuspiciousSymbols.set(symbolKey, now + WASH_TRADE_SUPPRESS_MS);
+          console.log(`[WHALE] 🚨 Simbol "${symbol}" (${chain}) — pola mencurigakan (wallet sama beli >=2 kontrak berbeda dengan nama sama, dan/atau >=3 wallet berbeda). Skip & suppress 24 jam.`);
+          continue;
+        }
+      }
+
       const amountUsd = trade.amount_usd ?? trade.usd_value ?? 0;
       const priceUsd = trade.price_usd ?? trade.price ?? 0;
-      const symbol = trade.token_symbol ?? trade.symbol ?? trade.base_token?.symbol ?? "?";
       // Deteksi simpel: token dengan karakter non-ASCII (Cyrillic, CJK, dll) sering
       // dipakai buat niru nama token asli (lookalike scam). Bukan filter blocking,
       // cuma kasih warning visual di pesan Telegram.
