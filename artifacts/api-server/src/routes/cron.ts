@@ -938,6 +938,15 @@ const execFileAsync = promisify(execFile);
 const whaleAlertCooldown = new Map<string, number>(); // key: chain:wallet:token
 const WHALE_COOLDOWN_MS = 30 * 60 * 1000; // 30 menit per wallet+token, cegah spam
 
+// Deteksi wash trading: kalau banyak wallet berbeda "beli" token yang sama
+// dalam window waktu singkat, kemungkinan besar itu manipulasi terkoordinasi,
+// bukan smart money organik. Token yang kena flag di-skip total (bukan cuma badge).
+const whaleTokenBuyerHistory = new Map<string, { wallet: string; ts: number }[]>(); // key: chain:token
+const whaleSuspiciousTokens = new Map<string, number>(); // key: chain:token -> expiry timestamp
+const WASH_TRADE_WINDOW_MS = 10 * 60 * 1000; // 10 menit
+const WASH_TRADE_WALLET_THRESHOLD = 3; // >=3 wallet berbeda dalam window = mencurigakan
+const WASH_TRADE_SUPPRESS_MS = 24 * 60 * 60 * 1000; // token yang ke-flag di-skip 24 jam
+
 interface GmgnSmartMoneyTrade {
   wallet_address?: string;
   maker?: string;
@@ -1000,6 +1009,27 @@ async function runWhaleScan() {
       const key = `${chain}:${wallet}:${token}`;
       const lastSent = whaleAlertCooldown.get(key) ?? 0;
       if (now - lastSent < WHALE_COOLDOWN_MS) continue;
+
+      // ── Cek wash trading ──────────────────────────────────────────
+      const tokenKey = `${chain}:${token}`;
+      const suspiciousUntil = whaleSuspiciousTokens.get(tokenKey) ?? 0;
+      if (now < suspiciousUntil) {
+        console.log(`[WHALE] 🚨 Skip — ${tokenKey} ditandai wash trading, masih dalam masa suppress`);
+        continue;
+      }
+
+      const buyerHistory = (whaleTokenBuyerHistory.get(tokenKey) ?? []).filter(
+        (b) => now - b.ts < WASH_TRADE_WINDOW_MS
+      );
+      buyerHistory.push({ wallet, ts: now });
+      whaleTokenBuyerHistory.set(tokenKey, buyerHistory);
+
+      const distinctWallets = new Set(buyerHistory.map((b) => b.wallet)).size;
+      if (distinctWallets >= WASH_TRADE_WALLET_THRESHOLD) {
+        whaleSuspiciousTokens.set(tokenKey, now + WASH_TRADE_SUPPRESS_MS);
+        console.log(`[WHALE] 🚨 ${tokenKey} — ${distinctWallets} wallet berbeda beli dalam ${WASH_TRADE_WINDOW_MS / 60000} menit, kemungkinan wash trading. Skip & suppress 24 jam.`);
+        continue;
+      }
 
       const amountUsd = trade.amount_usd ?? trade.usd_value ?? 0;
       const priceUsd = trade.price_usd ?? trade.price ?? 0;
