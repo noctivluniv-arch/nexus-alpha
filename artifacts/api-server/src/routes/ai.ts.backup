@@ -25,6 +25,7 @@ import {
   orderFlowImbalance,
   liquidationLevels,
 } from "../lib/indicators";
+import { generateRuleBasedSignal } from "../lib/rule-based-engine";
 import {
 computeEnhancedIndicators,
 type EnhancedIndicators,
@@ -48,7 +49,25 @@ interface SignalCacheEntry {
   data: Record<string, unknown>;
 }
 const SIGNAL_CACHE = new Map<string, SignalCacheEntry>();
-const SIGNAL_TTL_MS = process.env.GEMINI_API_KEY ? 30 * 60 * 1000 : 5 * 60 * 1000;
+// 10 detik — cukup untuk feel "real-time" tanpa spam Binance/OKX di traffic tinggi.
+// Harga (livePrice) & semua indikator turunan selalu fresh setelah cache ini expire.
+const SIGNAL_TTL_MS = 10 * 1000;
+
+// FGI & BTC dominance bersifat GLOBAL (bukan per-pair) dan berubah lambat
+// (FGI update ~harian, BTC dom berubah dalam jam). Cache terpisah & dishare
+// antar pair, supaya CoinGecko (rate-limit ketat) tidak di-spam meski
+// SIGNAL_CACHE expire tiap 10 detik.
+interface MacroCacheEntry {
+  ts: number;
+  fgi: { value: number; label: string } | null;
+  btcGlobal: { btcDom: number; mcapChange24h: number } | null;
+}
+let macroCache: MacroCacheEntry | null = null;
+const MACRO_TTL_MS = 5 * 60 * 1000;
+
+// Funding rate/OI/LS ratio per-pair dari OKX — berubah dalam menit.
+const DERIV_CACHE = new Map<string, { ts: number; data: DerivData | null }>();
+const DERIV_TTL_MS = 60 * 1000;
 
 interface WhalesCacheEntry {
   ts: number;
@@ -222,9 +241,18 @@ AUTOMATIC REJECT — output NO_TRADE if ANY of these apply:
 - Funding rate > 0.15% for LONG signals
 - Price in middle of range (no clear S/R nearby)
 - Volume < 0.7x 30-day average
-- Score < 65 total
+- Score outside 45-55 zone
 
-If confidence < 65, output signal = "NO_TRADE". Never force trades. Patience is a trading edge. A missed trade costs nothing. A bad trade can cost everything.`;
+If confidence outside 45-55 zone, output signal = "NO_TRADE". 
+
+CRITICAL BIAS RULE: Do NOT default to SELL just because price is below EMA200. 
+- If RSI is recovering from oversold (< 35 → now rising), bias is BUY not SELL
+- If MACD histogram is turning positive (bearish → less bearish), look for BUY
+- If price is bouncing from major support, bias is BUY not SELL
+- SELL is only valid when: price at resistance + RSI overbought + MACD bearish cross + volume declining
+- When in doubt between BUY and NO_TRADE in an uptrend, prefer NO_TRADE
+- When in doubt between SELL and NO_TRADE in a downtrend, prefer NO_TRADE
+- NEVER force a directional signal just to give a trade. Patience is a trading edge.`;
 
 function buildMarketDataBlock(params: {
   pair: string;
@@ -323,14 +351,14 @@ const LAYER_3 = `Analyze the market data above. Step by step:
 3. Momentum: RSI+MACD+Stoch agreement? Divergence? Volume confirmation?
 4. Sentiment: does derivatives data (funding, OI, L/S ratio) support signal?
 5. Risk: logical stop (structural), R:R >= 1:2, invalidation conditions?
-6. Verdict: score each factor, output NO_TRADE if total < 65.
+6. Verdict: score each factor using the 45-55 sweet spot zone defined above. If confidence is within 45-55 AND direction is clear, output BUY or SELL. Otherwise NO_TRADE.
 Think like smart money, be contrarian at sentiment extremes.`;
 
 const LAYER_4 = `FINAL VALIDATION — reject (NO_TRADE) if ANY:
 - RSI > 80 (LONG) or RSI < 20 (SHORT) daily
 - Funding > 0.15% for LONG
 - Volume < 0.7x avg30
-- Score < 65
+- Score outside 45-55 zone
 - 4H and Daily trend disagree
 - R:R < 1:2
 
@@ -506,6 +534,87 @@ Output the SAME JSON structure with every value translated to Indonesian (keepin
   };
 }
 
+// ─── Spot Accumulation Zone Calculator ───────────────────────────────────────
+function computeSpotAccumulation(params: {
+  price: number;
+  sup1: number; sup2: number; sup3: number;
+  res1: number; res2: number; res3: number;
+  ema200: number | null;
+  rsi1d: number | null;
+  fgi: { value: number; label: string } | null;
+  fundingRate: number | null;
+  pair: string;
+}): Record<string, any> {
+  const { price, sup1, sup2, sup3, res1, res2, res3, ema200, rsi1d, fgi, fundingRate } = params;
+
+  // Aggressive: 1-3% di bawah harga sekarang atau support terdekat
+  const aggressiveLow = Math.min(price * 0.98, sup1 * 0.995);
+  const aggressiveHigh = Math.min(price * 0.995, sup1 * 1.002);
+
+  // Normal: support utama atau EMA200
+  const normalRef = ema200 != null ? Math.min(sup1, ema200) : sup1;
+  const normalLow = normalRef * 0.99;
+  const normalHigh = normalRef * 1.01;
+
+  // Conservative: support kuat / 20-30% di bawah harga
+  const conservativeLow = Math.min(sup2, sup3) * 0.99;
+  const conservativeHigh = Math.min(sup2, sup3) * 1.01;
+
+  // Kondisi ideal untuk beli spot
+  const idealConditions: string[] = [];
+  if (rsi1d != null) {
+    if (rsi1d < 35) idealConditions.push(`RSI 1D ${rsi1d.toFixed(1)} — oversold, ideal untuk akumulasi`);
+    else if (rsi1d < 50) idealConditions.push(`RSI 1D ${rsi1d.toFixed(1)} — zona netral-bearish, DCA boleh dimulai`);
+    else idealConditions.push(`RSI 1D ${rsi1d.toFixed(1)} — tunggu pullback untuk DCA lebih baik`);
+  }
+  if (fgi != null) {
+    if (fgi.value < 25) idealConditions.push(`Fear & Greed ${fgi.value} (${fgi.label}) — Extreme Fear, historis waktu terbaik beli`);
+    else if (fgi.value < 45) idealConditions.push(`Fear & Greed ${fgi.value} (${fgi.label}) — Fear zone, bagus untuk DCA`);
+    else if (fgi.value > 75) idealConditions.push(`Fear & Greed ${fgi.value} (${fgi.label}) — Greed tinggi, hindari FOMO buy`);
+    else idealConditions.push(`Fear & Greed ${fgi.value} (${fgi.label}) — netral`);
+  }
+  if (fundingRate != null) {
+    if (fundingRate < -0.01) idealConditions.push(`Funding rate ${(fundingRate * 100).toFixed(3)}% — negatif, shorts dominan → potensi squeeze naik`);
+    else if (fundingRate > 0.05) idealConditions.push(`Funding rate ${(fundingRate * 100).toFixed(3)}% — tinggi, longs overextended → hati-hati beli`);
+    else idealConditions.push(`Funding rate ${(fundingRate * 100).toFixed(3)}% — normal`);
+  }
+  if (ema200 != null) {
+    if (price < ema200) idealConditions.push(`Harga di bawah EMA200 ($${ema200.toFixed(2)}) — akumulasi jangka panjang valid`);
+    else idealConditions.push(`Harga di atas EMA200 ($${ema200.toFixed(2)}) — trend bullish, beli di pullback ke EMA`);
+  }
+
+  // Risk level
+  let riskLevel: "LOW" | "MEDIUM" | "HIGH" = "MEDIUM";
+  const rsiScore = rsi1d != null ? (rsi1d < 35 ? 0 : rsi1d < 50 ? 1 : 2) : 1;
+  const fgiScore = fgi != null ? (fgi.value < 25 ? 0 : fgi.value < 45 ? 1 : 2) : 1;
+  const totalRisk = rsiScore + fgiScore;
+  if (totalRisk <= 1) riskLevel = "LOW";
+  else if (totalRisk <= 3) riskLevel = "MEDIUM";
+  else riskLevel = "HIGH";
+
+  // DCA Strategy
+  let dcaStrategy = "";
+  if (riskLevel === "LOW") {
+    dcaStrategy = "Kondisi oversold — alokasikan 40% di zona aggressive, 40% normal, 20% conservative";
+  } else if (riskLevel === "MEDIUM") {
+    dcaStrategy = "Kondisi netral — alokasikan 20% aggressive, 50% normal, 30% conservative. DCA bertahap";
+  } else {
+    dcaStrategy = "Kondisi overbought/fear rendah — tunggu correction. Alokasikan 10% aggressive, 30% normal, 60% conservative";
+  }
+
+  const fmt = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+
+  return {
+    aggressive: `${fmt(aggressiveLow)} - ${fmt(aggressiveHigh)}`,
+    normal: `${fmt(normalLow)} - ${fmt(normalHigh)}`,
+    conservative: `${fmt(conservativeLow)} - ${fmt(conservativeHigh)}`,
+    idealConditions,
+    longTermTarget: fmt(res3),
+    dcaStrategy,
+    riskLevel,
+  };
+}
+
 function buildFallbackSignal(params: {
   pair: string;
   livePrice: number;
@@ -524,21 +633,68 @@ function buildFallbackSignal(params: {
   const id = lang === "id";
 
   const aboveEma200 = ema200 != null && p > ema200;
+  const belowEma200 = ema200 != null && p < ema200;
   const ema20AboveEma50 = ema20 != null && ema50 != null && ema20 > ema50;
-  const rsiNeutral = rsi1d != null && rsi1d > 40 && rsi1d < 70;
+  const ema20BelowEma50 = ema20 != null && ema50 != null && ema20 < ema50;
   const macdBull = macd4h != null && macd4h.histogram > 0;
+  const macdBear = macd4h != null && macd4h.histogram < 0;
 
-  let score = 50;
-  if (aboveEma200) score += 15;
-  if (ema20AboveEma50) score += 10;
-  if (rsiNeutral) score += 10;
-  if (macdBull) score += 10;
+  // RSI conditions
+  const rsiOversold  = rsi1d != null && rsi1d < 35;   // potential long reversal
+  const rsiOverbought= rsi1d != null && rsi1d > 68;   // potential short
+  const rsiBullZone  = rsi1d != null && rsi1d >= 45 && rsi1d <= 68;
+  const rsiBearZone  = rsi1d != null && rsi1d >= 35 && rsi1d < 50;
+  const rsi4hOversold   = rsi4h != null && rsi4h < 35;
+  const rsi4hOverbought = rsi4h != null && rsi4h > 68;
+
+  // ── LONG score ──────────────────────────────────────────────────────────
+  let longScore = 40;
+  if (aboveEma200)      longScore += 18;   // price above EMA200 = bullish structure
+  if (ema20AboveEma50)  longScore += 10;   // short EMA above long EMA = momentum up
+  if (macdBull)         longScore += 10;   // MACD histogram positive
+  if (rsiBullZone)      longScore += 8;    // RSI in healthy bull zone
+  if (rsiOversold)      longScore += 12;   // oversold = bounce potential
+  if (rsi4hOversold)    longScore += 7;    // 4H also oversold = stronger signal
+  if (trend4h === "BULLISH") longScore += 10;
+  if (trend4h === "BEARISH") longScore -= 15; // strong penalty for counter-trend long
+
+  // ── SHORT score ─────────────────────────────────────────────────────────
+  let shortScore = 40;
+  if (belowEma200)      shortScore += 18;  // price below EMA200 = bearish structure
+  if (ema20BelowEma50)  shortScore += 10;  // short EMA below long EMA = momentum down
+  if (macdBear)         shortScore += 10;  // MACD histogram negative
+  if (rsiBearZone)      shortScore += 8;   // RSI in bear zone
+  if (rsiOverbought)    shortScore += 12;  // overbought = rejection potential
+  if (rsi4hOverbought)  shortScore += 7;   // 4H also overbought = stronger signal
+  if (trend4h === "BEARISH") shortScore += 10;
+  if (trend4h === "BULLISH") shortScore -= 15; // strong penalty for counter-trend short
+
+  // ── Determine side ──────────────────────────────────────────────────────
+  // SELL signal needs stronger confirmation to avoid false shorts
+  const LONG_THRESHOLD  = 58;
+  const SHORT_THRESHOLD = 62;
 
   let side: "BUY" | "SELL" | "NO_TRADE" = "NO_TRADE";
-  if (score >= 70 && trend4h !== "BEARISH") side = "BUY";
-  else if (score < 40 || trend4h === "BEARISH") side = "SELL";
+  let score = 50;
+  if (longScore >= LONG_THRESHOLD && longScore > shortScore) {
+    side = "BUY";
+    score = Math.min(longScore, 88);
+  } else if (shortScore >= SHORT_THRESHOLD && shortScore > longScore) {
+    side = "SELL";
+    score = Math.min(shortScore, 88);
+  } else {
+    // No clear signal — take the higher of the two as confidence indicator
+    score = Math.max(longScore, shortScore);
+  }
 
-  const sl = side === "BUY" ? sup1 : res1;
+  // ── ATR-based Stop Loss (more accurate than fixed %) ───────────────────
+  // Estimate ATR as 1.5% of price if no ATR data available
+  const estimatedAtr = p * 0.015;
+  const atrMultiplier = 1.8;
+  const slLong  = Math.min(sup1, p - estimatedAtr * atrMultiplier);
+  const slShort = Math.max(res1, p + estimatedAtr * atrMultiplier);
+  const sl = side === "BUY" ? slLong : side === "SELL" ? slShort : sup1;
+
   const riskAmt = Math.abs(p - sl) || p * 0.02;
   const tp1 = side === "BUY" ? p + riskAmt * 1.5 : p - riskAmt * 1.5;
   const tp2 = side === "BUY" ? p + riskAmt * 2.5 : p - riskAmt * 2.5;
@@ -561,18 +717,26 @@ function buildFallbackSignal(params: {
     stopLoss: `$${sl.toFixed(2)}`,
     stopLossRiskPct: `${riskPct}%`,
     confidence: Math.min(score, 88),
-    // Enforce NO_TRADE rule: if score < 65, override side
-    ...(score < 65 ? { side: "NO_TRADE", noTrade: true, noTradeReason: id ? "Skor kepercayaan di bawah ambang minimum 65. Tidak ada trade." : "Confidence score below minimum threshold of 65. No trade." } : {}),
+    // Enforce NO_TRADE rule: confidence must be within 45-55 sweet spot zone
+    ...(side === "NO_TRADE" ? { noTrade: true, noTradeReason: id ? "Konfluensi teknikal belum cukup kuat. Tunggu setup yang lebih jelas." : "Technical confluence not strong enough. Wait for a clearer setup." } : {}),
     timestamp: Date.now(),
     reasoning: id
-      ? `Sinyal teknikal otomatis. EMA200: harga ${aboveEma200 ? "di atas" : "di bawah"} EMA200. RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"}. MACD 4H: ${macdBull ? "bullish" : "bearish"}. Tren 4H: ${trend4h}.`
-      : `Automated technical signal. EMA200: price is ${aboveEma200 ? "above" : "below"} EMA200. RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"}. MACD 4H: ${macdBull ? "bullish" : "bearish"}. 4H Trend: ${trend4h}.`,
+      ? `Sinyal teknikal otomatis [${side}]. EMA200: harga ${aboveEma200 ? "di atas" : "di bawah"} EMA200. RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"}${rsiOversold ? " (oversold-potensi reversal)" : rsiOverbought ? " (overbought-potensi koreksi)" : ""}. MACD 4H: ${macdBull ? "bullish" : "bearish"}. Tren 4H: ${trend4h}. Skor Long: ${longScore} | Skor Short: ${shortScore}.`
+      : `Automated technical signal [${side}]. EMA200: price ${aboveEma200 ? "above" : "below"} EMA200. RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"}${rsiOversold ? " (oversold-reversal potential)" : rsiOverbought ? " (overbought-correction potential)" : ""}. MACD 4H: ${macdBull ? "bullish" : "bearish"}. 4H Trend: ${trend4h}. Long Score: ${longScore} | Short Score: ${shortScore}.`,
     traderStyle: "Technical Analysis — EMA + RSI + MACD Confluence",
     leverage: side === "NO_TRADE" ? "1x (spot)" : "3-5x",
     expertMindset: id
       ? "Disiplin teknikal: tunggu konfirmasi sebelum entry. Jaga risiko maksimal 1-2% per trade."
       : "Technical discipline: wait for confirmation before entry. Keep risk at 1-2% per trade.",
     spotEntry: `$${sup2.toFixed(2)} - $${sup1.toFixed(2)}`,
+    spotAccumulation: computeSpotAccumulation({
+      price: p, sup1, sup2, sup3, res1, res2, res3,
+      ema200: ema200 ?? null,
+      rsi1d: rsi1d ?? null,
+      fgi: null,
+      fundingRate: null,
+      pair: params.pair,
+    }),
     longTermTarget: `$${res3.toFixed(2)}`,
     keySupport: `$${sup1.toFixed(2)}`,
     keyResistance: `$${res1.toFixed(2)}`,
@@ -585,16 +749,19 @@ function buildFallbackSignal(params: {
       : `Setup invalidated on a close below $${sl.toFixed(2)}`,
     confluences: [
       id ? `EMA stack: harga ${aboveEma200 ? "di atas" : "di bawah"} EMA200` : `EMA stack: price ${aboveEma200 ? "above" : "below"} EMA200`,
-      id ? `RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"} — ${rsiNeutral ? "zona netral" : "perlu perhatian"}` : `RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"} — ${rsiNeutral ? "neutral zone" : "watch closely"}`,
+      id ? `RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"} — ${rsiOversold ? "oversold-potensi reversal" : rsiOverbought ? "overbought-potensi koreksi" : rsiBullZone ? "zona bullish" : rsiBearZone ? "zona bearish" : "netral"}` : `RSI 1D: ${rsi1d?.toFixed(1) ?? "N/A"} — ${rsiOversold ? "oversold-reversal potential" : rsiOverbought ? "overbought-correction potential" : rsiBullZone ? "bull zone" : rsiBearZone ? "bear zone" : "neutral"}`,
       id ? `MACD 4H histogram: ${macdBull ? "positif (bullish)" : "negatif (bearish)"}` : `MACD 4H histogram: ${macdBull ? "positive (bullish)" : "negative (bearish)"}`,
       id ? `EMA 20/50: ${ema20AboveEma50 ? "bullish crossover" : "belum crossover"}` : `EMA 20/50: ${ema20AboveEma50 ? "bullish alignment" : "not aligned yet"}`,
     ],
     scoreBreakdown: {
-      trend: aboveEma200 ? 75 : 30,
+      trend: aboveEma200 ? 72 : belowEma200 ? 28 : 50,
+      confluence: (rsiBullZone || rsiOversold) ? 68 : (rsiBearZone || rsiOverbought) ? 32 : 50,
+      srLevel: side === "BUY" ? 60 : side === "SELL" ? 40 : 50,
       volume: 50,
-      sentiment: 50,
-      momentum: macdBull ? 70 : 30,
-      structure: ema20AboveEma50 ? 70 : 30,
+      sentiment: (rsiOversold || rsi4hOversold) ? 65 : (rsiOverbought || rsi4hOverbought) ? 35 : 50,
+      funding: 50,
+      macro: trend4h === "BULLISH" ? 65 : trend4h === "BEARISH" ? 35 : 50,
+      total: Math.min(score, 88),
     },
     priceScenarios: {
       bearishTarget: `$${sup3.toFixed(2)}`,
@@ -653,7 +820,7 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
         );
         SIGNAL_CACHE.set(cacheKey, { ts: Date.now(), data: idPayload });
         return res.json({ ...idPayload, fromCache: true });
-      } catch (err: any) {
+      } catch (err) {
         req.log.warn(
           { err: err?.message, pair },
           "Translation from cached EN failed; regenerating",
@@ -662,14 +829,34 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
     }
   }
 
-  const [ohlc, [derivData, fgiData, btcGlobal]] = await Promise.all([
-    getOHLC(String(pair), 90),
-    Promise.allSettled([
-      fetchDerivatives(String(pair)),
-      fetchFearGreed(),
-      fetchBtcDom(),
-    ]),
+  const pairStr = String(pair);
+
+  const [derivVal, macroVal, ohlc] = await Promise.all([
+    (async () => {
+      const cached = DERIV_CACHE.get(pairStr);
+      if (cached && Date.now() - cached.ts < DERIV_TTL_MS) return cached.data;
+      const fresh = await fetchDerivatives(pairStr);
+      DERIV_CACHE.set(pairStr, { ts: Date.now(), data: fresh });
+      return fresh;
+    })(),
+    (async () => {
+      if (macroCache && Date.now() - macroCache.ts < MACRO_TTL_MS) {
+        return { fgi: macroCache.fgi, btcGlobal: macroCache.btcGlobal };
+      }
+      const [fgiR, btcR] = await Promise.allSettled([fetchFearGreed(), fetchBtcDom()]);
+      const fgi = fgiR.status === "fulfilled" ? fgiR.value : null;
+      const btcGlobalFresh = btcR.status === "fulfilled" ? btcR.value : null;
+      macroCache = { ts: Date.now(), fgi, btcGlobal: btcGlobalFresh };
+      return { fgi, btcGlobal: btcGlobalFresh };
+    })(),
+    getOHLC(pairStr, 90),
   ]);
+
+  // Bentuk ulang sebagai PromiseSettledResult-like agar kode downstream
+  // (yang sudah ada, mengakses .status/.value) tetap berjalan tanpa diubah.
+  const derivData = { status: "fulfilled" as const, value: derivVal };
+  const fgiData = { status: "fulfilled" as const, value: macroVal.fgi };
+  const btcGlobal = { status: "fulfilled" as const, value: macroVal.btcGlobal };
 
   let livePrice = parseFloat(priceData?.lastPrice ?? "0");
   const change24h = priceData?.priceChangePercent ?? "0";
@@ -710,6 +897,11 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
   let sup1 = livePrice;
   let sup2 = livePrice;
   let sup3 = livePrice;
+
+  let vwapVal: ReturnType<typeof vwap> | null = null;
+  let ichimokuVal: ReturnType<typeof ichimoku> | null = null;
+  let waveTrendVal: ReturnType<typeof waveTrend> | null = null;
+  let pivots: ReturnType<typeof pivotPoints> | null = null;
 
   if (ohlc && ohlc.daily.closes.length > 30) {
     // Hourly bars (~300 × 1H = 12.5 days) → aggregate to 4H buckets for
@@ -755,7 +947,12 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
     );
     bbVal = bollinger(daily.closes, 20, 2);
 
-    const vp = volumeProfile(daily.volumes.slice(-30));
+    // Exclude the last daily candle: OKX daily candles use UTC+8 day boundaries,
+    // so the most recent candle is often still IN-PROGRESS (partial day volume).
+    // Comparing a partial day's volume against a 30-day average of FULL days
+    // creates a systematic downward bias on volRatio. Use the last 30 CLOSED
+    // days instead (recent = yesterday's full volume).
+    const vp = volumeProfile(daily.volumes.slice(-31, -1));
     volAvg30 = vp.avg;
     volRecent = vp.recent;
     volSpike = vp.spike;
@@ -793,13 +990,13 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
     bos = bosLevel(candles4h.highs, candles4h.lows, candles4h.closes, 20);
 
     // New indicators
-    const vwapVal = vwap(daily.highs, daily.lows, daily.closes, daily.volumes);
-    const ichimokuVal = ichimoku(daily.highs, daily.lows, daily.closes);
-    const waveTrendVal = waveTrend(candles4h.highs, candles4h.lows, candles4h.closes);
+    vwapVal = vwap(daily.highs, daily.lows, daily.closes, daily.volumes);
+    ichimokuVal = ichimoku(daily.highs, daily.lows, daily.closes);
+    waveTrendVal = waveTrend(candles4h.highs, candles4h.lows, candles4h.closes);
     const dailyHighPrev = daily.highs[daily.highs.length - 2] ?? daily.highs[daily.highs.length - 1];
     const dailyLowPrev = daily.lows[daily.lows.length - 2] ?? daily.lows[daily.lows.length - 1];
     const dailyClosePrev = daily.closes[daily.closes.length - 2] ?? daily.closes[daily.closes.length - 1];
-    const pivots = pivotPoints(dailyHighPrev, dailyLowPrev, dailyClosePrev);
+    pivots = pivotPoints(dailyHighPrev, dailyLowPrev, dailyClosePrev);
     const ofi = orderFlowImbalance(
       daily.closes.map((c, i) => i === 0 ? c : daily.closes[i-1]),
       daily.closes,
@@ -915,6 +1112,103 @@ Output the complete JSON signal. All price fields must use actual numeric values
 If EV grade is F (negative expectancy), default to NO_TRADE.
 ${buildLanguageDirective("en")}`;
 
+  // ─── Rule-Based Engine (primary) ────────────────────────────────────────
+  const rsi1hData = ohlc ? (() => {
+    const candles1h = ohlc.hourly;
+    return rsi(candles1h.closes, 14);
+  })() : null;
+
+  const stoch1hData = ohlc ? (() => {
+    const candles1h = ohlc.hourly;
+    return stochastic(candles1h.highs, candles1h.lows, candles1h.closes);
+  })() : null;
+
+  const macd1dData = ohlc ? macd(ohlc.daily.closes) : null;
+
+  const ruleSignal = generateRuleBasedSignal({
+    pair: String(pair),
+    price: livePrice,
+    ema20: ema20Val, ema50: ema50Val, ema200: ema200Val,
+    rsi1h: rsi1hData, rsi4h: rsi4hVal, rsi1d: rsi1dVal, rsi1w: rsi1wVal,
+    rsiDivergence: rsiDiv,
+    macd4h: macd4hVal, macd1d: macd1dData,
+    bb: bbVal, stoch4h: stoch4hVal, stoch1h: stoch1hData,
+    volAvg30, volRecent,
+    volH1: ohlc?.hourly.volumes.slice(-1)[0] ?? 0,
+    volH6: ohlc?.hourly.volumes.slice(-6).reduce((a,b) => a+b, 0) ?? 0,
+    trend4h, trend1d: trend4h,
+    bos, sup1, sup2, sup3, res1, res2, res3,
+    ichimoku: ichimokuVal ?? null,
+    waveTrend: waveTrendVal ?? null,
+    vwap: vwapVal ?? null,
+    pivots: pivots ?? null,
+    fundingRate: deriv?.fundingRate ?? null,
+    lsRatio: deriv?.lsRatio ?? null,
+    oiUsd: null,
+    fgi, btcDom: global?.btcDom ?? null,
+    atr14: atr(ohlc?.daily.highs ?? [], ohlc?.daily.lows ?? [], ohlc?.daily.closes ?? [], 14),
+    change24h, high24h, low24h,
+  });
+
+  // Cache and return rule-based signal
+  const ruleResult = {
+    pair: String(pair),
+    side: ruleSignal.side,
+    noTrade: ruleSignal.side === "NO_TRADE",
+    noTradeReason: ruleSignal.noTradeReason ?? "",
+    entryRange: ruleSignal.entryRange,
+    entryPrice: ruleSignal.entryRange.split(" - ")[0],
+    takeProfit: ruleSignal.takeProfit,
+    takeProfitRR: ruleSignal.takeProfitRR,
+    stopLoss: ruleSignal.stopLoss,
+    stopLossRiskPct: ruleSignal.stopLossRiskPct,
+    confidence: ruleSignal.confidence,
+    timestamp: Date.now(),
+    reasoning: ruleSignal.reasoning,
+    traderStyle: ruleSignal.traderStyle,
+    leverage: ruleSignal.leverage,
+    expertMindset: ruleSignal.expertMindset,
+    spotEntry: ruleSignal.spotEntry,
+    longTermTarget: ruleSignal.longTermTarget,
+    keySupport: ruleSignal.keySupport,
+    keyResistance: ruleSignal.keyResistance,
+    marketStructure: trend4h === "BULLISH" ? "BULLISH" : trend4h === "BEARISH" ? "BEARISH" : "RANGING",
+    riskReward: ruleSignal.riskReward,
+    timeframe: ruleSignal.timeframe,
+    validUntil: new Date(Date.now() + SIGNAL_TTL_MS).toISOString(),
+    confluences: ruleSignal.confluences,
+    invalidation: ruleSignal.invalidation,
+    scoreBreakdown: ruleSignal.scoreBreakdown,
+    priceScenarios: {
+      bullishTarget: ruleSignal.bullishTarget,
+      bullishTimeframe: "2-4 minggu",
+      bullishCondition: `Jika harga tembus resistance ${ruleSignal.keyResistance}`,
+      bearishTarget: ruleSignal.bearishTarget,
+      bearishTimeframe: "2-4 minggu",
+      bearishCondition: `Jika harga tembus support ${ruleSignal.keySupport}`,
+      baseCase: ruleSignal.baseCase,
+    },
+    scalpingPlan: {
+      side: ruleSignal.scalpSide,
+      entryPrice: ruleSignal.scalpEntry,
+      entryTrigger: ruleSignal.scalpTrigger,
+      stopLoss: ruleSignal.scalpSL,
+      takeProfit: ruleSignal.scalpTP,
+      takeProfitRR: ["1:1.5", "1:2.5", "1:4"],
+      leverage: ruleSignal.scalpLeverage,
+      timeframe: "1H",
+      holdTime: "15m - 4j",
+      sessionWindow: "NY/London open",
+      notes: ruleSignal.scalpNotes,
+      riskManagement: ruleSignal.scalpRiskManagement,
+    },
+  };
+
+  SIGNAL_CACHE.set(cacheKey, { ts: Date.now(), data: ruleResult });
+  return res.json(ruleResult);
+
+  // ─── Gemini AI (kept as backup, disabled for now) ─────────────────────────
+  if (false) {
   try {
     const response = await withTimeout<GenerateContentResponse>(ai.models.generateContent({
       model: MODEL,
@@ -1142,16 +1436,28 @@ ${buildLanguageDirective("en")}`;
     let idPayload: Record<string, any>;
     try {
       idPayload = await translateSignalToIndonesian(englishPayload);
-    } catch (err: any) {
+    } catch (err) {
       req.log.warn(
         { err: err?.message, pair },
         "Indonesian translation failed; serving English canonical",
       );
       idPayload = englishPayload;
     }
+    // Enrich with spot accumulation zone
+    const spotAccum = computeSpotAccumulation({
+      price: livePrice,
+      sup1, sup2, sup3, res1, res2, res3,
+      ema200: ema200Val ?? null,
+      rsi1d: rsi1dVal ?? null,
+      fgi: fgiData.status === "fulfilled" ? fgiData.value : null,
+      fundingRate: derivData.status === "fulfilled" ? (derivData.value?.fundingRate ?? null) : null,
+      pair: String(pair),
+    });
+    idPayload.spotAccumulation = spotAccum;
+
     SIGNAL_CACHE.set(cacheKey, { ts: Date.now(), data: idPayload });
     return res.json(idPayload);
-  } catch (err: any) {
+  } catch (err) {
     req.log.error({ err: err?.message }, "AI signal failed");
     const isQuotaErr =
       err?.message?.includes("429") || err?.message?.includes("RESOURCE_EXHAUSTED") ||
@@ -1174,6 +1480,7 @@ ${buildLanguageDirective("en")}`;
       return res.status(429).json({ error: "QUOTA_EXCEEDED" });
     }
     return res.status(500).json({ error: "AI generation failed" });
+  }
   }
 });
 
@@ -1237,7 +1544,7 @@ router.post("/ai/whales", requireAppSecret, aiLimiter, async (req: Request, res:
   try {
     const list = await whalesAiInflight;
     return res.json(list);
-  } catch (err: any) {
+  } catch (err) {
     req.log.error({ err: err?.message }, "AI whales failed");
     if (
       err?.message?.includes("429") || err?.message?.includes("RESOURCE_EXHAUSTED") ||
@@ -1293,7 +1600,12 @@ async function prewarmSignal(pair: string): Promise<void> {
     const macd4hVal = macd(candles4h.closes);
     const stoch4hVal = stochastic(candles4h.highs, candles4h.lows, candles4h.closes);
     const bbVal = bollinger(daily.closes, 20, 2);
-    const vp = volumeProfile(daily.volumes.slice(-30));
+    // Exclude the last daily candle: OKX daily candles use UTC+8 day boundaries,
+    // so the most recent candle is often still IN-PROGRESS (partial day volume).
+    // Comparing a partial day's volume against a 30-day average of FULL days
+    // creates a systematic downward bias on volRatio. Use the last 30 CLOSED
+    // days instead (recent = yesterday's full volume).
+    const vp = volumeProfile(daily.volumes.slice(-31, -1));
     const obvTrendStr = obvTrend(daily.closes, daily.volumes);
     const rsiDiv = detectRsiDivergence(daily.closes, 20);
     const swing7d = swingLevels(candles4h.highs, candles4h.lows, 42);
