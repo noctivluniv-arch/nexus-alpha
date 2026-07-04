@@ -900,3 +900,45 @@ Ditemukan root `.gitignore` cuma exclude `.DS_Store`, tidak ada `node_modules/` 
 - Monitor beberapa hari: apakah 22 alert/scan itu wajar atau kebanyakan noise (cooldown-nya sudah pas?)
 - Belum dicek: apakah channel Telegram whale terpisah dari channel signal/meme (biar tidak campur aduk)
 - `/api/ai/whales` (Gemini-based) dikonfirmasi dead code, tidak dipakai frontend manapun — aman dihapus kapan saja kalau mau beres-beres lebih lanjut
+
+---
+
+## Update sesi 4 Juli 2026 (lanjutan) — Wash Trading Filter untuk Whale Tracker
+
+### Masalah yang ditemukan
+Setelah whale tracker jalan normal (22-23 alert/scan), ketahuan banyak alert berasal dari token lookalike/scam — contoh nama pakai huruf Cyrillic niru token asli: `лосось`/`ЛОСОСЬ`/`лось` (mirip "salmon"/"elk" dalam bahasa Rusia), muncul berkali-kali dari banyak wallet berbeda dalam window waktu singkat. Polanya khas wash trading terkoordinasi, bukan smart money organik.
+
+Diputuskan **tidak pakai GoPlus security filter** (mahal, sering kena rate limit 4029, nambah delay) — dan dikonfirmasi GoPlus memang cuma dipakai di meme scanner (`memes.ts`), tidak pernah terhubung ke whale scan (`cron.ts`).
+
+### Solusi: filter wash-trading 2 lapis (built-in, tanpa API tambahan)
+1. **Per alamat kontrak token** — kalau ≥3 wallet berbeda beli token (alamat sama) dalam window 10 menit → skip & suppress token itu 24 jam.
+2. **Per nama simbol (case-insensitive)** — nangkep pola yang lebih canggih: scammer deploy banyak kontrak berbeda dengan nama sama/mirip (misal лосось vs ЛОСОСЬ = alamat kontrak beda tapi nama sama). Trigger kalau:
+   - Wallet yang sama beli token dengan nama sama dari ≥2 kontrak berbeda, ATAU
+   - ≥3 wallet berbeda beli token dengan nama sama (lintas kontrak)
+   
+   Kalau kena, simbol itu di-suppress 24 jam (semua kontrak dengan nama itu ikut ke-skip).
+
+Implementasi: in-memory `Map` (whaleTokenBuyerHistory, whaleSuspiciousTokens, whaleSymbolBuyerHistory, whaleSuspiciousSymbols), reset kalau server restart (bukan persisten ke DB — cukup untuk kebutuhan sekarang, bisa dipindah ke DB kalau restart jadi masalah).
+
+### Badge tambahan (lapisan ketiga, non-blocking)
+Untuk token yang lolos dari 2 filter di atas tapi tetap namanya pakai karakter non-Latin, tetap dikasih warning di pesan Telegram: `⚠️ WARNING: nama token pakai karakter non-Latin — waspada lookalike/scam token.`
+
+### Hasil verifikasi (log Render)
+- Filter alamat kontrak terbukti trigger: `eth:0x7a22af4a3832ea8fd8b8895f893d9fed617ee458 — 3 wallet berbeda beli dalam 10 menit`
+- Filter simbol terbukti bekerja: keluarga лосось/ЛОСОСЬ/лось tidak lagi muncul di alert baru setelah fix (cuma nongol di forward-test check buat record lama sebelum fix)
+- Total alert per scan turun dari 22-23 → 14, tanpa kehilangan sinyal dari wallet yang genuinely independen (contoh: SALMON masih lolos karena baru 2 wallet berbeda, belum kena threshold 3)
+
+### Status whale tracker sekarang: FULLY OPERATIONAL + FILTERED
+- Scan tiap 15 menit ✅
+- Forward-test tiap 6 jam ✅
+- Dashboard section ✅
+- Badge warning karakter non-Latin ✅
+- Filter wash-trading per alamat kontrak ✅
+- Filter wash-trading per nama simbol (cross-contract) ✅
+
+### Belum Dikerjakan (update)
+- Monitor beberapa hari lagi: apakah 14 alert/scan masih ada noise, atau threshold (3 wallet / 10 menit / 24 jam suppress) perlu di-tuning
+- Pertimbangkan pindahkan wash-trade state dari in-memory Map ke DB kalau server sering restart (biar suppress list tidak ke-reset)
+- Belum dicek: apakah channel Telegram whale terpisah dari channel signal/meme
+- `/api/ai/whales` (Gemini-based) masih dead code, aman dihapus kapan saja
+- **Investigasi belum jalan:** kenapa signal SELL forward-test 0% win rate (4/4 loss saat terakhir dicek) — backtest bilang 48.8% WR, realita jauh di bawah. Perlu di-follow-up.
