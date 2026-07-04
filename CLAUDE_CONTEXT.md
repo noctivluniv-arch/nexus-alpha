@@ -980,3 +980,46 @@ Tujuan utama: profit konsisten, benerin fondasi dulu sebelum kejar profit besar.
 3. Walk-forward validation: pisah data training vs testing biar tau edge asli atau overfit
 4. Tambah rekomendasi leverage + position sizing (non-binding) di pesan Telegram sinyal
 5. (Longer term) Evaluasi apakah pendekatan TA lagging (EMA/RSI/MACD) masih punya edge di market yang makin efisien, atau perlu pivot ke sumber informasi lain (whale tracker dinilai lebih menjanjikan karena ngikutin transaksi riil, bukan pola grafik)
+
+---
+
+## Update sesi 5 Juli 2026 — Circuit Breaker SELESAI ✅ (Prioritas #1)
+
+### Yang Sudah Dikerjakan
+- Tabel baru `circuit_breaker` dibuat di PostgreSQL (via node .cjs script langsung, sama pola seperti tabel lain)
+  - Kolom: pair (PK), consecutive_losses, last_loss_at, paused_until, updated_at
+  - Schema Drizzle: lib/db/src/schema/circuit-breaker.ts
+  - Script buat tabel: scripts/src/create-circuit-breaker-table.cjs (pakai `node` biasa, BUKAN tsx — hindari masalah esbuild yang sering muncul di project ini)
+- cron.ts dipatch (5 bagian):
+  1. Import `circuitBreaker` dari `@workspace/db`
+  2. Fungsi `isCircuitBreakerPaused(pair)` — cek apakah pair sedang di-pause
+  3. Fungsi `recordCircuitBreakerResult(pair, status)` — dipanggil tiap signal closed:
+     - SL_HIT → tambah consecutive_losses; kalau sudah 4x → paused_until = now + 7 hari
+     - TP3_HIT → reset consecutive_losses ke 0, paused_until = null
+  4. Di `runSignalScan()`: sebelum kirim Telegram, cek `isCircuitBreakerPaused(pair)` dulu — kalau true, skip kirim & lanjut ke pair berikutnya
+  5. Di `checkOpenSignals()`: setelah signal closed (TP3_HIT/SL_HIT), panggil `recordCircuitBreakerResult()`
+- Endpoint baru:
+  - `GET /api/cron/circuit-breaker/status` — lihat status semua pair (consecutive_losses, paused_until)
+  - `POST /api/cron/circuit-breaker/reset/:pair` — reset manual paksa (misal: `reset/SOLUSDT`)
+
+### Keputusan Desain
+- Threshold: 4x SL_HIT berturut-turut → pause
+- Durasi pause: 7 hari (auto-reset), atau manual kapan saja lewat endpoint reset
+- Scope: PER PAIR (bukan global) — SOLUSDT bisa di-pause sementara BTCUSDT tetap jalan normal
+- Fail-safe: kalau ada error saat cek/catat status circuit breaker (misal DB down), sinyal TETAP dikirim seperti biasa (tidak mau 1 bug kecil bikin semua sinyal berhenti total). Error tetap dicatat di log Render.
+
+### Hasil Deploy — VERIFIED ✅
+- Build & deploy Render sukses tanpa error
+- `curl https://nexus-alpha-j3yb.onrender.com/api/cron/circuit-breaker/status` → `[]` (kosong, normal — belum ada pair yang kena pause sejak fitur ini aktif)
+- Belum ada data forward-test untuk circuit breaker ini sendiri (baru live hari ini) — pantau beberapa minggu ke depan apakah threshold 4x/7hari sudah pas atau perlu di-tuning
+
+### Status: FULLY OPERATIONAL
+
+---
+
+## Prioritas Selanjutnya (disepakati, urutan 1/1 — kerjakan satu-satu)
+
+1. ~~Circuit breaker~~ — DONE ✅ (5 Juli 2026)
+2. **Filter trend1d** — syarat tambahan: sinyal SELL hanya boleh terkirim kalau trend Daily (EMA50/200) juga BEARISH (searah trend). Backtest v3 menunjukkan versi searah-trend punya WR lebih baik (50.0% vs 48.8% unfiltered) dan ditandai ✅ oleh tools backtest (bukan ⚠️ seperti versi unfiltered yang dipakai production sekarang). Field `trend1d` di signal-engine-realtime.ts SUDAH benar (bug lama sudah di-fix sesi 2026-06-30), tinggal dipakai sebagai syarat tambahan di logika kirim sinyal — BELUM DIKERJAKAN.
+3. **Walk-forward validation** — backtest saat ini in-sample (rawan overfitting), perlu dipisah data training vs testing untuk tau edge asli — BELUM DIKERJAKAN.
+4. **Saran leverage & position sizing** (non-binding) ditambahkan ke pesan Telegram sinyal — BELUM DIKERJAKAN.
