@@ -569,6 +569,15 @@ router.get("/dashboard", (_req, res) => {
     </table>
   </section>
 
+  <section>
+    <h2>🐋 Whale / Smart Money Tracker</h2>
+    <div class="grid" id="whale-stats"><div class="loading">Memuat...</div></div>
+    <table id="whale-table">
+      <thead><tr><th>Token</th><th>Chain</th><th>Wallet</th><th>Harga Alert ($)</th><th>Harga Skrg ($)</th><th>ATH x</th><th>Status</th><th>Sent</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
 <script>
 const MODAL = 100; // modal virtual per trade/coin
 
@@ -742,6 +751,38 @@ async function load() {
   } catch(e) {
     document.getElementById('meme-stats').innerHTML = '<div class="loading">Gagal memuat data meme coin.</div>';
   }
+
+  // ── WHALE / SMART MONEY ─────────────────────────────────────────────
+  try {
+    const whaleRes = await fetch('/api/cron/whale-results').then(r => r.json());
+
+    const rows = whaleRes.allAlerts.slice().reverse().map(w => {
+      const badge = w.status === 'DEAD' ? 'badge-dead' : w.status === 'TRACKING' ? 'badge-tracking' : 'badge-stopped';
+      const athDisplay = w.athMultiplier ? 'x' + w.athMultiplier.toFixed(2) : '-';
+      const shortWallet = w.walletAddress ? w.walletAddress.slice(0, 6) + '...' + w.walletAddress.slice(-4) : '-';
+      return '<tr>' +
+        '<td>' + (w.tokenSymbol || '?') + '</td>' +
+        '<td>' + w.chain + '</td>' +
+        '<td>' + shortWallet + '</td>' +
+        '<td>' + (w.priceAtAlert ? '$' + w.priceAtAlert : '-') + '</td>' +
+        '<td>' + (w.lastPrice ? '$' + w.lastPrice : '-') + '</td>' +
+        '<td>' + athDisplay + '</td>' +
+        '<td><span class="badge ' + badge + '">' + w.status + '</span></td>' +
+        '<td>' + new Date(w.sentAt).toLocaleString('id-ID') + '</td>' +
+        '</tr>';
+    });
+
+    const whaleStats = document.getElementById('whale-stats');
+    whaleStats.innerHTML =
+      '<div class="card"><div class="label">Total Alert</div><div class="value">' + whaleRes.total + '</div></div>' +
+      '<div class="card"><div class="label">≥ 2x</div><div class="value green">' + whaleRes.above2xPct + '</div></div>' +
+      '<div class="card"><div class="label">≥ 5x</div><div class="value green">' + whaleRes.above5xPct + '</div></div>' +
+      '<div class="card"><div class="label">Dead / Rug</div><div class="value red">' + whaleRes.deadPct + '</div></div>';
+
+    document.querySelector('#whale-table tbody').innerHTML = rows.join('');
+  } catch(e) {
+    document.getElementById('whale-stats').innerHTML = '<div class="loading">Gagal memuat data whale tracker.</div>';
+  }
 }
 load();
 setInterval(load, 60000);
@@ -901,8 +942,10 @@ interface GmgnSmartMoneyTrade {
   wallet_address?: string;
   maker?: string;
   token_address?: string;
+  base_address?: string;
   token_symbol?: string;
   symbol?: string;
+  base_token?: { symbol?: string };
   side?: string;         // buy | sell
   event_type?: string;
   amount_usd?: number;
@@ -910,6 +953,7 @@ interface GmgnSmartMoneyTrade {
   price_usd?: number;
   price?: number;
   tx_hash?: string;
+  transaction_hash?: string;
   timestamp?: number;
 }
 
@@ -950,7 +994,7 @@ async function runWhaleScan() {
 
     for (const trade of trades) {
       const wallet = trade.wallet_address ?? trade.maker;
-      const token = trade.token_address;
+      const token = trade.token_address ?? trade.base_address;
       if (!wallet || !token) continue;
 
       const key = `${chain}:${wallet}:${token}`;
@@ -959,7 +1003,7 @@ async function runWhaleScan() {
 
       const amountUsd = trade.amount_usd ?? trade.usd_value ?? 0;
       const priceUsd = trade.price_usd ?? trade.price ?? 0;
-      const symbol = trade.token_symbol ?? trade.symbol ?? "?";
+      const symbol = trade.token_symbol ?? trade.symbol ?? trade.base_token?.symbol ?? "?";
 
       const chainLabel = chain === "sol" ? "Solana" : chain === "eth" ? "Ethereum" : chain.toUpperCase();
 
@@ -988,7 +1032,7 @@ async function runWhaleScan() {
           tokenSymbol: symbol,
           amountUsd,
           priceAtAlert: priceUsd,
-          txHash: trade.tx_hash ?? null,
+          txHash: trade.tx_hash ?? trade.transaction_hash ?? null,
         });
 
         console.log(`[WHALE] ✅ Alert terkirim: ${symbol} (${chain}) oleh ${wallet.slice(0, 8)}...`);
@@ -1008,6 +1052,113 @@ export function startWhaleCron() {
   runWhaleScan();
   setInterval(runWhaleScan, INTERVAL_MS);
 }
+
+// ─── WHALE FORWARD-TEST (ATH tracking, mirip checkMemeSignals) ──────────────
+
+async function checkWhaleAlerts() {
+  console.log("[WHALE-CHECK] Checking tracked whale_alerts...");
+  try {
+    const tracking = await (db as any)
+      .select()
+      .from(whaleAlerts)
+      .where(eq(whaleAlerts.status, "TRACKING"));
+
+    if (tracking.length === 0) {
+      console.log("[WHALE-CHECK] No whale alerts being tracked.");
+      return;
+    }
+
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    for (const alert of tracking) {
+      await new Promise((r) => setTimeout(r, 300)); // jaga rate limit DexScreener
+
+      const sentTime = alert.sentAt ? new Date(alert.sentAt).getTime() : now;
+      if (now - sentTime > THIRTY_DAYS_MS) {
+        await (db as any)
+          .update(whaleAlerts)
+          .set({ status: "STOPPED", lastCheckedAt: new Date() })
+          .where(eq(whaleAlerts.id, alert.id));
+        console.log(`[WHALE-CHECK] ⏹️ ${alert.tokenSymbol} — 30 hari tercapai, stop tracking`);
+        continue;
+      }
+
+      if (!alert.priceAtAlert || alert.priceAtAlert <= 0) {
+        console.log(`[WHALE-CHECK] ⚠️ ${alert.tokenSymbol} — priceAtAlert tidak valid, skip`);
+        continue;
+      }
+
+      const data = await fetchDexScreenerData(alert.tokenAddress);
+      if (!data || data.price <= 0) {
+        console.log(`[WHALE-CHECK] ⚠️ ${alert.tokenSymbol} — data DexScreener tidak tersedia, skip`);
+        continue;
+      }
+
+      // Sanity check anomali harga, sama seperti checkMemeSignals()
+      const priceRatio = data.price / alert.priceAtAlert;
+      if (priceRatio > 500) {
+        console.log(`[WHALE-CHECK] ⚠️ ${alert.tokenSymbol} — harga anomali (x${priceRatio.toFixed(0)}), skip`);
+        continue;
+      }
+
+      const newAth = Math.max(alert.athPrice ?? alert.priceAtAlert, data.price);
+      const athMultiplier = newAth / alert.priceAtAlert;
+      const isDead = data.liquidity < 1000;
+
+      await (db as any)
+        .update(whaleAlerts)
+        .set({
+          lastPrice: data.price,
+          athPrice: newAth,
+          athMultiplier,
+          lastCheckedAt: new Date(),
+          status: isDead ? "DEAD" : "TRACKING",
+        })
+        .where(eq(whaleAlerts.id, alert.id));
+
+      console.log(`[WHALE-CHECK] ${alert.tokenSymbol} → price $${data.price}, ATH x${athMultiplier.toFixed(2)}${isDead ? " — DEAD (liquidity habis)" : ""}`);
+    }
+
+    console.log("[WHALE-CHECK] Done.");
+  } catch (err) {
+    console.error("[WHALE-CHECK] Error:", err);
+  }
+}
+
+export function startWhaleCheckCron() {
+  const INTERVAL_6H = 6 * 60 * 60 * 1000;
+  console.log(`[WHALE-CHECK] Whale forward-test checker started. Interval: ${INTERVAL_6H / 1000}s`);
+  checkWhaleAlerts();
+  setInterval(checkWhaleAlerts, INTERVAL_6H);
+}
+
+router.get("/whale-results", async (_req, res) => {
+  try {
+    const all = await (db as any).select().from(whaleAlerts);
+    const withMultiplier = all.filter((w: any) => w.athMultiplier !== null);
+    const total = all.length;
+    const dead = all.filter((w: any) => w.status === "DEAD").length;
+    const above2x = withMultiplier.filter((w: any) => w.athMultiplier >= 2).length;
+    const above5x = withMultiplier.filter((w: any) => w.athMultiplier >= 5).length;
+    const topPerformers = [...all]
+      .sort((a: any, b: any) => (b.athMultiplier ?? 0) - (a.athMultiplier ?? 0))
+      .slice(0, 10)
+      .map((w: any) => ({ symbol: w.tokenSymbol, chain: w.chain, athMultiplier: w.athMultiplier, status: w.status }));
+
+    res.json({
+      total,
+      dead,
+      deadPct: total > 0 ? ((dead / total) * 100).toFixed(1) + "%" : "N/A",
+      above2xPct: total > 0 ? ((above2x / total) * 100).toFixed(1) + "%" : "N/A",
+      above5xPct: total > 0 ? ((above5x / total) * 100).toFixed(1) + "%" : "N/A",
+      topPerformers,
+      allAlerts: all,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
 
 export default router;
 
