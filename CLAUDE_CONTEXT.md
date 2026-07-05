@@ -1096,3 +1096,63 @@ Tujuan utama: profit konsisten, benerin fondasi dulu sebelum kejar profit besar.
 - SELL yang SEKARANG LIVE di production kemungkinan besar TIDAK PROFITABLE (walk-forward PF 0.95 di data 2 tahun terakhir) — pertimbangkan apakah perlu dikecilkan porsi/dihentikan sementara sambil scoring baru dikembangkan, sirkuit breaker yang sudah ada tetap jadi pengaman minimal
 - Semua script riset (backtest-v3-paginated.ts, backtest-breakout.ts, backtest-breakout-walkforward.ts, backtest-sell-walkforward.ts, analyze-scoring-components.ts, analyze-scoring-rules.ts) ada di scripts/src/ — murni file riset, TIDAK menyentuh kode production, aman dijalankan ulang kapan saja
 - npx tsx sekarang sudah normal jalan di lokal (lihat poin 2), tidak perlu lagi workaround .cjs untuk script baru
+
+---
+
+## Sesi 5 Juli 2026 (lanjutan 2) — Logistic Regression Scoring: RISET SELESAI, BELUM PRODUCTION
+
+### Tujuan
+Ganti bobot manual di rule-based-engine.ts (yang terbukti banyak aturan kontra-produktif) dengan model logistic regression data-driven. Prioritas #1 dari daftar yang disepakati.
+
+### Yang Dibangun
+- `scripts/src/build-ml-dataset.ts` — generate dataset fitur mentah (37 fitur, dalam satuan ATR/rasio, BUKAN skor 0-100) + label menang/kalah, identik formula dengan backtest-v3-paginated.ts (SL/TP 1.5x ATR, RR 1:1, max hold 10 hari). Output: `scripts/output/ml-dataset.csv` (4884 baris, 6 pair x ~814 baris, periode 2024-04 s/d 2026-06, dibatasi ketersediaan 4H candle Bybit ~2.3 tahun).
+- `scripts/src/train-logistic-model.ts` — training logistic regression dari nol (gradient descent + L2), split KRONOLOGIS 70/30 (bukan random — data tidak anti-overlap, baris berdekatan waktu berkorelasi). Model tersimpan di `scripts/output/model-buy.json` dan `model-sell.json`.
+- `scripts/src/validate-model-robustness.ts` — dua uji ketahanan: walk-forward 4-fold (lintas waktu) dan leave-one-pair-out (lintas pair, test di pair yang tidak pernah dilihat model).
+- `scripts/src/compare-perpair-vs-general.ts` — bandingkan model general (semua pair digabung) vs model per-pair (dilatih khusus per pair), diuji di baris test yang sama persis.
+
+### Temuan Kunci
+
+**Single split 70/30 (uji pertama):**
+- BUY: desil tertinggi PF 1.65 vs desil terendah PF 0.37 — pola naik hampir monoton
+- SELL: desil tertinggi PF 3.31 vs desil terendah PF 0.59 — pola lebih jelas dan lebih kuat dari BUY
+- Fitur paling berpengaruh di kedua model: jarak ke EMA200 dalam satuan ATR (bukan sinyal biner EMA stack seperti scoring manual lama)
+
+**Walk-forward 4-fold (lintas waktu) — SELL lebih meyakinkan dari BUY:**
+- BUY: 2 dari 4 fold GAGAL (Top 20% justru lebih jelek dari Bottom 20%) — tidak stabil, JANGAN lanjut ke production dulu
+- SELL: 3 dari 4 fold BERHASIL dengan tren membaik (PF 0.98→1.39→2.18 di 3 fold terakhir), cuma fold 1 gagal (kemungkinan karena training data paling sedikit, 976 baris)
+- Kesimpulan: **fokus ke model SELL**, BUY ditunda
+
+**Leave-one-pair-out (lintas pair) — KONSISTEN 12/12 (BUY dan SELL, semua 6 pair):**
+- Model general TIDAK menghafal karakteristik pair spesifik — terbukti tetap prediktif di pair yang sama sekali tidak dilihat saat training
+- Jawaban untuk pertanyaan "gimana kalau nambah pair baru?": model general kemungkinan besar tetap relevan tanpa retrain khusus, SELAMA pair baru punya karakter likuiditas/pergerakan yang sebanding (bukan meme coin baru umur hitungan hari)
+
+**General vs Per-pair model — GENERAL MENANG untuk SELL:**
+- SELL: model general menang di 4/6 pair, rata-rata selisih Top-Bottom AvgPnL lebih tinggi (4.74% vs 2.85% per-pair)
+- BUY: per-pair "menang" di 4/6 pair tapi rata-rata selisihnya malah LEBIH RENDAH (3.08% vs 3.76%) — indikasi overfitting, konsisten dengan temuan walk-forward BUY yang juga tidak stabil
+- Sample per-pair (~569 baris training) terlalu kecil untuk personalisasi yang stabil
+- **KEPUTUSAN: pakai model GENERAL (bukan per-pair)** — selain lebih stabil untuk SELL, juga otomatis bisa dipakai untuk pair baru sejak hari pertama tanpa perlu histori panjang dulu
+
+### Keputusan Akhir Sesi Ini
+- Model SELL logistic regression: kandidat kuat, LEBIH BAIK dari scoring manual yang sedang live (yang walk-forward-nya PF 0.95, di bawah breakeven)
+- Model BUY: TIDAK dilanjutkan dulu — walk-forward tidak stabil, butuh investigasi lebih lanjut atau lebih banyak data sebelum dipertimbangkan lagi
+- BELUM ADA yang diimplementasi ke production. Semua masih tahap riset di scripts/src/, tidak menyentuh rule-based-engine.ts atau signal-engine-realtime.ts yang live
+
+### Belum Dikerjakan (lanjutkan sesi berikutnya)
+1. **Investigasi kenapa fold 1 (walk-forward) gagal** di kedua model — kemungkinan sample training terlalu sedikit (976 baris), perlu dicek apakah threshold minimum data tertentu yang bikin model mulai stabil
+2. **Bangun shadow forward-test untuk model SELL** — jalan PARALEL di background, kirim ke channel Telegram/dashboard TERPISAH dari sinyal yang sudah live (tidak mengganti sistem yang sudah jalan), threshold awal yang diusulkan: probabilitas SELL >= 0.37 (setara desil 8 ke atas dari uji pertama)
+3. Setelah shadow forward-test kumpul cukup data (minimal 15-20 sinyal closed, sesuai standing instruction), baru evaluasi apakah layak GANTI signal engine production dari scoring manual ke logistic regression SELL
+4. Breakout BUY (Lookback 10 hari, dari riset sebelumnya) masih menunggu implementasi — belum digarap sesi ini
+5. Leverage & position sizing recommendation di Telegram — masih belum dikerjakan (prioritas #4 lama)
+
+### File-File Baru Sesi Ini
+- scripts/src/build-ml-dataset.ts
+- scripts/src/train-logistic-model.ts
+- scripts/src/validate-model-robustness.ts
+- scripts/src/compare-perpair-vs-general.ts
+- scripts/output/ml-dataset.csv (data, tidak perlu di-commit ke git — bisa di-regenerate kapan saja dari script)
+- scripts/output/model-buy.json, model-sell.json (hasil training, riset saja)
+
+### Catatan Penting untuk Sesi Berikutnya
+- Script-script riset di atas TIDAK menyentuh kode production sama sekali — aman dijalankan ulang kapan saja untuk re-training atau re-validasi
+- scripts/output/*.csv dan *.json sebaiknya JANGAN di-commit ke git kalau ukurannya besar (cek dulu ukurannya) — atau tambahkan ke .gitignore kalau memang tidak perlu di-track
+- Kalau lanjut ke shadow forward-test, WAJIB pakai channel Telegram BARU (bukan channel signal yang sudah ada) supaya tidak campur aduk dengan sinyal production yang sedang berjalan
