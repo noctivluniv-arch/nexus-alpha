@@ -1156,3 +1156,66 @@ Ganti bobot manual di rule-based-engine.ts (yang terbukti banyak aturan kontra-p
 - Script-script riset di atas TIDAK menyentuh kode production sama sekali — aman dijalankan ulang kapan saja untuk re-training atau re-validasi
 - scripts/output/*.csv dan *.json sebaiknya JANGAN di-commit ke git kalau ukurannya besar (cek dulu ukurannya) — atau tambahkan ke .gitignore kalau memang tidak perlu di-track
 - Kalau lanjut ke shadow forward-test, WAJIB pakai channel Telegram BARU (bukan channel signal yang sudah ada) supaya tidak campur aduk dengan sinyal production yang sedang berjalan
+
+---
+
+## Sesi 5 Juli 2026 (lanjutan 3) — Logistic Regression: Dataset Diperbesar, Fitur Volatilitas TERBUKTI Membantu, BUY & SELL Sama-Sama Layak
+
+### Ringkasan Keputusan Akhir
+- **Dataset diperbesar dari ~2.3 tahun (4884 baris) menjadi ~6 tahun 2020-2026 (9204 baris)** — H4_BATCHES di build-ml-dataset.ts dinaikkan dari 5 ke 14
+- **Fitur volatilitas rolling (`rolling_vol_pct`) TERBUKTI signifikan membantu** — walk-forward 8-fold naik dari BUY 5/8→7/8, SELL 7/8→8/8 (sempurna)
+- **Fitur market breadth (`breadth_bearish_pct`/`breadth_bullish_pct`) TERBUKTI TIDAK membantu, malah merusak SELL** (8/8→6/8) — dibuang, tidak dipakai
+- **Model final yang dipakai: 38 fitur (37 asli + rolling_vol_pct)** — SELL 8/8 fold, BUY 7/8 fold
+- **BUY dan SELL sekarang SAMA-SAMA layak dipertimbangkan** — keputusan sebelumnya (fokus SELL saja, BUY ditunda) DIREVISI berdasarkan bukti baru ini
+
+### Kenapa Data Diperbesar (atas permintaan user)
+User menanyakan apakah data 2.3 tahun cukup atau perlu ditarik dari 2020. Jawaban: TIDAK cukup — 4H candle dibatasi H4_BATCHES lama (5 batch = 2.3 tahun) meski Daily candle sudah 5 tahun, sehingga dataset gabungan kepotong ke periode pendek. Diperbesar ke 14 batch H4 (~6 tahun), mencakup siklus pasar jauh lebih beragam (bear 2022, recovery 2023, konsolidasi 2024-2025, kondisi 2026).
+
+**Sumber data**: Bybit API resmi (`api.bybit.com/v5/market/kline`, category=spot) — SAMA PERSIS dengan sumber data signal engine live. Bukan data sintetis. Sempat didiskusikan TradingView sebagai alternatif — DITOLAK karena tidak ada API resmi gratis untuk data historis besar, cuma ada scraper tidak resmi yang melanggar ToS dan tidak stabil. Kalau nanti butuh histori lebih panjang dari yang Bybit sediakan (terutama BNB/SOL yang listing spot belakangan), alternatif resmi & gratis adalah Binance public API (khusus untuk RISET, bukan production, karena Binance pernah kena ban HTTP 418 di Render).
+
+### Investigasi Ketidakstabilan BUY (root cause ditemukan)
+- Walk-forward 8-fold (SEBELUM fitur volatilitas): BUY 5/8 berhasil, gagal di fold 5,6,7 (Agu 2024-Jan 2026)
+- Dibedah 3 cara: (1) regime market per fold, (2) breakdown per-pair, (3) sensitivitas hyperparameter
+- **Setelah ditambah rolling_vol_pct: fold 5,6,7 SEMUA jadi berhasil.** Cuma fold 8 (Jan-Jun 2026, PALING BARU) yang masih gagal
+- **Fold 8 dibedah tuntas dan TERBUKTI bukan cacat model**: downtrend market-wide serentak di SEMUA 6 pair (BTC/ETH/BNB/SOL/LINK/DOGE sama-sama rugi kalau asal BUY), dan gagal di SEMUA kombinasi hyperparameter tanpa kecuali — artinya memang tidak ada peluang BUY yang bisa ditemukan model manapun di periode itu, bukan model yang "gagal menemukan" sesuatu yang sebenarnya ada
+- Kesimpulan: BUY sekarang genuinely solid (7/8 fold, kegagalan 1 fold bisa dijelaskan penuh), bukan cuma "kebetulan" seperti sebelumnya
+
+### Riset Literatur Eksternal (sebelum eksperimen fitur baru)
+Dicari sumber kredibel (bukan asal googling) soal regime filtering:
+- Palazzi (2025, Journal of Futures Markets, peer-reviewed) — volatility filter menekan sinyal saat volatilitas >1.5x rata-rata
+- Moskowitz et al., Lempérière et al. (dikutip di arXiv) — trend-following punya edge struktural, bukan kebetulan, terbukti lintas 2 abad data
+- QuantMonitor.net — regime filter praktis: strategi aktif hanya saat trend + volatilitas mendukung
+- Kaminski & Lo — exit adaptif lebih baik dari SL/TP statis
+
+Sempat dicoba TERAPKAN langsung sebagai filter keras (trend1d BULLISH/BEARISH sebagai syarat wajib SEBELUM masuk model) — HASILNYA JUSTRU MEMPERBURUK performa (SELL raw WR turun dari 47.4%→44.0%, PF 1.12→0.92). Alasan: trend1d_bull SUDAH jadi salah satu dari 37 fitur yang dipelajari model dengan bobot proporsional — filter biner di luar model membuang sinyal-sinyal bagus yang sebenarnya masih untung meski trend tidak 100% searah. Pelajaran: masukkan variabel BARU sebagai FITUR yang ikut dilatih (biar bobotnya dicari otomatis), JANGAN sebagai filter keras manual di luar model — ini konsisten dengan temuan lama soal aturan biner kontra-produktif di scoring manual.
+
+### Uji General vs Per-Pair Model (sudah dilakukan sebelum dataset diperbesar, kesimpulan masih berlaku)
+- User bertanya: apakah model per-pair (dilatih khusus per pair) lebih akurat dari model general?
+- SELL: model general menang 4/6 pair, rata-rata improvement lebih tinggi (4.74% vs 2.85%)
+- BUY: per-pair "menang" 4/6 pair TAPI rata-rata improvement malah lebih rendah (indikasi overfitting karena sample per-pair terlalu kecil)
+- **KEPUTUSAN: tetap pakai model GENERAL** (bukan per-pair) — lebih stabil, DAN otomatis bisa dipakai untuk pair baru sejak hari pertama tanpa perlu histori panjang dulu (jawaban langsung untuk pertanyaan ekspansi pair)
+
+### Uji Ketahanan Lintas Pair (Leave-One-Pair-Out)
+Diulang 2x (sebelum & sesudah fitur volatilitas) — HASIL: **12/12 konsisten di kedua uji** (BUY dan SELL, semua 6 pair, model general tetap prediktif bahkan di pair yang sama sekali tidak dilihat saat training). Ini bukti kuat model general TIDAK menghafal karakteristik pair spesifik, aman digunakan untuk pair baru yang punya karakter likuiditas/pergerakan sebanding.
+
+### File-File Baru Sesi Ini
+- scripts/src/investigate-buy-instability.ts — diagnosa regime + hyperparameter sensitivity (versi awal 4-fold)
+- scripts/src/compare-perpair-vs-general.ts — perbandingan model general vs per-pair
+- scripts/src/test-regime-filters.ts — uji filter trend1d keras (hasil: MEMPERBURUK, tidak dipakai)
+- scripts/src/check-feature-correlation.ts — cek korelasi fitur volatilitas sebelum retrain (murah, tanpa training penuh)
+- scripts/src/retrain-with-volatility.ts — retrain dengan rolling_vol_pct (BERHASIL, dipakai)
+- scripts/src/investigate-fold8-and-leaveoneout.ts — bedah tuntas fold 8 + leave-one-pair-out ulang
+- scripts/src/retrain-with-breadth.ts — retrain dengan fitur market breadth (GAGAL, tidak dipakai)
+- scripts/src/build-ml-dataset.ts — H4_BATCHES diubah dari 5 menjadi 14 (permanen, untuk regenerate dataset kapan saja)
+
+### Belum Dikerjakan (lanjutkan sesi berikutnya)
+1. **Latih model FINAL** (38 fitur: 37 asli + rolling_vol_pct) memakai SELURUH data sampai hari terakhir (bukan cuma sampai titik cutoff testing) — untuk BUY dan SELL, siap dipakai shadow forward-test
+2. **Bangun shadow forward-test untuk BUY DAN SELL** (bukan cuma SELL seperti rencana sebelumnya) — jalan paralel di background, channel Telegram/dashboard TERPISAH dari sinyal live yang sudah ada, tidak mengganti sistem production
+3. Setelah shadow forward-test kumpul cukup data (standing instruction: minimal 15-20 sinyal closed untuk pembacaan awal, 50+ untuk kesimpulan), baru evaluasi apakah layak GANTI signal engine production dari scoring manual ke logistic regression
+4. Breakout BUY (Lookback 10 hari, dari riset lama sebelum sesi logistic regression) masih menunggu — mungkin sudah tidak relevan sekarang karena logistic regression BUY sudah terbukti solid, perlu dibandingkan mana yang lebih baik nanti
+5. Leverage & position sizing recommendation di Telegram — masih belum dikerjakan
+
+### Catatan Penting
+- rolling_vol_pct dihitung dari bb_bandwidth dengan window rolling 90 hari, TANPA lookahead (percentile hari ke-i cuma pakai data sampai hari ke-i, tidak termasuk hari itu sendiri)
+- Dataset scripts/output/ml-dataset.csv sekarang jauh lebih besar (9204 baris) — kalau mau regenerate, tsx scripts/src/build-ml-dataset.ts akan makan waktu 8-12 menit (bukan 1 menit lagi) karena 14 batch x 6 pair
+- BELUM ADA yang disentuh di kode production (rule-based-engine.ts, signal-engine-realtime.ts) — semua masih murni riset di scripts/src/
