@@ -1023,3 +1023,76 @@ Tujuan utama: profit konsisten, benerin fondasi dulu sebelum kejar profit besar.
 2. **Filter trend1d** — syarat tambahan: sinyal SELL hanya boleh terkirim kalau trend Daily (EMA50/200) juga BEARISH (searah trend). Backtest v3 menunjukkan versi searah-trend punya WR lebih baik (50.0% vs 48.8% unfiltered) dan ditandai ✅ oleh tools backtest (bukan ⚠️ seperti versi unfiltered yang dipakai production sekarang). Field `trend1d` di signal-engine-realtime.ts SUDAH benar (bug lama sudah di-fix sesi 2026-06-30), tinggal dipakai sebagai syarat tambahan di logika kirim sinyal — BELUM DIKERJAKAN.
 3. **Walk-forward validation** — backtest saat ini in-sample (rawan overfitting), perlu dipisah data training vs testing untuk tau edge asli — BELUM DIKERJAKAN.
 4. **Saran leverage & position sizing** (non-binding) ditambahkan ke pesan Telegram sinyal — BELUM DIKERJAKAN.
+
+---
+
+## Sesi 5 Juli 2026 — Trend1d Filter, Riset Breakout, Walk-Forward, Analisis Scoring
+
+### 1. Filter trend1d — DONE ✅ (Prioritas #2)
+- signal-engine-realtime.ts dipatch: SELL sekarang WAJIB `trend1dVal === "BEARISH"` juga (searah Daily trend), bukan cuma bias BEARISH 4H + confidence 45-55
+- Alasan: backtest v3 menunjukkan versi searah-trend WR 50.0% (✅) vs 48.8% unfiltered (⚠️)
+- Sudah di-commit & deploy ke production
+
+### 2. Fix lingkungan lokal: esbuild/tsx akhirnya BENERAN FIXED
+- Root cause: `pnpm-workspace.yaml` sengaja EXCLUDE `esbuild>@esbuild/darwin-arm64` (komentar asli: "replit uses linux-x64 only") — jadi Mac M-series memang dari awal didesain TIDAK BISA install esbuild untuk dirinya sendiri
+- Fix: hapus baris exclude itu di `overrides:`, ubah `allowBuilds: esbuild: false` → `true`, lalu `rm -rf node_modules pnpm-lock.yaml && pnpm install`
+- HASIL: `npx tsx` sekarang jalan normal di MacBook lokal tanpa workaround `.cjs` lagi. Render (Linux) tidak terpengaruh sama sekali oleh perubahan ini.
+- Kalau ke depan `npx tsx` error lagi soal esbuild, cek dulu `pnpm-workspace.yaml` sebelum coba solusi lain
+
+### 3. Riset BUY dengan filter trend1d — HASIL: TETAP TIDAK PROFITABLE
+- Re-run backtest-v3-paginated.ts: semua bucket confidence BUY searah-trend tetap negatif (WR 37-42%, AvgPnL negatif semua kecuali 65-70 yang cuma 18 trade/sample kecil)
+- Kesimpulan: filter trend1d TIDAK menyelamatkan BUY mean-reversion (EMA/RSI). Masalahnya bukan di situ — kemungkinan besar karena strategi ini swing-trading jangka pendek (≤10 hari, SL/TP ketat ATR-based), sementara indikator EMA/RSI/dll bersifat "lagging" (telat), sering entry BUY pas tren sudah mau habis
+- BUY mean-reversion TETAP DISABLED
+
+### 4. Riset baru: BREAKOUT MOMENTUM strategy — HASIL POSITIF, walk-forward LOLOS
+- Script: scripts/src/backtest-breakout.ts (riset awal, 12 kombinasi) dan scripts/src/backtest-breakout-walkforward.ts (validasi)
+- Logika: BUY kalau close > highest-high N hari + volume > 1.5x rata-rata N hari (breakout momentum, BUKAN mean-reversion)
+- PENTING: versi awal backtest-breakout.ts (12 kombinasi) awalnya PUNYA BUG — tidak ada anti-overlap (bisa catat sinyal breakout berkali-kali untuk 1 pergerakan harga yang sama). SUDAH DIPERBAIKI (skip sampai trade selesai sebelum cari sinyal baru) — kalau mau reuse script ini, pastikan pakai versi yang sudah di-patch, bukan versi awal
+- Kandidat terbaik setelah fix: **Lookback 10 hari + Volume filter ON (1.5x) + Exit ketat (SL 1.5xATR, TP 1.5xATR, max 10 hari)**
+  - Walk-forward: Periode 2021-2024: 192 trades, WR 52.6%, AvgPnL +1.49%, PF 1.45 ✅
+  - Walk-forward: Periode 2024-2026: 110 trades, WR 50.0%, AvgPnL +0.97%, PF 1.29 ✅
+  - KEDUA periode ✅ konsisten — kandidat kuat, lebih baik dari SELL yang sekarang live
+- Kandidat kedua (Lookback 20 hari) sedikit lebih lemah di periode baru (WR 48.8%, masih profit tapi ⚠️)
+- **BELUM diimplementasikan ke production** — masih tahap riset, forward-test infrastructure belum dibuat
+
+### 5. Walk-forward validation SELL yang SEDANG LIVE — HASIL MENGKHAWATIRKAN
+- Script: scripts/src/backtest-sell-walkforward.ts
+- Periode 1 (2022-2024, LAMA): cuma 12 trades — sample TERLALU KECIL untuk dipercaya, meski tertanda ✅
+- Periode 2 (2024-2026, BARU, 432 trades — sample besar & valid): WR 48.1%, **AvgPnL -0.18%, PF 0.95** ⚠️ NEGATIF
+- Kesimpulan: SELL yang sedang live KEMUNGKINAN BESAR OVERFITTING dari backtest v3 sebelumnya. Data real (432 trade di periode baru) menunjukkan tidak profitable
+- INI KONSISTEN dengan laporan forward-test real Telegram sebelumnya: 4/4 signal closed = 0% win rate
+- User memutuskan: JANGAN cuma ubah angka confidence range lagi, tapi PERBAIKI SCORING-nya (component-level), bukan cuma threshold
+
+### 6. Analisis komponen scoring (rule-based-engine.ts) — TEMUAN PENTING
+- Script: scripts/src/analyze-scoring-components.ts (per komponen: trend/confluence/srLevel/volume) dan scripts/src/analyze-scoring-rules.ts (per aturan individual)
+- **CATATAN METODOLOGI PENTING**: komponen `sentiment`, `funding`, `macro` (total 25/100 poin) TIDAK BISA dianalisis dari backtest historis karena datanya (fgi, fundingRate, lsRatio, btcDom) SELALU NULL di semua script backtest kita — nilainya konstan. Artinya 25% dari sistem scoring "buta" saat backtest, cuma teruji beneran di production real-time. Ini gap penting yang harus diingat.
+- **VOLUME formula PUNYA BUG DESAIN**: skornya TIDAK PERNAH mencapai kategori "Tinggi" (>=70% dari 15 poin) di ribuan sample data manapun — perlu diperbaiki formulanya dulu sebelum bisa dinilai valid/tidaknya
+- **TREND (bobot 20, komponen terbesar) — LAGGING INDICATOR TRAP TERKONFIRMASI DATA**: skor "Tinggi" (EMA stack sejajar sempurna) hasilnya LEBIH JELEK (-0.67%) daripada skor "Sedang" (+0.03%). EMA stack sejajar sempurna biasanya baru terjadi SETELAH tren sudah berjalan lama (late entry), bukan di awal
+- **2 ATURAN TERBUKTI KONTRA-PRODUKTIF (bukan cuma netral, tapi MERUSAK)**:
+  - "Dekat Support/Resistance kuat": Aktif -0.83% ❌ vs Tidak aktif +0.13% (SELL: aktif -0.56% vs tidak aktif +0.63%)
+  - "BOS (Break of Structure) terkonfirmasi": SELL — Aktif -1.89% ❌ (WR 36.7%) vs Tidak aktif +0.10%
+  - Kedua aturan ini dapat bonus poin di formula sekarang, padahal data bilang seharusnya JUSTRU dikurangi/dibalik
+- **CONFLUENCE untuk BUY** — salah satu yang paling positif: Tinggi (>=70%) = +0.99% ✅ WR 51.9% (133 trades)
+- **KESIMPULAN BESAR**: hampir SEMUA 7 aturan individual yang ditest (EMA stack, Ichimoku, 4H trend, S/R, BB, BOS) TIDAK menunjukkan "Aktif" konsisten lebih baik dari "Tidak aktif" di 3 potongan data (gabungan/BUY/SELL). Confidence score 45-55 yang kelihatan OK di backtest sebelumnya kemungkinan besar itu KEBETULAN kombinasi sinyal-sinyal lemah/kebalik yang saling meniadakan jadi 1 angka yang terlihat masuk akal — BUKAN karena logika yang benar-benar prediktif
+
+### 7. Riset eksternal (web search) — dasar untuk metode baru
+- Riset akademis mengonfirmasi: menggabungkan machine learning (logistic regression/random forest/gradient boosting) dengan indikator teknikal itu pendekatan yang lebih valid dibanding bobot manual (source: PMC studi ML crypto, ScienceDirect trend-forecast study)
+- Freqtrade (open-source crypto trading bot terbesar) juga menekankan: forward-test (dry-run) jauh lebih dipercaya dari backtest, dan strategi publik/backtest sering menyesatkan kalau dipakai sebagai patokan mutlak
+- KEPUTUSAN: pivot dari "tebak bobot manual" ke METODE STATISTIK (logistic regression) — kasih semua indikator mentah + hasil menang/kalah aktual, biarkan matematika cari kombinasi & bobot yang benar-benar berkorelasi, bukan ditebak manusia
+
+## Belum Dikerjakan / Next Steps (urutan disepakati, kerjakan 1/1)
+
+1. ~~Circuit breaker~~ — DONE ✅
+2. ~~Filter trend1d~~ — DONE ✅
+3. ~~Riset breakout momentum + walk-forward~~ — DONE ✅ (kandidat: Lookback 10 hari, siap lanjut ke implementasi production)
+4. ~~Walk-forward SELL yang live~~ — DONE ✅ (hasil: kemungkinan overfitting, PF 0.95 di data terbaru)
+5. ~~Analisis komponen & aturan scoring~~ — DONE ✅ (temuan: banyak aturan kontra-produktif/lagging)
+6. **SEDANG DIKERJAKAN: bangun model scoring pakai logistic regression** (data-driven, bukan bobot manual) — untuk BUY dan SELL. BELUM ADA SCRIPT-NYA, baru rencana.
+7. **BELUM**: implementasi breakout BUY (Lookback 10 hari) ke production — kode signal generator baru, tabel forward-test baru, dashboard, dll
+8. **BELUM**: leverage & position sizing recommendation di Telegram (prioritas #4 dari daftar sangat awal)
+9. **BELUM**: setelah scoring baru (regresi) jadi, WAJIB walk-forward validation lagi sebelum deploy — jangan ulangi kesalahan yang sama (deploy dulu, validasi belakangan)
+
+### Catatan penting untuk sesi berikutnya
+- SELL yang SEKARANG LIVE di production kemungkinan besar TIDAK PROFITABLE (walk-forward PF 0.95 di data 2 tahun terakhir) — pertimbangkan apakah perlu dikecilkan porsi/dihentikan sementara sambil scoring baru dikembangkan, sirkuit breaker yang sudah ada tetap jadi pengaman minimal
+- Semua script riset (backtest-v3-paginated.ts, backtest-breakout.ts, backtest-breakout-walkforward.ts, backtest-sell-walkforward.ts, analyze-scoring-components.ts, analyze-scoring-rules.ts) ada di scripts/src/ — murni file riset, TIDAK menyentuh kode production, aman dijalankan ulang kapan saja
+- npx tsx sekarang sudah normal jalan di lokal (lihat poin 2), tidak perlu lagi workaround .cjs untuk script baru
