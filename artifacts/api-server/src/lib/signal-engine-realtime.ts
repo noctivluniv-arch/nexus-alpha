@@ -91,6 +91,8 @@ export interface RealtimeSignal {
   tp2: number | null;
   tp3: number | null;
   atr14: number | null;
+  sup1: number | null;
+  res1: number | null;
 }
 
 /**
@@ -200,7 +202,7 @@ export async function computeRealtimeSignal(symbol: string): Promise<RealtimeSig
 
   if (atr14Val && side !== "NO_TRADE") {
     const riskAmt = atr14Val * 1.5;
-    if (side === "BUY") {
+    if ((side as string) === "BUY") {
       sl = price - riskAmt;
       tp1 = price + riskAmt * 1.5;
       tp2 = price + riskAmt * 2.5;
@@ -223,5 +225,7 @@ export async function computeRealtimeSignal(symbol: string): Promise<RealtimeSig
     scoreBreakdown: scored.score,
     sl, tp1, tp2, tp3,
     atr14: atr14Val,
+    sup1: swing7d.support ?? null,
+    res1: swing7d.resistance ?? null,
   };
 }
