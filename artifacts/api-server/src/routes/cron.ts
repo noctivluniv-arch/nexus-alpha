@@ -630,6 +630,7 @@ router.get("/ml-results", async (_req, res) => {
       losses: closed.length - wins.length,
       winRate: winRate.toFixed(1) + "%",
       byPair,
+      signals: rows,
       note: closed.length < 15
         ? "Sample masih terlalu kecil (<15 closed) \u2014 JANGAN simpulkan profitabilitas dari angka ini dulu."
         : closed.length < 50
@@ -880,6 +881,16 @@ router.get("/dashboard", (_req, res) => {
   </section>
 
   <section>
+    <h2>🧪 Shadow ML Signal (Logistic Regression — Eksperimen)</h2>
+    <div class="note" style="margin-bottom:12px">⚠️ Model machine learning paralel, BELUM menggantikan sinyal rule-based di atas. Murni forward-test untuk validasi sebelum dipertimbangkan production.</div>
+    <div class="grid" id="ml-stats"><div class="loading">Memuat...</div></div>
+    <table id="ml-table">
+      <thead><tr><th>Pair</th><th>Side</th><th>Prob Buy</th><th>Prob Sell</th><th>Entry ($)</th><th>Status</th><th>Close ($)</th><th>PnL (dari $100)</th><th>Sent</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section>
     <h2>💎 Meme Coin (Early Gem Tracker)</h2>
     <div class="grid" id="meme-stats"><div class="loading">Memuat...</div></div>
     <table id="meme-table">
@@ -1009,6 +1020,88 @@ async function load() {
     document.querySelector('#signal-table tbody').innerHTML = rows.join('');
   } catch(e) {
     document.getElementById('signal-stats').innerHTML = '<div class="loading">Gagal memuat data signal.</div>';
+  }
+
+  // ── SHADOW ML SIGNAL ──────────────────────────────────────────────
+  try {
+    const mlRes = await fetch('/api/cron/ml-results').then(r => r.json());
+    const mlSignals = mlRes.signals || [];
+
+    const mlOpenPairs = [...new Set(mlSignals.map(s => s.pair))];
+    let mlCurrentPrices = {};
+    if (mlOpenPairs.length > 0) {
+      try {
+        const pricePromises = mlOpenPairs.map(pair =>
+          fetch('/api/binance/ticker?symbol=' + pair)
+            .then(r => r.json())
+            .then(t => { if (t && t.lastPrice) mlCurrentPrices[t.symbol] = parseFloat(t.lastPrice); })
+            .catch(() => {})
+        );
+        await Promise.all(pricePromises);
+      } catch(e) { /* harga tidak tersedia, abaikan */ }
+    }
+
+    let mlTotalPnl = 0;
+    let mlClosedCount = 0;
+    let mlWinCount = 0;
+    let mlLossCount = 0;
+
+    const mlRows = mlSignals.slice().reverse().map(s => {
+      let pnl = null;
+      let badge = 'badge-open';
+      const isClosed = s.status === 'SL_HIT' || s.status === 'TP3_HIT';
+
+      if (isClosed && s.closedPrice && s.entryPrice) {
+        const pct = s.side === 'SELL'
+          ? (s.entryPrice - s.closedPrice) / s.entryPrice
+          : (s.closedPrice - s.entryPrice) / s.entryPrice;
+        pnl = pct * MODAL;
+        mlTotalPnl += pnl;
+        mlClosedCount++;
+        if (pnl > 0) { mlWinCount++; badge = 'badge-win'; }
+        else { mlLossCount++; badge = 'badge-loss'; }
+      }
+
+      let unrealizedHint = '';
+      if (!isClosed && s.entryPrice) {
+        const curPrice = mlCurrentPrices[s.pair];
+        if (curPrice) {
+          const pct = s.side === 'SELL'
+            ? (s.entryPrice - curPrice) / s.entryPrice
+            : (curPrice - s.entryPrice) / s.entryPrice;
+          const unrealizedPnl = pct * MODAL;
+          const sign = unrealizedPnl >= 0 ? '+' : '';
+          const cls = unrealizedPnl > 0 ? 'pnl-pos' : unrealizedPnl < 0 ? 'pnl-neg' : 'pnl-neutral';
+          const pct100 = (pct * 100).toFixed(2);
+          unrealizedHint = '<span class="' + cls + '">' + sign + '$' + unrealizedPnl.toFixed(2) + ' (' + sign + pct100 + '%)</span><br><span style="font-size:11px;color:#8b949e">@ $' + curPrice + '</span>';
+        }
+      }
+
+      return '<tr>' +
+        '<td>' + s.pair + '</td>' +
+        '<td>' + s.side + '</td>' +
+        '<td>' + (s.probBuy * 100).toFixed(1) + '%</td>' +
+        '<td>' + (s.probSell * 100).toFixed(1) + '%</td>' +
+        '<td>' + s.entryPrice + '</td>' +
+        '<td><span class="badge ' + badge + '">' + s.status + '</span></td>' +
+        '<td>' + (s.closedPrice ? '$' + s.closedPrice : '-') + '</td>' +
+        '<td>' + (pnl !== null ? pnlHtml(pnl) : unrealizedHint) + '</td>' +
+        '<td>' + new Date(s.sentAt).toLocaleString('id-ID') + '</td>' +
+        '</tr>';
+    });
+
+    const mlWinRate = mlClosedCount > 0 ? (mlWinCount / mlClosedCount * 100).toFixed(1) + '%' : 'N/A';
+    const mlStats = document.getElementById('ml-stats');
+    mlStats.innerHTML =
+      '<div class="card"><div class="label">Total Closed</div><div class="value">' + mlClosedCount + '</div><div class="sublabel">dari ' + mlSignals.length + ' signal</div></div>' +
+      '<div class="card"><div class="label">Wins</div><div class="value green">' + mlWinCount + '</div></div>' +
+      '<div class="card"><div class="label">Losses</div><div class="value red">' + mlLossCount + '</div></div>' +
+      '<div class="card"><div class="label">Win Rate</div><div class="value yellow">' + mlWinRate + '</div></div>' +
+      '<div class="card"><div class="label">Total PnL</div><div class="value ' + (mlTotalPnl >= 0 ? 'green' : 'red') + '">' + (mlTotalPnl >= 0 ? '+' : '') + '$' + mlTotalPnl.toFixed(2) + '</div><div class="sublabel">' + (mlRes.note || '') + '</div></div>';
+
+    document.querySelector('#ml-table tbody').innerHTML = mlRows.join('');
+  } catch(e) {
+    document.getElementById('ml-stats').innerHTML = '<div class="loading">Gagal memuat data shadow ML.</div>';
   }
 
   // ── MEME COIN ────────────────────────────────────────────────────
