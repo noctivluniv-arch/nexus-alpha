@@ -1015,7 +1015,8 @@ async function load() {
       '<div class="card"><div class="label">Wins</div><div class="value green">' + winCount + '</div></div>' +
       '<div class="card"><div class="label">Losses</div><div class="value red">' + lossCount + '</div></div>' +
       '<div class="card"><div class="label">Win Rate</div><div class="value yellow">' + winRate + '</div></div>' +
-      '<div class="card"><div class="label">Total PnL</div><div class="value ' + (totalPnl >= 0 ? 'green' : 'red') + '">' + (totalPnl >= 0 ? '+' : '') + '$' + totalPnl.toFixed(2) + '</div><div class="sublabel">dari modal $' + (sigRes.signals.length * MODAL) + ' virtual</div></div>';
+      '<div class="card"><div class="label">Total PnL</div><div class="value ' + (totalPnl >= 0 ? 'green' : 'red') + '">' + (totalPnl >= 0 ? '+' : '') + '$' + totalPnl.toFixed(2) + '</div><div class="sublabel">dari modal $' + (sigRes.signals.length * MODAL) + ' virtual</div></div>' +
+      '<div class="card"><div class="label">Sample Progress</div><div class="value ' + (closedCount >= 50 ? 'green' : closedCount >= 15 ? 'yellow' : 'red') + '">' + closedCount + ' / 50</div><div class="sublabel">' + (closedCount < 15 ? (15 - closedCount) + ' lagi menuju evaluasi awal (15)' : closedCount < 50 ? (50 - closedCount) + ' lagi menuju kesimpulan final (50)' : 'Sample cukup untuk kesimpulan final') + '</div></div>';
     
     document.querySelector('#signal-table tbody').innerHTML = rows.join('');
   } catch(e) {
@@ -1097,7 +1098,8 @@ async function load() {
       '<div class="card"><div class="label">Wins</div><div class="value green">' + mlWinCount + '</div></div>' +
       '<div class="card"><div class="label">Losses</div><div class="value red">' + mlLossCount + '</div></div>' +
       '<div class="card"><div class="label">Win Rate</div><div class="value yellow">' + mlWinRate + '</div></div>' +
-      '<div class="card"><div class="label">Total PnL</div><div class="value ' + (mlTotalPnl >= 0 ? 'green' : 'red') + '">' + (mlTotalPnl >= 0 ? '+' : '') + '$' + mlTotalPnl.toFixed(2) + '</div><div class="sublabel">' + (mlRes.note || '') + '</div></div>';
+      '<div class="card"><div class="label">Total PnL</div><div class="value ' + (mlTotalPnl >= 0 ? 'green' : 'red') + '">' + (mlTotalPnl >= 0 ? '+' : '') + '$' + mlTotalPnl.toFixed(2) + '</div><div class="sublabel">' + (mlRes.note || '') + '</div></div>' +
+      '<div class="card"><div class="label">Sample Progress</div><div class="value ' + (mlClosedCount >= 50 ? 'green' : mlClosedCount >= 15 ? 'yellow' : 'red') + '">' + mlClosedCount + ' / 50</div><div class="sublabel">' + (mlClosedCount < 15 ? (15 - mlClosedCount) + ' lagi menuju evaluasi awal (15)' : mlClosedCount < 50 ? (50 - mlClosedCount) + ' lagi menuju kesimpulan final (50)' : 'Sample cukup untuk kesimpulan final') + '</div></div>';
 
     document.querySelector('#ml-table tbody').innerHTML = mlRows.join('');
   } catch(e) {

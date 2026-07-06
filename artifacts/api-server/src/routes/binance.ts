@@ -29,31 +29,37 @@ let priceCache: { ts: number; data: Record<string, PriceEntry> } = {
 };
 let priceRefreshInflight: Promise<void> | null = null;
 
-const CACHE_TTL_MS = 45 * 1000;
+const CACHE_TTL_MS = 10 * 1000;
 
 async function refreshPriceCache(): Promise<void> {
-  const ids = Object.values(SYMBOL_TO_ID).join(",");
-  const url = `${COINGECKO_BASE}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
-  const r = await fetch(url, {
-    headers: { accept: "application/json" },
+  const r = await fetch("https://api.bybit.com/v5/market/tickers?category=spot", {
     signal: AbortSignal.timeout(10_000),
   });
   if (!r.ok) {
-    throw new Error(`coingecko ${r.status}`);
+    throw new Error(`bybit ${r.status}`);
   }
-  const json = (await r.json()) as Record<
-    string,
-    { usd: number; usd_24h_change: number }
-  >;
+  const json = (await r.json()) as any;
+  if (json.retCode !== 0) {
+    throw new Error(`bybit retCode ${json.retCode}`);
+  }
+  const list: any[] = json.result?.list ?? [];
+  const bySymbol: Record<string, any> = {};
+  for (const t of list) {
+    bySymbol[t.symbol] = t;
+  }
 
   const next: Record<string, PriceEntry> = {};
-  for (const [sym, id] of Object.entries(SYMBOL_TO_ID)) {
-    const entry = json[id];
-    next[sym] = {
-      symbol: sym,
-      lastPrice: entry ? String(entry.usd) : "0",
-      priceChangePercent: entry ? String(entry.usd_24h_change ?? 0) : "0",
-    };
+  for (const sym of Object.keys(SYMBOL_TO_ID)) {
+    const t = bySymbol[sym];
+    if (t) {
+      next[sym] = {
+        symbol: sym,
+        lastPrice: String(t.lastPrice),
+        priceChangePercent: String(parseFloat(t.price24hPcnt) * 100),
+      };
+    } else if (priceCache.data[sym]) {
+      next[sym] = priceCache.data[sym];
+    }
   }
   priceCache = { ts: Date.now(), data: next };
 }
