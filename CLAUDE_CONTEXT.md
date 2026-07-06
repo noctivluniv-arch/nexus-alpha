@@ -1265,3 +1265,32 @@ Model logistic regression (38 fitur: 37 asli + rolling_vol_pct, BUY dan SELL) be
 
 ### Catatan File Riset (semua di scripts/src/, tidak menyentuh production)
 build-ml-dataset.ts, train-logistic-model.ts, validate-model-robustness.ts, compare-perpair-vs-general.ts, test-regime-filters.ts, check-feature-correlation.ts, retrain-with-volatility.ts, investigate-fold8-and-leaveoneout.ts, retrain-with-breadth.ts, train-final-model.ts, investigate-buy-instability.ts, test-ml-signal-engine.ts — semua aman dijalankan ulang kapan saja untuk riset lanjutan.
+
+---
+
+## Sesi 6 Juli 2026 (lanjutan) — Shadow ML Signal Ditambahkan ke Dashboard ✅
+
+### Yang Dikerjakan
+- Section baru "🧪 Shadow ML Signal (Logistic Regression — Eksperimen)" ditambahkan ke `/api/cron/dashboard`, diposisikan di antara section "Signal Trading" dan "Meme Coin"
+- Tabel menampilkan: Pair, Side, Prob Buy, Prob Sell, Entry, Status, Close, PnL (dari modal virtual $100), Sent — pola sama persis dengan tabel Signal Trading yang sudah ada (fetch harga live dari `/api/binance/ticker` untuk PnL unrealized)
+- Endpoint `/api/cron/ml-results` dipatch: sekarang juga mengirim field `signals` (array data mentah tiap sinyal ML), sebelumnya cuma kirim ringkasan `byPair`
+- Build lokal diverifikasi dulu (`pnpm run build`) sebelum push — konsisten dengan langkah aman yang sudah terbukti sebelumnya
+
+### Cara Cek Progress
+- Dashboard visual: https://nexus-alpha-j3yb.onrender.com/api/cron/dashboard (section Shadow ML Signal, auto-refresh 60 detik)
+- Endpoint API mentah: https://nexus-alpha-j3yb.onrender.com/api/cron/ml-results
+
+### State Saat Ini
+- Shadow ML signal LIVE sejak 6 Juli 2026, 2 sinyal pertama tercatat: DOGEUSDT BUY @ 0.07814, AVAXUSDT BUY @ 6.923 (keduanya masih OPEN, forward-test berjalan)
+- SEMUA sistem lain (rule-based CRON, meme, whale, dex-radar) tetap berjalan normal tanpa regresi
+
+### Belum Dikerjakan (lanjutkan sesi berikutnya)
+1. **PANTAU** — kumpulkan minimal 15-20 sinyal ML closed sebelum pembacaan awal (sesuai standing instruction), 50+ untuk kesimpulan lebih meyakinkan. Cek dashboard atau `/api/cron/ml-results` secara berkala.
+2. JANGAN ganti signal engine production dari rule-based ke ML sampai forward-test membuktikan konsisten lebih baik dalam sample yang cukup
+3. Breakout BUY (Lookback 10 hari, riset lama) — belum dibandingkan dengan logistic regression BUY yang sekarang sudah solid
+4. Leverage & position sizing recommendation di Telegram — masih belum dikerjakan (prioritas lama)
+5. Kalau nanti nambah pair baru — model general seharusnya langsung bisa dipakai (terbukti leave-one-pair-out), tapi tetap pantau performa live-nya dulu
+
+### Catatan Penting untuk Sesi Berikutnya
+- SEMUA infrastruktur ML (model, engine, cron, tabel DB, dashboard) sudah lengkap dan live — sesi berikutnya TIDAK perlu membangun apa-apa lagi soal ini, cukup PANTAU hasil forward-test
+- Kalau ingin retrain model dengan data lebih baru nanti (misal setelah beberapa bulan), alurnya: jalankan ulang scripts/src/build-ml-dataset.ts (update dataset) → scripts/src/train-final-model.ts (retrain) → copy model JSON baru ke artifacts/api-server/src/lib/models/ → build & deploy ulang
