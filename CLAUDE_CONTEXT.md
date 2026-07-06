@@ -1294,3 +1294,53 @@ build-ml-dataset.ts, train-logistic-model.ts, validate-model-robustness.ts, comp
 ### Catatan Penting untuk Sesi Berikutnya
 - SEMUA infrastruktur ML (model, engine, cron, tabel DB, dashboard) sudah lengkap dan live — sesi berikutnya TIDAK perlu membangun apa-apa lagi soal ini, cukup PANTAU hasil forward-test
 - Kalau ingin retrain model dengan data lebih baru nanti (misal setelah beberapa bulan), alurnya: jalankan ulang scripts/src/build-ml-dataset.ts (update dataset) → scripts/src/train-final-model.ts (retrain) → copy model JSON baru ke artifacts/api-server/src/lib/models/ → build & deploy ulang
+
+---
+
+## Sesi 6-7 Juli 2026 — Dashboard PnL Delay Fix + Leverage Suggestion SELESAI ✅
+
+### 1. Fix Dashboard PnL Delay — DONE ✅
+**Masalah**: PnL di dashboard (`/api/cron/dashboard`) terasa telat beberapa menit setelah refresh.
+**Root cause**: Sumber harga `/api/binance/ticker` pakai CoinGecko free tier (delay natural 1-2 menit) + cache TTL 45 detik di atasnya.
+**Fix**:
+- `artifacts/api-server/src/routes/binance.ts`: `refreshPriceCache()` diganti dari CoinGecko ke Bybit (`https://api.bybit.com/v5/market/tickers?category=spot`) — satu call untuk semua pair sekaligus, real-time, sudah dipakai signal engine utama jadi konsisten.
+- `CACHE_TTL_MS` diturunkan dari 45 detik → 10 detik.
+- Fallback: kalau simbol tidak ada di response Bybit, pertahankan harga cache lama (tidak crash).
+- **Verified live**: request `/api/binance/ticker` sekarang selesai dalam <1ms untuk cache hit (304), ~200ms untuk cache miss — jauh lebih cepat dari sebelumnya.
+
+### 2. Sample Progress Card Dinamis — DONE ✅
+- `artifacts/api-server/src/routes/cron.ts`: dashboard section Signal Trading & Shadow ML Signal sekarang punya kartu baru "Sample Progress" — otomatis hitung "X lagi menuju evaluasi awal (15)" atau "X lagi menuju kesimpulan final (50)" berdasarkan `closedCount`/`mlClosedCount`. Tidak perlu update manual lagi tiap kali threshold dicek.
+
+### 3. Cosmetic fix signal-engine-realtime.ts — DONE ✅
+- Baris `if (side === "BUY")` di risk management (SL/TP calc) sempat bikin TypeScript error karena `side` cuma bisa `SELL`/`NO_TRADE` (BUY di-disable). Bukan bug fungsional — cuma type-checker terlalu ketat. Fix: cast `(side as string) === "BUY"` untuk bersihkan warning, sekaligus siap kalau BUY di-re-enable nanti.
+
+### 4. Leverage & Position Sizing Suggestion — DONE ✅ (Prioritas #4, lama tertunda)
+**Desain**: saran non-binding, dihitung dari jarak SL (ATR-based) — target risk ~1% modal, leverage disarankan = riskPct ÷ jarak SL%, di-cap 1-20x.
+
+**Backend** (`cron.ts`):
+- Fungsi baru `suggestLeverage(entryPrice, sl, capital=100, riskPct=0.01)` — return `{ leverage, positionSize, slDistancePct }`.
+- Disematkan ke 2 pesan Telegram: sinyal rule-based biasa DAN shadow ML signal. Format:**Web app** (`artifacts/nexusalpha/app/(tabs)/signals.tsx`):
+- Ternyata kalkulator leverage manual SUDAH ADA sebelumnya (`LeverageCalculator` component, opsi [3,5,10,20,50,100]) — tidak perlu bangun dari nol, tidak perlu ubah API.
+- Ditambahkan: `suggestedLeverage` dihitung client-side dari `entryPrice`/`stopLoss` yang sudah tersedia di props, jadi default awal `useState` bukan lagi hardcode `10`, tapi opsi terdekat dengan saran.
+- Badge "💡 Disarankan: Nx (target risk ~1% modal dari jarak SL, bukan rekomendasi finansial)" ditampilkan di atas tombol pilihan leverage. Tombol yang disarankan diberi border hijau (`colors.success`) + emoji 💡.
+
+**Insiden kecil saat development**: script Python pertama pakai escape unicode literal (`\ud83d\udca1`) untuk emoji yang bikin encoding gagal di tengah `f.write()` — file `cron.ts` sempat ter-truncate (1792 baris hilang, semua export hilang). Fix: `git checkout -- cron.ts` untuk restore ke commit terakhir, lalu tulis ulang emoji sebagai karakter UTF-8 langsung (bukan escape code). **Pelajaran**: kalau bikin patch Python yang menyisipkan emoji ke file, tulis emoji langsung sebagai karakter di dalam triple-quoted string, JANGAN pakai `\uXXXX` escape untuk emoji 4-byte (surrogate pair issue).
+
+**Verifikasi sebelum deploy**:
+- Backend: `node --check` + `pnpm --filter @workspace/api-server run build` — sukses.
+- Frontend: `tsc` gagal karena masalah project-reference tsconfig pre-existing (`composite: true` di `lib/api-client-react`, tidak terkait patch) — dipakai `npx esbuild --bundle=false` sebagai gantinya untuk cek sintaks murni, hasil: SYNTAX OK.
+
+**Status deploy**: commit `ac5f1d43`, sudah di-push, Render deploy **Live** (dikonfirmasi via dashboard). Belum ada bukti visual langsung dari pesan Telegram baru (menunggu sinyal berikutnya) atau dari web app (menunggu deploy Vercel/Expo selesai).
+
+### State Roadmap Setelah Sesi Ini
+1. ~~Circuit breaker~~ — DONE ✅ (5 Juli 2026)
+2. ~~Filter trend1d~~ — DONE ✅ (5 Juli 2026)
+3. **Breakout BUY (lookback 10 hari) vs logistic regression BUY** — BELUM dibandingkan, satu-satunya item tersisa dari roadmap "urutan disepakati"
+4. ~~Leverage & position sizing~~ — DONE ✅ (sesi ini)
+
+### Belum Dikerjakan / Agenda Selanjutnya
+1. Verifikasi visual: cek pesan Telegram sinyal berikutnya (rule-based atau shadow ML) benar-benar menampilkan baris "💡 Saran Leverage"
+2. Verifikasi web app: cek halaman signals di app, pastikan badge "Disarankan: Nx" dan border hijau muncul di kalkulator
+3. Lanjutkan perbandingan breakout BUY vs logistic regression BUY (item roadmap terakhir yang tersisa)
+4. Terus pantau forward-test signal trading & shadow ML sampai closed count cukup untuk evaluasi (standing instruction: 15-20 untuk awal, 50 untuk final)
+5. Repo cleanup lama yang masih belum dikerjakan: banyak file `cron.ts.backup`, `.backup2`...`.backup6`, serta file patch lama (`whale-*.patch`) menumpuk di root — aman dihapus kapan saja, tidak mendesak
