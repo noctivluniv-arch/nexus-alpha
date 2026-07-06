@@ -1219,3 +1219,49 @@ Diulang 2x (sebelum & sesudah fitur volatilitas) — HASIL: **12/12 konsisten di
 - rolling_vol_pct dihitung dari bb_bandwidth dengan window rolling 90 hari, TANPA lookahead (percentile hari ke-i cuma pakai data sampai hari ke-i, tidak termasuk hari itu sendiri)
 - Dataset scripts/output/ml-dataset.csv sekarang jauh lebih besar (9204 baris) — kalau mau regenerate, tsx scripts/src/build-ml-dataset.ts akan makan waktu 8-12 menit (bukan 1 menit lagi) karena 14 batch x 6 pair
 - BELUM ADA yang disentuh di kode production (rule-based-engine.ts, signal-engine-realtime.ts) — semua masih murni riset di scripts/src/
+
+---
+
+## Sesi 5-6 Juli 2026 — Shadow ML Signal LIVE DI PRODUCTION ✅
+
+### Ringkasan
+Model logistic regression (38 fitur: 37 asli + rolling_vol_pct, BUY dan SELL) berhasil dibangun, divalidasi ketat, dan di-deploy sebagai **shadow forward-test paralel** ke production — TIDAK menggantikan sinyal rule-based yang sudah live, jalan berdampingan untuk kumpulkan bukti nyata sebelum keputusan ganti.
+
+### Yang Sudah Live
+- Cron baru `startMlSignalCron()` — interval 15 menit, scan semua `SUPPORTED_PAIRS`, hitung probabilitas BUY/SELL pakai model logistic regression
+- Cron baru `startMlSignalCheckCron()` — interval 15 menit, cek TP/SL sinyal ML yang OPEN (forward-test)
+- Tabel DB baru `ml_signal_log` — struktur mirip `signal_log`, plus kolom `prob_buy`/`prob_sell`
+- Sinyal ML dikirim ke channel Telegram YANG SAMA dengan sinyal biasa, dibedakan label jelas: `🧪 SHADOW ML SIGNAL — NEXUSALPHA (Logistic Regression)`, dengan disclaimer "EKSPERIMEN — MASIH FORWARD-TEST, JANGAN dipakai uang asli"
+- Endpoint baru `GET /api/cron/ml-results` — ringkasan win rate ML, terpisah dari `/api/cron/results` (rule-based)
+- Threshold sinyal: probabilitas >= 0.52 (BUY dan SELL dievaluasi terpisah, side dengan probabilitas tertinggi yang dipilih)
+- VERIFIED LIVE (deploy 6 Juli 2026): 2 sinyal ML pertama terkirim sukses — DOGEUSDT BUY @ 0.07814, AVAXUSDT BUY @ 6.923
+
+### Perjalanan Teknis Menuju Model Ini (ringkasan dari sesi-sesi sebelumnya)
+1. Dataset diperbesar dari 2.3 tahun → ~6 tahun (2020-2026, H4_BATCHES 5→14), 9204 baris, 6 pair (BTC/ETH/BNB/SOL/LINK/DOGE)
+2. Model dasar (37 fitur): SELL kuat (8/8 fold walk-forward), BUY tidak stabil (5/8 fold)
+3. Ditemukan lewat riset literatur (Palazzi 2025 J.Futures Markets, dll): volatility regime penting, TAPI filter keras (trend1d sebagai syarat wajib) justru MEMPERBURUK hasil — solusinya masukkan sebagai FITUR yang dilatih, bukan filter manual
+4. Fitur `rolling_vol_pct` (percentile bb_bandwidth rolling 90 hari, no lookahead) ditambahkan → BUY naik ke 7/8 fold, SELL jadi 8/8 (sempurna)
+5. Fold 8 BUY yang masih gagal dibedah tuntas: TERBUKTI downtrend market-wide serentak di semua 6 pair, gagal di semua hyperparameter — bukan cacat model, memang tidak ada peluang BUY yang bisa ditemukan di periode itu
+6. Fitur market breadth dicoba (persentase pair lain yang bearish/bullish) — HASIL: memperburuk SELL (8/8→6/8), TIDAK dipakai
+7. Model FINAL: 38 fitur (37 asli + rolling_vol_pct), dilatih pakai SELURUH data historis, tersimpan di scripts/output/model-buy-final.json dan model-sell-final.json
+8. Leave-one-pair-out (test di pair yang tidak pernah dilihat model): 12/12 konsisten (BUY & SELL, 6 pair) — model general TERBUKTI bisa dipakai untuk pair baru tanpa retrain
+9. General vs per-pair model: general MENANG untuk SELL (4/6 pair, avg improvement lebih tinggi), per-pair BUY "menang" tapi indikasi overfitting (avg improvement malah lebih rendah) — KEPUTUSAN: pakai model general
+
+### Detail Implementasi Teknis (penting untuk sesi berikutnya)
+- File model: `artifacts/api-server/src/lib/models/model-buy-final.json` dan `model-sell-final.json` — di-import LANGSUNG sebagai JSON module (bukan fs.readFileSync), karena esbuild bundle JSON secara native ke dalam `dist/index.mjs` — TIDAK butuh `resolveJsonModule` di tsconfig SEBENARNYA untuk esbuild, tapi ditambahkan juga di `tsconfig.json` LOKAL api-server (bukan tsconfig.base.json global) untuk keperluan `tsc --noEmit` typecheck
+- Engine prediksi: `artifacts/api-server/src/lib/ml-signal-engine.ts` — fungsi `computeMlSignal(pair)`, hitung fitur PERSIS sama seperti training (termasuk approksimasi volH1/volH6 dari volume daily, BUKAN fetch 1H asli — supaya distribusi fitur konsisten dengan training)
+- rolling_vol_pct dihitung live dari histori bollinger bandwidth 90 hari terakhir (fungsi `computeRollingVolPct()`), fallback ke 0.5 (netral) kalau data kurang dari threshold
+- PENTING: mean/std standardisasi WAJIB pakai yang tersimpan di file model (dari training), TIDAK dihitung ulang dari data live
+- Build project ini pakai esbuild bundle (`bundle: true`, format esm, satu file `dist/index.mjs`) — BUKAN `tsc` compile biasa. File pendukung (JSON, dll) HARUS di-import langsung di kode biar ikut ter-bundle, TIDAK BISA taruh di folder terpisah dan diakses via path relatif runtime (`__dirname` tidak reliable di ESM bundle)
+- Verifikasi WAJIB sebelum deploy: build lokal (`pnpm run build`) + jalankan hasil build lokal beberapa detik sebelum push — cara ini berhasil menangkap masalah `resolveJsonModule` SEBELUM sempat gagal deploy di Render
+
+### Belum Dikerjakan (lanjutkan sesi berikutnya)
+1. **PANTAU shadow ML signal** — kumpulkan minimal 15-20 sinyal closed sebelum evaluasi awal (sesuai standing instruction), 50+ untuk kesimpulan lebih meyakinkan
+2. Endpoint `/api/cron/ml-results` siap dipakai untuk cek progress kapan saja
+3. JANGAN ganti signal engine production dari rule-based ke ML sampai forward-test membuktikan konsisten lebih baik
+4. Breakout BUY (Lookback 10 hari, riset lama sebelum era logistic regression) — pertimbangkan apakah masih relevan dibanding logistic regression BUY yang sekarang sudah solid, atau bandingkan keduanya nanti
+5. Leverage & position sizing recommendation di Telegram — belum dikerjakan (prioritas lama, masih tertunda)
+6. Kalau nanti mau tambah pair baru: model general seharusnya langsung bisa dipakai (terbukti dari leave-one-pair-out), TAPI tetap pantau performa live-nya dulu sebelum yakin sepenuhnya
+
+### Catatan File Riset (semua di scripts/src/, tidak menyentuh production)
+build-ml-dataset.ts, train-logistic-model.ts, validate-model-robustness.ts, compare-perpair-vs-general.ts, test-regime-filters.ts, check-feature-correlation.ts, retrain-with-volatility.ts, investigate-fold8-and-leaveoneout.ts, retrain-with-breadth.ts, train-final-model.ts, investigate-buy-instability.ts, test-ml-signal-engine.ts — semua aman dijalankan ulang kapan saja untuk riset lanjutan.
