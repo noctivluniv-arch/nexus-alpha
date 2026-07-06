@@ -2,7 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { scheduleSignalPrewarm } from "./routes/ai";
 import { schedulePrewarmMemes } from "./routes/memes";
-import { startCron, startMemeCron, startDailySaveCron, startSignalCheckCron, startMemeSignalCheckCron, startDexRadarCron, startWhaleCron, startWhaleCheckCron } from "./routes/cron";
+import { startCron, startMemeCron, startDailySaveCron, startSignalCheckCron, startMemeSignalCheckCron, startDexRadarCron, startWhaleCron, startWhaleCheckCron, startMlSignalCron, startMlSignalCheckCron } from "./routes/cron";
 
 const rawPort = process.env["PORT"];
 
@@ -44,4 +44,6 @@ app.listen(port, (err) => {
   startDexRadarCron();
   startWhaleCron();
   startWhaleCheckCron();
+  startMlSignalCron();
+  startMlSignalCheckCron();
 });

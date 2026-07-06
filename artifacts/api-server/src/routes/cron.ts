@@ -2,7 +2,8 @@ import { Router } from "express";
 import { eq, inArray, and } from "drizzle-orm";
 import { SUPPORTED_PAIRS } from "../../../nexusalpha/lib/types";
 import { computeRealtimeSignal } from "../lib/signal-engine-realtime";
-import { db, ohlcvDaily, signalLog, memeSignalLog, whaleAlerts, circuitBreaker } from "@workspace/db";
+import { computeMlSignal } from "../lib/ml-signal-engine";
+import { db, ohlcvDaily, signalLog, memeSignalLog, whaleAlerts, circuitBreaker, mlSignalLog } from "@workspace/db";
 
 const router = Router();
 
@@ -409,6 +410,236 @@ export function startSignalCheckCron() {
   checkOpenSignals();
   setInterval(checkOpenSignals, INTERVAL_MS);
 }
+
+// ─── SHADOW ML SIGNAL (logistic regression, forward-test paralel) ───────────
+async function saveMlSignalToLog(signal: {
+  pair: string;
+  side: "BUY" | "SELL";
+  probBuy: number;
+  probSell: number;
+  confidence: number;
+  price: number;
+  sl: number | null;
+  tp1: number | null;
+  tp2: number | null;
+  tp3: number | null;
+}) {
+  try {
+    const existing = await (db as any)
+      .select()
+      .from(mlSignalLog)
+      .where(
+        and(
+          eq(mlSignalLog.pair, signal.pair),
+          eq(mlSignalLog.side, signal.side),
+          inArray(mlSignalLog.status, ["OPEN", "TP1_HIT", "TP2_HIT"]),
+        ),
+      );
+
+    if (existing.length > 0) {
+      console.log(`[ML-SIGNAL-LOG] \u23ed\ufe0f Skip ${signal.pair} ${signal.side} \u2014 masih ada signal ML OPEN yang sama (id #${existing[0].id})`);
+      return;
+    }
+
+    await (db as any).insert(mlSignalLog).values({
+      pair: signal.pair,
+      side: signal.side,
+      probBuy: signal.probBuy,
+      probSell: signal.probSell,
+      confidence: signal.confidence,
+      entryPrice: signal.price,
+      sl: signal.sl,
+      tp1: signal.tp1,
+      tp2: signal.tp2,
+      tp3: signal.tp3,
+      status: "OPEN",
+    });
+    console.log(`[ML-SIGNAL-LOG] \u2705 Saved ${signal.pair} ${signal.side} @ ${signal.price}`);
+  } catch (err) {
+    console.error(`[ML-SIGNAL-LOG] Error saving ${signal.pair}:`, err);
+  }
+}
+
+async function runMlSignalScan() {
+  console.log(`[ML-CRON] Starting SHADOW ML signal scan (logistic regression) for ${SUPPORTED_PAIRS.length} pairs...`);
+
+  for (const pair of SUPPORTED_PAIRS) {
+    try {
+      await new Promise((r) => setTimeout(r, 2000));
+      const signal = await computeMlSignal(pair);
+
+      console.log(`[ML-CRON] ${pair} \u2192 probBuy: ${(signal.probBuy * 100).toFixed(1)}%, probSell: ${(signal.probSell * 100).toFixed(1)}%, side: ${signal.side}`);
+
+      if (signal.side === "NO_TRADE") {
+        await new Promise((r) => setTimeout(r, 500));
+        continue;
+      }
+
+      const stillOpen = await (db as any)
+        .select()
+        .from(mlSignalLog)
+        .where(
+          and(
+            eq(mlSignalLog.pair, signal.pair),
+            eq(mlSignalLog.side, signal.side),
+            inArray(mlSignalLog.status, ["OPEN", "TP1_HIT", "TP2_HIT"]),
+          ),
+        );
+      if (stillOpen.length > 0) {
+        console.log(`[ML-CRON] \u23ed\ufe0f Skip kirim Telegram ${signal.pair} ${signal.side} \u2014 masih ada signal ML OPEN (id #${stillOpen[0].id})`);
+        await new Promise((r) => setTimeout(r, 500));
+        continue;
+      }
+
+      const sideLabel = signal.side === "BUY" ? "\ud83d\udfe2 BUY/LONG" : "\ud83d\udd34 SELL/SHORT";
+      const emoji = signal.side === "BUY" ? "\ud83d\udcc8" : "\ud83d\udcc9";
+
+      let msg = `\ud83e\uddea <b>SHADOW ML SIGNAL \u2014 NEXUSALPHA (Logistic Regression)</b>\n`;
+      msg += `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n`;
+      msg += `<b>Pair:</b> ${signal.pair}\n`;
+      msg += `<b>Signal:</b> ${sideLabel} ${emoji}\n`;
+      msg += `<b>Prob BUY:</b> ${(signal.probBuy * 100).toFixed(1)}% | <b>Prob SELL:</b> ${(signal.probSell * 100).toFixed(1)}%\n`;
+      msg += `<b>Confidence:</b> ${signal.confidence.toFixed(1)}%\n`;
+      msg += `<b>Price:</b> $${fmtPrice(signal.price)}\n\n`;
+
+      msg += `<b>\ud83d\udccd Entry:</b> ~$${fmtPrice(signal.price)}\n`;
+      msg += `<b>\ud83d\uded1 Stop Loss:</b> $${fmtPrice(signal.sl)}\n`;
+      msg += `<b>\ud83c\udfaf Take Profit:</b>\n`;
+      msg += `  TP1: $${fmtPrice(signal.tp1)} (1:1.5)\n`;
+      msg += `  TP2: $${fmtPrice(signal.tp2)} (1:2.5)\n`;
+      msg += `  TP3: $${fmtPrice(signal.tp3)} (1:4.0)\n\n`;
+
+      msg += `<i>\u23f0 ${new Date().toLocaleString("id-ID")}</i>\n`;
+      msg += `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n`;
+      msg += `<i>\ud83e\uddea EKSPERIMEN \u2014 model logistic regression, MASIH FORWARD-TEST, JANGAN dipakai uang asli. Sinyal rule-based di atas tetap yang utama.</i>`;
+
+      await sendTelegram(msg);
+      console.log(`[ML-CRON] \u2705 Shadow ML signal sent for ${pair}`);
+
+      await saveMlSignalToLog(signal);
+
+      await new Promise((r) => setTimeout(r, 1000));
+    } catch (err) {
+      console.error(`[ML-CRON] Error processing ${pair}:`, err);
+    }
+  }
+
+  console.log(`[ML-CRON] Scan complete.`);
+}
+
+export function startMlSignalCron() {
+  const INTERVAL_MS = 15 * 60 * 1000;
+  console.log(`[ML-CRON] Shadow ML signal scanner started. Interval: ${INTERVAL_MS / 1000}s`);
+  runMlSignalScan();
+  setInterval(runMlSignalScan, INTERVAL_MS);
+}
+
+async function checkMlOpenSignals() {
+  console.log("[ML-SIGNAL-CHECK] Checking open ML signals...");
+  try {
+    const openSignals = await (db as any)
+      .select()
+      .from(mlSignalLog)
+      .where(inArray(mlSignalLog.status, ["OPEN", "TP1_HIT", "TP2_HIT"]));
+
+    if (openSignals.length === 0) {
+      console.log("[ML-SIGNAL-CHECK] No open ML signals.");
+      return;
+    }
+
+    const priceCache = new Map<string, number | null>();
+
+    for (const sig of openSignals) {
+      if (!priceCache.has(sig.pair)) {
+        priceCache.set(sig.pair, await fetchCurrentPrice(sig.pair));
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      const currentPrice = priceCache.get(sig.pair);
+      if (currentPrice === null || currentPrice === undefined) continue;
+
+      let newStatus: string | null = null;
+      let closed = false;
+
+      if (sig.side === "SELL") {
+        if (sig.sl !== null && currentPrice >= sig.sl) {
+          newStatus = "SL_HIT"; closed = true;
+        } else if (sig.tp3 !== null && currentPrice <= sig.tp3) {
+          newStatus = "TP3_HIT"; closed = true;
+        } else if (sig.tp2 !== null && currentPrice <= sig.tp2 && sig.status !== "TP2_HIT") {
+          newStatus = "TP2_HIT";
+        } else if (sig.tp1 !== null && currentPrice <= sig.tp1 && sig.status === "OPEN") {
+          newStatus = "TP1_HIT";
+        }
+      } else if (sig.side === "BUY") {
+        if (sig.sl !== null && currentPrice <= sig.sl) {
+          newStatus = "SL_HIT"; closed = true;
+        } else if (sig.tp3 !== null && currentPrice >= sig.tp3) {
+          newStatus = "TP3_HIT"; closed = true;
+        } else if (sig.tp2 !== null && currentPrice >= sig.tp2 && sig.status !== "TP2_HIT") {
+          newStatus = "TP2_HIT";
+        } else if (sig.tp1 !== null && currentPrice >= sig.tp1 && sig.status === "OPEN") {
+          newStatus = "TP1_HIT";
+        }
+      }
+
+      if (newStatus) {
+        await (db as any)
+          .update(mlSignalLog)
+          .set({
+            status: newStatus,
+            ...(closed ? { closedPrice: currentPrice, closedAt: new Date() } : {}),
+          })
+          .where(eq(mlSignalLog.id, sig.id));
+        console.log(`[ML-SIGNAL-CHECK] ${sig.pair} #${sig.id} \u2192 ${newStatus} @ ${currentPrice}`);
+      }
+    }
+
+    console.log("[ML-SIGNAL-CHECK] Done.");
+  } catch (err) {
+    console.error("[ML-SIGNAL-CHECK] Error:", err);
+  }
+}
+
+export function startMlSignalCheckCron() {
+  const INTERVAL_MS = 15 * 60 * 1000;
+  console.log(`[ML-SIGNAL-CHECK] Shadow ML forward-test checker started. Interval: ${INTERVAL_MS / 1000}s`);
+  checkMlOpenSignals();
+  setInterval(checkMlOpenSignals, INTERVAL_MS);
+}
+
+router.get("/ml-results", async (_req, res) => {
+  try {
+    const rows = await (db as any).select().from(mlSignalLog);
+    const closed = rows.filter((r: any) => r.status === "TP3_HIT" || r.status === "SL_HIT");
+    const wins = closed.filter((r: any) => r.status === "TP3_HIT");
+    const winRate = closed.length > 0 ? (wins.length / closed.length) * 100 : 0;
+
+    const byPair: Record<string, { total: number; wins: number; losses: number }> = {};
+    for (const r of closed) {
+      if (!byPair[r.pair]) byPair[r.pair] = { total: 0, wins: 0, losses: 0 };
+      byPair[r.pair].total++;
+      if (r.status === "TP3_HIT") byPair[r.pair].wins++;
+      else byPair[r.pair].losses++;
+    }
+
+    res.json({
+      totalSignals: rows.length,
+      openSignals: rows.filter((r: any) => r.status === "OPEN" || r.status === "TP1_HIT" || r.status === "TP2_HIT").length,
+      closedSignals: closed.length,
+      wins: wins.length,
+      losses: closed.length - wins.length,
+      winRate: winRate.toFixed(1) + "%",
+      byPair,
+      note: closed.length < 15
+        ? "Sample masih terlalu kecil (<15 closed) \u2014 JANGAN simpulkan profitabilitas dari angka ini dulu."
+        : closed.length < 50
+        ? "Sample masih kecil (<50 closed) \u2014 ini pembacaan AWAL, belum kesimpulan final."
+        : "Sample sudah cukup untuk pembacaan awal yang lebih meyakinkan.",
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
 
 // ─── MEME COIN FORWARD TESTING ────────────────────────────────────────────────
 async function saveMemeSignalToLog(coin: any, triggerLabel: string) {

@@ -22,3 +22,4 @@ export * from "./signal-log";
 export * from "./meme-signal-log";
 export * from "./whale-alerts";
 export * from "./circuit-breaker";
+export * from "./ml-signal-log";
