@@ -1314,8 +1314,6 @@ function LeverageCalculator({
 }) {
   const t = useT();
   const LEVERAGE_OPTIONS = [3, 5, 10, 20, 50, 100];
-  const [leverage, setLeverage] = React.useState(10);
-  const [capital, setCapital] = React.useState("100");
 
   const entryPrice = parseFloat(
     (signal.entryPrice ?? signal.entryRange ?? "0").replace(/[^0-9.]/g, "")
@@ -1323,6 +1321,17 @@ function LeverageCalculator({
   const slPrice = parseFloat(
     (signal.stopLoss ?? "0").replace(/[^0-9.]/g, "")
   );
+
+  // Saran leverage non-binding: opsi terdekat dengan target risk ~1% modal dari jarak SL
+  const slDistancePct = entryPrice > 0 && slPrice > 0 ? Math.abs(entryPrice - slPrice) / entryPrice : 0;
+  const idealLeverage = slDistancePct > 0 ? 0.01 / slDistancePct : 10;
+  const suggestedLeverage = LEVERAGE_OPTIONS.reduce((best, opt) =>
+    Math.abs(opt - idealLeverage) < Math.abs(best - idealLeverage) ? opt : best
+  , LEVERAGE_OPTIONS[0]);
+
+  const [leverage, setLeverage] = React.useState(suggestedLeverage);
+  const [capital, setCapital] = React.useState("100");
+
   const tpPrices = (signal.takeProfit ?? []).map((tp: string) =>
     parseFloat(tp.replace(/[^0-9.]/g, ""))
   );
@@ -1385,6 +1394,9 @@ function LeverageCalculator({
       <Text style={[styles.leverageLabel, { color: colors.mutedForeground, marginBottom: 8 }]}>
         {t("signals.leverage.selectLeverage")}
       </Text>
+      <Text style={{ color: colors.mutedForeground, fontSize: 11, marginBottom: 8, fontStyle: "italic" }}>
+        💡 Disarankan: {suggestedLeverage}x (target risk ~1% modal dari jarak SL, bukan rekomendasi finansial)
+      </Text>
       <View style={styles.leverageBtnRow}>
         {LEVERAGE_OPTIONS.map((lv) => (
           <Pressable
@@ -1394,7 +1406,7 @@ function LeverageCalculator({
               styles.leverageBtn,
               {
                 backgroundColor: leverage === lv ? colors.primary + "33" : "rgba(255,255,255,0.05)",
-                borderColor: leverage === lv ? colors.primary : colors.border,
+                borderColor: leverage === lv ? colors.primary : lv === suggestedLeverage ? colors.success : colors.border,
               },
             ]}
           >
@@ -1404,7 +1416,7 @@ function LeverageCalculator({
                 { color: leverage === lv ? colors.primary : colors.mutedForeground },
               ]}
             >
-              {lv}x
+              {lv}x{lv === suggestedLeverage ? " 💡" : ""}
             </Text>
           </Pressable>
         ))}

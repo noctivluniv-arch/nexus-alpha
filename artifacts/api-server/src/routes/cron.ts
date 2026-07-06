@@ -84,6 +84,15 @@ function escapeHtml(text: string): string {
     .replace(/>/g, "&gt;");
 }
 
+function suggestLeverage(entryPrice: number, sl: number | null, capital = 100, riskPct = 0.01): { leverage: number; positionSize: number; slDistancePct: number } {
+  if (!sl || entryPrice <= 0) return { leverage: 1, positionSize: capital, slDistancePct: 0 };
+  const slDistancePct = Math.abs(entryPrice - sl) / entryPrice;
+  if (slDistancePct <= 0) return { leverage: 1, positionSize: capital, slDistancePct: 0 };
+  const leverage = Math.max(1, Math.min(20, Math.round(riskPct / slDistancePct)));
+  const positionSize = capital * leverage;
+  return { leverage, positionSize, slDistancePct };
+}
+
 async function sendTelegram(text: string): Promise<void> {
   await sendWithRetry(
     `${TELEGRAM_API}/sendMessage`,
@@ -254,6 +263,11 @@ async function runSignalScan() {
         msg += `  TP1: $${fmtPrice(signal.tp1)} (1:1.5)\n`;
         msg += `  TP2: $${fmtPrice(signal.tp2)} (1:2.5)\n`;
         msg += `  TP3: $${fmtPrice(signal.tp3)} (1:4.0)\n\n`;
+
+        const lev = suggestLeverage(signal.price, signal.sl);
+        msg += `<b>💡 Saran Leverage (non-binding):</b>\n`;
+        msg += `  Risk ~1% modal → ~${lev.leverage}x | Size: $${lev.positionSize.toFixed(0)} (dari modal $100)\n`;
+        msg += `  <i>Saran matematis dari jarak SL (${(lev.slDistancePct * 100).toFixed(2)}%), bukan rekomendasi finansial.</i>\n\n`;
 
         if (signal.confluences.length > 0) {
           msg += `<b>📌 Confluences:</b>\n`;
@@ -508,6 +522,11 @@ async function runMlSignalScan() {
       msg += `  TP1: $${fmtPrice(signal.tp1)} (1:1.5)\n`;
       msg += `  TP2: $${fmtPrice(signal.tp2)} (1:2.5)\n`;
       msg += `  TP3: $${fmtPrice(signal.tp3)} (1:4.0)\n\n`;
+
+      const mlLev = suggestLeverage(signal.price, signal.sl);
+      msg += `<b>💡 Saran Leverage (non-binding):</b>\n`;
+      msg += `  Risk ~1% modal → ~${mlLev.leverage}x | Size: $${mlLev.positionSize.toFixed(0)} (dari modal $100)\n`;
+      msg += `  <i>Saran matematis dari jarak SL (${(mlLev.slDistancePct * 100).toFixed(2)}%), bukan rekomendasi finansial.</i>\n\n`;
 
       msg += `<i>\u23f0 ${new Date().toLocaleString("id-ID")}</i>\n`;
       msg += `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n`;
