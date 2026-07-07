@@ -1621,4 +1621,29 @@ Deploy Render sukses. Risiko minim karena script-script ini tidak disentuh prose
 1. Tunggu forward-test ML BUY (threshold 0.65) dan Breakout BUY kumpulkan cukup data closed
 2. Saat evaluasi nanti, filter berdasarkan `sentAt`/`probBuy` — jangan campur sinyal era threshold lama
 3. Bandingkan performa REAL vs backtest setelah data cukup, putuskan promosi ke production
-4. **Rebuild scoring engine pakai logistic regression** — keputusan sudah diambil, script (`train-logistic-model.ts`) sudah aman ter-backup di git, implementasi belum mulai — bisa dikerjakan kapan saja, tidak perlu nunggu item 1-3
+4. ✅ ~~Rebuild scoring engine pakai logistic regression~~ — **KOREKSI STATUS (lihat sesi klarifikasi di bawah)**: implementasi SUDAH selesai dan SUDAH deploy sebagai shadow forward-test, bukan "belum mulai" seperti tertulis di atas
+
+---
+
+## Klarifikasi Status ML — sesi lanjutan 8 Juli 2026
+
+### Kenapa ada klarifikasi ini
+Catatan "item 4 belum mulai" di atas **sudah tidak akurat** — sempat tidak ter-update setelah sesi build ML selesai. Ini koreksinya.
+
+### Status Sebenarnya — Shadow ML Forward-Test
+- Model logistic regression (BUY & SELL, terpisah) **sudah dibangun, dilatih, dan divalidasi**: 38 fitur (37 indikator teknikal ternormalisasi ATR + rolling volatility percentile), data 6 tahun Bybit spot (daily + 4H) untuk 6 pair (BTC, ETH, BNB, SOL, LINK, DOGE)
+- Validasi: 8-fold walk-forward cross-validation (SELL lolos 8/8, BUY lolos 7/8 — 1 kegagalan karena tren bearish market-wide Jan–Jun 2026 yang sudah terdokumentasi) + leave-one-pair-out testing
+- **Sudah di-deploy sebagai SHADOW forward-test** (paralel dengan rule-based engine yang sudah ada, BUKAN menggantikan):
+  - Cron baru: `startMlSignalCron`, `startMlSignalCheckCron` (jalan tiap 15 menit)
+  - Tabel baru: `ml_signal_log`
+  - Telegram: sinyal ML dikirim dengan label `🧪 SHADOW ML SIGNAL` (dibedakan dari sinyal rule-based biasa)
+  - Dashboard: section baru di `/api/cron/dashboard`
+- **PENTING — status per hari ini (8 Juli 2026): MASIH TAHAP FORWARD-TEST, BELUM MASUK PRODUCTION.** Rule-based engine yang lama tetap yang jalan di production/live trading. Shadow ML cuma dipantau paralel dulu.
+- 3 sinyal ML terakhir yang tercatat live: SUIUSDT (BUY), DOGEUSDT (BUY), AVAXUSDT (BUY)
+
+### Belum Dikerjakan / Agenda Selanjutnya (update final, 8 Juli 2026)
+1. Tunggu shadow ML forward-test kumpulkan cukup data closed trades (jangan simpulkan profitabilitas dari sample kecil — minimal ~15-20 trade closed untuk baca awal, ~50 untuk kesimpulan solid)
+2. Tunggu juga forward-test Breakout BUY (threshold 0.65) dan rule-based lama kumpulkan data pembanding
+3. Saat evaluasi nanti: WAJIB filter berdasarkan `sentAt`/`probBuy`, jangan campur era threshold lama dengan yang baru
+4. Bandingkan performa REAL (bukan backtest) antara: rule-based lama vs shadow ML vs Breakout — baru putuskan mana yang dipromosikan ke production
+5. Cek endpoint `/api/cron/dashboard` atau `/api/cron/results` secara rutin untuk pantau progress shadow ML tanpa mengganggu apa pun yang sudah jalan
