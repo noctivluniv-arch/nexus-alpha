@@ -1107,6 +1107,16 @@ router.get("/dashboard", (_req, res) => {
   </section>
 
   <section>
+    <h2>📊 Shadow Breakout Signal (Momentum — Eksperimen)</h2>
+    <div class="note" style="margin-bottom:12px">⚠️ Strategi breakout momentum paralel, BELUM menggantikan sinyal rule-based/ML di atas. Backtest walk-forward: PF 1.45 (2021-2024) / PF 1.29 (2024-2026), kedua periode profitable. Murni forward-test untuk validasi sebelum dipertimbangkan production.</div>
+    <div class="grid" id="breakout-stats"><div class="loading">Memuat...</div></div>
+    <table id="breakout-table">
+      <thead><tr><th>Pair</th><th>Entry ($)</th><th>SL ($)</th><th>TP ($)</th><th>Status</th><th>Close ($)</th><th>PnL (dari $100)</th><th>Sent</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section>
     <h2>💎 Meme Coin (Early Gem Tracker)</h2>
     <div class="grid" id="meme-stats"><div class="loading">Memuat...</div></div>
     <table id="meme-table">
@@ -1320,6 +1330,84 @@ async function load() {
     document.querySelector('#ml-table tbody').innerHTML = mlRows.join('');
   } catch(e) {
     document.getElementById('ml-stats').innerHTML = '<div class="loading">Gagal memuat data shadow ML.</div>';
+  }
+
+  // ── SHADOW BREAKOUT SIGNAL ───────────────────────────────────────────
+  try {
+    const brRes = await fetch('/api/cron/breakout-results').then(r => r.json());
+    const brSignals = brRes.signals || [];
+
+    const brOpenPairs = [...new Set(brSignals.map(s => s.pair))];
+    let brCurrentPrices = {};
+    if (brOpenPairs.length > 0) {
+      try {
+        const pricePromises = brOpenPairs.map(pair =>
+          fetch('/api/binance/ticker?symbol=' + pair)
+            .then(r => r.json())
+            .then(t => { if (t && t.lastPrice) brCurrentPrices[t.symbol] = parseFloat(t.lastPrice); })
+            .catch(() => {})
+        );
+        await Promise.all(pricePromises);
+      } catch(e) { /* harga tidak tersedia, abaikan */ }
+    }
+
+    let brTotalPnl = 0;
+    let brClosedCount = 0;
+    let brWinCount = 0;
+    let brLossCount = 0;
+
+    const brRows = brSignals.slice().reverse().map(s => {
+      let pnl = null;
+      let badge = 'badge-open';
+      const isClosed = s.status === 'SL_HIT' || s.status === 'TP_HIT' || s.status === 'EXPIRED';
+
+      if (isClosed && s.closedPrice && s.entryPrice) {
+        const pct = (s.closedPrice - s.entryPrice) / s.entryPrice;
+        pnl = pct * MODAL;
+        brTotalPnl += pnl;
+        brClosedCount++;
+        if (pnl > 0) { brWinCount++; badge = 'badge-win'; }
+        else { brLossCount++; badge = 'badge-loss'; }
+      }
+
+      let unrealizedHint = '';
+      if (!isClosed && s.entryPrice) {
+        const curPrice = brCurrentPrices[s.pair];
+        if (curPrice) {
+          const pct = (curPrice - s.entryPrice) / s.entryPrice;
+          const unrealizedPnl = pct * MODAL;
+          const sign = unrealizedPnl >= 0 ? '+' : '';
+          const cls = unrealizedPnl > 0 ? 'pnl-pos' : unrealizedPnl < 0 ? 'pnl-neg' : 'pnl-neutral';
+          const pct100 = (pct * 100).toFixed(2);
+          unrealizedHint = '<span class="' + cls + '">' + sign + '$' + unrealizedPnl.toFixed(2) + ' (' + sign + pct100 + '%)</span><br><span style="font-size:11px;color:#8b949e">@ $' + curPrice + '</span>';
+        }
+      }
+
+      return '<tr>' +
+        '<td>' + s.pair + '</td>' +
+        '<td>' + s.entryPrice + '</td>' +
+        '<td>' + (s.sl ? '$' + s.sl : '-') + '</td>' +
+        '<td>' + (s.tp ? '$' + s.tp : '-') + '</td>' +
+        '<td><span class="badge ' + badge + '">' + s.status + '</span></td>' +
+        '<td>' + (s.closedPrice ? '$' + s.closedPrice : '-') + '</td>' +
+        '<td>' + (pnl !== null ? pnlHtml(pnl) : unrealizedHint) + '</td>' +
+        '<td>' + new Date(s.sentAt).toLocaleString('id-ID') + '</td>' +
+        '</tr>';
+    });
+
+    const brWinRate = brClosedCount > 0 ? (brWinCount / brClosedCount * 100).toFixed(1) + '%' : 'N/A';
+    const brStats = document.getElementById('breakout-stats');
+    brStats.innerHTML =
+      '<div class="card"><div class="label">Total Closed</div><div class="value">' + brClosedCount + '</div><div class="sublabel">dari ' + brSignals.length + ' signal</div></div>' +
+      '<div class="card"><div class="label">Wins</div><div class="value green">' + brWinCount + '</div></div>' +
+      '<div class="card"><div class="label">Losses</div><div class="value red">' + brLossCount + '</div></div>' +
+      '<div class="card"><div class="label">Win Rate</div><div class="value yellow">' + brWinRate + '</div></div>' +
+      '<div class="card"><div class="label">Total PnL</div><div class="value ' + (brTotalPnl >= 0 ? 'green' : 'red') + '">' + (brTotalPnl >= 0 ? '+' : '') + '$' + brTotalPnl.toFixed(2) + '</div><div class="sublabel">dari modal $' + (brSignals.length * MODAL) + ' virtual</div></div>' +
+      '<div class="card"><div class="label">Sample Progress</div><div class="value ' + (brClosedCount >= 50 ? 'green' : brClosedCount >= 15 ? 'yellow' : 'red') + '">' + brClosedCount + ' / 50</div><div class="sublabel">' + (brClosedCount < 15 ? (15 - brClosedCount) + ' lagi menuju evaluasi awal (15)' : brClosedCount < 50 ? (50 - brClosedCount) + ' lagi menuju kesimpulan final (50)' : 'Sample cukup untuk kesimpulan final') + '</div></div>';
+
+    document.querySelector('#breakout-table tbody').innerHTML = brRows.join('');
+  } catch(e) {
+    document.getElementById('breakout-stats').innerHTML = '<div class="loading">Gagal memuat data breakout.</div>';
   }
 
   // ── MEME COIN ────────────────────────────────────────────────────
