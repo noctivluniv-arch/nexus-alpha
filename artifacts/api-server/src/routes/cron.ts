@@ -1873,6 +1873,68 @@ export function startWhaleCron() {
 
 // ─── WHALE FORWARD-TEST (ATH tracking, mirip checkMemeSignals) ──────────────
 
+async function fetchDexScreenerBatch(addresses: string[]): Promise<Map<string, { price: number; liquidity: number; mcap: number }>> {
+  const result = new Map<string, { price: number; liquidity: number; mcap: number }>();
+  if (addresses.length === 0) return result;
+
+  const maxAttempts = 4;
+  const delays = [0, 1500, 3000, 6000];
+  const joined = addresses.join(",");
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (delays[attempt] > 0) {
+      await new Promise((r) => setTimeout(r, delays[attempt]));
+    }
+    try {
+      const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${joined}`, {
+        signal: AbortSignal.timeout(15000),
+      });
+      if (res.status === 429) {
+        console.log(`[DEX-DEBUG] Batch rate limited (429), percobaan ${attempt + 1}/${maxAttempts} (${addresses.length} token)`);
+        continue;
+      }
+      if (!res.ok) {
+        console.log(`[DEX-DEBUG] Batch HTTP error: status ${res.status}`);
+        return result;
+      }
+      const json = (await res.json()) as any;
+      const pairs = json?.pairs;
+      if (!pairs || pairs.length === 0) {
+        console.log(`[DEX-DEBUG] Batch: tidak ada pairs sama sekali untuk ${addresses.length} token`);
+        return result;
+      }
+
+      const bestByAddress = new Map<string, any>();
+      for (const p of pairs) {
+        const addr = p?.baseToken?.address;
+        if (!addr) continue;
+        const key = String(addr).toLowerCase();
+        const existing = bestByAddress.get(key);
+        const liq = parseFloat(p?.liquidity?.usd ?? "0");
+        if (!existing || liq > parseFloat(existing?.liquidity?.usd ?? "0")) {
+          bestByAddress.set(key, p);
+        }
+      }
+
+      for (const original of addresses) {
+        const best = bestByAddress.get(original.toLowerCase());
+        if (best) {
+          result.set(original, {
+            price: parseFloat(best.priceUsd ?? "0"),
+            liquidity: parseFloat(best?.liquidity?.usd ?? "0"),
+            mcap: parseFloat(best.fdv ?? best.marketCap ?? "0"),
+          });
+        }
+      }
+      return result;
+    } catch (err: any) {
+      console.log(`[DEX-DEBUG] Batch exception (percobaan ${attempt + 1}/${maxAttempts}):`, err?.message || String(err));
+    }
+  }
+  console.log(`[DEX-DEBUG] Batch gagal total setelah ${maxAttempts}x percobaan untuk ${addresses.length} token`);
+  return result;
+}
+
 async function checkWhaleAlerts() {
   console.log("[WHALE-CHECK] Checking tracked whale_alerts...");
   try {
@@ -1889,9 +1951,8 @@ async function checkWhaleAlerts() {
     const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
     const now = Date.now();
 
+    const validAlerts: any[] = [];
     for (const alert of tracking) {
-      await new Promise((r) => setTimeout(r, 300)); // jaga rate limit DexScreener
-
       const sentTime = alert.sentAt ? new Date(alert.sentAt).getTime() : now;
       if (now - sentTime > THIRTY_DAYS_MS) {
         await (db as any)
@@ -1907,13 +1968,29 @@ async function checkWhaleAlerts() {
         continue;
       }
 
-      const data = await fetchDexScreenerData(alert.tokenAddress);
+      validAlerts.push(alert);
+    }
+
+    const BATCH_SIZE = 25;
+    const uniqueAddresses = Array.from(new Set(validAlerts.map((a: any) => a.tokenAddress).filter(Boolean)));
+    const dataMap = new Map<string, { price: number; liquidity: number; mcap: number }>();
+
+    for (let i = 0; i < uniqueAddresses.length; i += BATCH_SIZE) {
+      const chunk = uniqueAddresses.slice(i, i + BATCH_SIZE);
+      const batchResult = await fetchDexScreenerBatch(chunk);
+      for (const [addr, val] of batchResult) {
+        dataMap.set(addr, val);
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+
+    for (const alert of validAlerts) {
+      const data = dataMap.get(alert.tokenAddress);
       if (!data || data.price <= 0) {
         console.log(`[WHALE-CHECK] ⚠️ ${alert.tokenSymbol} — data DexScreener tidak tersedia, skip`);
         continue;
       }
 
-      // Sanity check anomali harga, sama seperti checkMemeSignals()
       const priceRatio = data.price / alert.priceAtAlert;
       if (priceRatio > 500) {
         console.log(`[WHALE-CHECK] ⚠️ ${alert.tokenSymbol} — harga anomali (x${priceRatio.toFixed(0)}), skip`);
