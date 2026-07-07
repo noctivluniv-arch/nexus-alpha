@@ -907,10 +907,16 @@ async function fetchDexScreenerData(contractAddress: string): Promise<{ price: n
     const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${contractAddress}`, {
       signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.log(`[DEX-DEBUG] HTTP error for ${contractAddress}: status ${res.status}`);
+      return null;
+    }
     const json = (await res.json()) as any;
     const pairs = json?.pairs;
-    if (!pairs || pairs.length === 0) return null;
+    if (!pairs || pairs.length === 0) {
+      console.log(`[DEX-DEBUG] No pairs returned for ${contractAddress}`);
+      return null;
+    }
     // Ambil pair dengan liquidity terbesar (paling representatif)
     const best = pairs.reduce((a: any, b: any) =>
       (parseFloat(b?.liquidity?.usd ?? "0") > parseFloat(a?.liquidity?.usd ?? "0") ? b : a)
@@ -920,7 +926,8 @@ async function fetchDexScreenerData(contractAddress: string): Promise<{ price: n
       liquidity: parseFloat(best?.liquidity?.usd ?? "0"),
       mcap: parseFloat(best.fdv ?? best.marketCap ?? "0"),
     };
-  } catch {
+  } catch (err: any) {
+    console.log(`[DEX-DEBUG] Exception for ${contractAddress}:`, err?.message || String(err));
     return null;
   }
 }
