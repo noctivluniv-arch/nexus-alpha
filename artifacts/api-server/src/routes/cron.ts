@@ -3,7 +3,8 @@ import { eq, inArray, and } from "drizzle-orm";
 import { SUPPORTED_PAIRS } from "../../../nexusalpha/lib/types";
 import { computeRealtimeSignal } from "../lib/signal-engine-realtime";
 import { computeMlSignal } from "../lib/ml-signal-engine";
-import { db, ohlcvDaily, signalLog, memeSignalLog, whaleAlerts, circuitBreaker, mlSignalLog } from "@workspace/db";
+import { computeBreakoutSignal } from "../lib/breakout-signal-engine";
+import { db, ohlcvDaily, signalLog, memeSignalLog, whaleAlerts, circuitBreaker, mlSignalLog, breakoutSignalLog } from "@workspace/db";
 
 const router = Router();
 
@@ -625,6 +626,202 @@ export function startMlSignalCheckCron() {
   checkMlOpenSignals();
   setInterval(checkMlOpenSignals, INTERVAL_MS);
 }
+
+async function saveBreakoutSignalToLog(signal: {
+  pair: string;
+  price: number;
+  sl: number | null;
+  tp: number | null;
+  atr14: number | null;
+  volRatio: number | null;
+}) {
+  try {
+    const existing = await (db as any)
+      .select()
+      .from(breakoutSignalLog)
+      .where(
+        and(
+          eq(breakoutSignalLog.pair, signal.pair),
+          inArray(breakoutSignalLog.status, ["OPEN"]),
+        ),
+      );
+
+    if (existing.length > 0) {
+      console.log(`[BREAKOUT-LOG] ⏭️ Skip ${signal.pair} — masih ada signal OPEN yang sama (id #${existing[0].id})`);
+      return;
+    }
+
+    await (db as any).insert(breakoutSignalLog).values({
+      pair: signal.pair,
+      entryPrice: signal.price,
+      sl: signal.sl,
+      tp: signal.tp,
+      atr14: signal.atr14,
+      volRatio: signal.volRatio,
+      status: "OPEN",
+    });
+    console.log(`[BREAKOUT-LOG] ✅ Saved ${signal.pair} @ ${signal.price}`);
+  } catch (err) {
+    console.error(`[BREAKOUT-LOG] Error saving ${signal.pair}:`, err);
+  }
+}
+
+async function runBreakoutScan() {
+  console.log(`[BREAKOUT-CRON] Starting SHADOW breakout momentum scan for ${SUPPORTED_PAIRS.length} pairs...`);
+
+  for (const pair of SUPPORTED_PAIRS) {
+    try {
+      await new Promise((r) => setTimeout(r, 2000));
+      const signal = await computeBreakoutSignal(pair);
+      const volRatioLabel = signal.volRatio ? signal.volRatio.toFixed(2) + "x" : "N/A";
+
+      console.log(`[BREAKOUT-CRON] ${pair} -> side: ${signal.side}, volRatio: ${volRatioLabel}`);
+
+      if (signal.side === "NO_TRADE") {
+        await new Promise((r) => setTimeout(r, 500));
+        continue;
+      }
+
+      const stillOpen = await (db as any)
+        .select()
+        .from(breakoutSignalLog)
+        .where(
+          and(
+            eq(breakoutSignalLog.pair, signal.pair),
+            inArray(breakoutSignalLog.status, ["OPEN"]),
+          ),
+        );
+      if (stillOpen.length > 0) {
+        console.log(`[BREAKOUT-CRON] ⏭️ Skip kirim Telegram ${signal.pair} — masih ada signal OPEN (id #${stillOpen[0].id})`);
+        await new Promise((r) => setTimeout(r, 500));
+        continue;
+      }
+
+      let msg = `📊 <b>SHADOW BREAKOUT SIGNAL — NEXUSALPHA (Momentum)</b>\n`;
+      msg += `━━━━━━━━━━━━━━━\n`;
+      msg += `<b>Pair:</b> ${signal.pair}\n`;
+      msg += `<b>Signal:</b> 🟢 BUY/LONG 📈\n`;
+      msg += `<b>Volume Ratio:</b> ${volRatioLabel} rata-rata 10 hari\n`;
+      msg += `<b>Price:</b> $${fmtPrice(signal.price)}\n\n`;
+
+      msg += `<b>📍 Entry:</b> ~$${fmtPrice(signal.price)}\n`;
+      msg += `<b>🛑 Stop Loss:</b> $${fmtPrice(signal.sl)}\n`;
+      msg += `<b>🎯 Take Profit:</b> $${fmtPrice(signal.tp)} (1:1.5)\n`;
+      msg += `<b>⏳ Max Hold:</b> 10 hari (exit otomatis di harga close kalau belum kena TP/SL)\n\n`;
+
+      const lev = suggestLeverage(signal.price, signal.sl);
+      msg += `<b>💡 Saran Leverage (non-binding):</b>\n`;
+      msg += `  Risk ~1% modal → ~${lev.leverage}x | Size: $${lev.positionSize.toFixed(0)} (dari modal $100)\n`;
+      msg += `  <i>Saran matematis dari jarak SL (${(lev.slDistancePct * 100).toFixed(2)}%), bukan rekomendasi finansial.</i>\n\n`;
+
+      msg += `<i>⏰ ${new Date().toLocaleString("id-ID")}</i>\n`;
+      msg += `━━━━━━━━━━━━━━━\n`;
+      msg += `<i>📊 EKSPERIMEN — breakout momentum, backtest PF 1.45 (2021-24) / 1.29 (2024-26), MASIH FORWARD-TEST, JANGAN dipakai uang asli.</i>`;
+
+      await sendTelegram(msg);
+      console.log(`[BREAKOUT-CRON] ✅ Shadow breakout signal sent for ${pair}`);
+
+      await saveBreakoutSignalToLog(signal);
+
+      await new Promise((r) => setTimeout(r, 1000));
+    } catch (err) {
+      console.error(`[BREAKOUT-CRON] Error processing ${pair}:`, err);
+    }
+  }
+
+  console.log(`[BREAKOUT-CRON] Scan complete.`);
+}
+
+export function startBreakoutSignalCron() {
+  const INTERVAL_MS = 24 * 60 * 60 * 1000;
+  console.log(`[BREAKOUT-CRON] Shadow breakout signal scanner started. Interval: ${INTERVAL_MS / 1000}s`);
+  runBreakoutScan();
+  setInterval(runBreakoutScan, INTERVAL_MS);
+}
+
+async function checkOpenBreakoutSignals() {
+  console.log("[BREAKOUT-CHECK] Checking open breakout signals...");
+  try {
+    const openSignals = await (db as any)
+      .select()
+      .from(breakoutSignalLog)
+      .where(inArray(breakoutSignalLog.status, ["OPEN"]));
+
+    if (openSignals.length === 0) {
+      console.log("[BREAKOUT-CHECK] No open breakout signals.");
+      return;
+    }
+
+    const priceCache = new Map<string, number | null>();
+    const MAX_HOLD_MS = 10 * 24 * 60 * 60 * 1000;
+
+    for (const sig of openSignals) {
+      if (!priceCache.has(sig.pair)) {
+        priceCache.set(sig.pair, await fetchCurrentPrice(sig.pair));
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      const currentPrice = priceCache.get(sig.pair);
+      if (currentPrice === null || currentPrice === undefined) continue;
+
+      let newStatus: string | null = null;
+      const sentAt = sig.sentAt ? new Date(sig.sentAt).getTime() : Date.now();
+      const expired = Date.now() - sentAt >= MAX_HOLD_MS;
+
+      if (sig.sl !== null && currentPrice <= sig.sl) {
+        newStatus = "SL_HIT";
+      } else if (sig.tp !== null && currentPrice >= sig.tp) {
+        newStatus = "TP_HIT";
+      } else if (expired) {
+        newStatus = "EXPIRED";
+      }
+
+      if (newStatus) {
+        await (db as any)
+          .update(breakoutSignalLog)
+          .set({ status: newStatus, closedPrice: currentPrice, closedAt: new Date() })
+          .where(eq(breakoutSignalLog.id, sig.id));
+        console.log(`[BREAKOUT-CHECK] ${sig.pair} #${sig.id} -> ${newStatus} @ ${currentPrice}`);
+      }
+    }
+
+    console.log("[BREAKOUT-CHECK] Done.");
+  } catch (err) {
+    console.error("[BREAKOUT-CHECK] Error:", err);
+  }
+}
+
+export function startBreakoutSignalCheckCron() {
+  const INTERVAL_MS = 6 * 60 * 60 * 1000;
+  console.log(`[BREAKOUT-CHECK] Shadow breakout forward-test checker started. Interval: ${INTERVAL_MS / 1000}s`);
+  checkOpenBreakoutSignals();
+  setInterval(checkOpenBreakoutSignals, INTERVAL_MS);
+}
+
+router.get("/breakout-results", async (_req, res) => {
+  try {
+    const rows = await (db as any).select().from(breakoutSignalLog);
+    const closed = rows.filter((r: any) => r.status === "TP_HIT" || r.status === "SL_HIT" || r.status === "EXPIRED");
+    const wins = closed.filter((r: any) => r.status === "TP_HIT" || (r.status === "EXPIRED" && r.closedPrice > r.entryPrice));
+    const winRate = closed.length > 0 ? (wins.length / closed.length) * 100 : 0;
+
+    res.json({
+      totalSignals: rows.length,
+      openSignals: rows.filter((r: any) => r.status === "OPEN").length,
+      closedSignals: closed.length,
+      wins: wins.length,
+      losses: closed.length - wins.length,
+      winRate: winRate.toFixed(1) + "%",
+      signals: rows,
+      note: closed.length < 15
+        ? "Sample masih terlalu kecil (<15 closed) — JANGAN simpulkan profitabilitas dari angka ini dulu."
+        : closed.length < 50
+        ? "Sample masih kecil (<50 closed) — ini pembacaan AWAL, belum kesimpulan final."
+        : "Sample sudah cukup untuk pembacaan awal yang lebih meyakinkan.",
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
 
 router.get("/ml-results", async (_req, res) => {
   try {
