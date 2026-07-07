@@ -1561,3 +1561,36 @@ Saat menyimpan progress sesi ini, sempat terjadi kesalahan: command `cat > claud
 5. Cleanup `node_modules` dari git tracking — bug lama, high-risk, butuh sesi khusus terpisah
 6. ✅ ~~Housekeeping file backup lama~~ — SELESAI sesi ini
 7. ✅ ~~Whale-check DexScreener rate limit~~ — SELESAI sesi ini
+
+---
+
+## Sesi 8 Juli 2026 — Cleanup node_modules dari Git Tracking (Item 5) — SELESAI ✅
+
+### Masalah
+`node_modules` tidak pernah didaftarkan di `.gitignore` sejak awal proyek — akibatnya 52.074 file (termasuk beberapa sub-folder `node_modules` per package di monorepo pnpm) ke-track permanen di git. Setiap `git status` selalu menampilkan noise ribuan baris, menyulitkan verifikasi perubahan asli.
+
+### Fix — DONE ✅
+1. Tambah `node_modules/`, `dist/`, `*.tsbuildinfo` ke `.gitignore`
+2. Untrack semua file yang sudah kadung ke-track pakai `git rm -r --cached` (file di komputer TIDAK terhapus, cuma dilepas dari index git)
+3. Verifikasi sebelum commit: `git status --short | awk '{print $1}' | sort | uniq -c` → 52.099 baris `D` (sesuai ekspektasi), sisanya (`M`, `??`) dicek manual satu-satu sebelum lanjut
+
+### Temuan Sampingan Selama Proses
+1. **`pnpm-workspace.yaml` & `pnpm-lock.yaml` punya perubahan tertunda** — fix `esbuild darwin-arm64` exclusion (item infrastruktur lama yang sudah dikerjakan sebelumnya tapi belum sempat ter-commit). Ikut di-commit bersama cleanup ini.
+2. **23 file script riset penting BELUM PERNAH ke-track git** (`backtest-sell-walkforward.ts`, `backtest-breakout-walkforward.ts`, `analyze-scoring-components.ts`, `train-logistic-model.ts`, `validate-model-robustness.ts`, dll di folder `scripts/src/`) — cuma ada di laptop lokal, TIDAK ada backup di GitHub. **RISIKO**: kalau laptop rusak/hilang, semua script riset yang jadi dasar keputusan (circuit breaker, trend1d, threshold ML) hilang permanen. **BELUM DIKERJAKAN** — perlu sesi terpisah untuk commit script-script ini ke git.
+
+### Insiden Kecil: Commit Tergabung Tidak Sengaja
+`git rm --cached` di awal proses sudah men-stage semua penghapusan node_modules ke index git. Saat commit terpisah untuk `pnpm-workspace.yaml`/`pnpm-lock.yaml` dijalankan, git commit otomatis ikut membawa SEMUA yang sudah di-stage (termasuk node_modules) jadi 1 commit gabungan, bukan 2 commit terpisah seperti rencana awal. Tidak ada data yang hilang/rusak — cuma histori commit kurang rapi. **PELAJARAN**: kalau mau commit terpisah rapi, urutan `git rm --cached` harus dilakukan TEPAT SEBELUM commit yang bersangkutan, bukan jauh sebelumnya.
+
+### Verifikasi Deploy — SUKSES ✅
+- Render build sukses (dikonfirmasi `dist/` di-generate ulang otomatis lewat `pnpm run build` di package.json, bukan bergantung pada `dist/` yang di-commit)
+- Endpoint dicek pasca-deploy: `/api/cron/circuit-breaker/status` dan `/api/cron/results` tetap normal, data konsisten, tidak ada regresi
+
+### STATUS ROADMAP HOUSEKEEPING — Item 5 SELESAI ✅
+
+### Belum Dikerjakan / Agenda Selanjutnya (update per 8 Juli 2026)
+1. Tunggu forward-test ML BUY (threshold 0.65) dan Breakout BUY kumpulkan cukup data closed
+2. Saat evaluasi nanti, filter berdasarkan `sentAt`/`probBuy` — jangan campur sinyal era threshold lama
+3. Bandingkan performa REAL vs backtest setelah data cukup, putuskan promosi ke production
+4. **Rebuild scoring engine pakai logistic regression** — keputusan sudah diambil, implementasi belum mulai, BISA dikerjakan paralel (tidak perlu nunggu item 1-3, sumber data beda)
+5. ✅ ~~Cleanup node_modules dari git~~ — SELESAI sesi ini
+6. **BARU DITEMUKAN**: backup 23 file script riset (`scripts/src/*.ts`) yang belum pernah ke-track git — prioritas sebelum mulai item 4, supaya script training/backtest untuk logistic regression tidak berisiko hilang
