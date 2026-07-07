@@ -1594,3 +1594,31 @@ Saat menyimpan progress sesi ini, sempat terjadi kesalahan: command `cat > claud
 4. **Rebuild scoring engine pakai logistic regression** — keputusan sudah diambil, implementasi belum mulai, BISA dikerjakan paralel (tidak perlu nunggu item 1-3, sumber data beda)
 5. ✅ ~~Cleanup node_modules dari git~~ — SELESAI sesi ini
 6. **BARU DITEMUKAN**: backup 23 file script riset (`scripts/src/*.ts`) yang belum pernah ke-track git — prioritas sebelum mulai item 4, supaya script training/backtest untuk logistic regression tidak berisiko hilang
+
+---
+
+## Sesi 8 Juli 2026 (lanjutan) — Backup Script Riset & Model ke Git — SELESAI ✅
+
+### Masalah
+23 file script riset (`scripts/src/*.ts`, `.cjs`) dan 4 file model hasil training (`scripts/output/model-*.json`) ditemukan belum pernah ke-track git — cuma ada di laptop lokal, tidak ada backup di GitHub. Ini termasuk script-script dasar dari keputusan penting: `backtest-sell-walkforward.ts`, `backtest-breakout-walkforward.ts`, `train-logistic-model.ts`, `validate-model-robustness.ts`, dll.
+
+### Fix — DONE ✅
+1. Cek keamanan dulu — pastikan tidak ada API key/password ter-hardcode di script (hasil grep: aman, cuma contoh format di komentar dokumentasi, kredensial asli semua lewat `process.env`)
+2. `scripts/output/*.csv` (dataset mentah `ml-dataset.csv`, 4MB) ditambahkan ke `.gitignore` — regeneratable lewat `build-ml-dataset.ts` + data OHLCV di DB, tidak perlu disimpan permanen di git
+3. Commit terpisah: 20 file script (`.ts`/`.cjs`) + 4 file model JSON (`model-buy.json`, `model-buy-final.json`, `model-sell.json`, `model-sell-final.json`) + 1 file log (`backtest-v3-output.txt`)
+4. Preview pakai `git add -n` sebelum commit sungguhan — dikonfirmasi `ml-dataset.csv` tidak ikut, cuma 25 file yang dimaksud
+
+### Verifikasi Deploy — SUKSES ✅
+Deploy Render sukses. Risiko minim karena script-script ini tidak disentuh proses production (`dist/index.mjs`) — murni file riset yang dijalankan manual via `tsx`.
+
+### STATUS: Semua Housekeeping 8 Juli 2026 SELESAI ✅✅✅✅
+1. Bersih-bersih file backup lama (`.backup2-6`, `whale-*.patch`)
+2. Fix whale-check DexScreener rate limit (429) — batch fetching
+3. Cleanup `node_modules` dari git tracking (52k+ file) + fix `esbuild darwin-arm64` tertunda
+4. Backup 23 script riset + 4 model JSON ke git
+
+### Belum Dikerjakan / Agenda Selanjutnya (update per 8 Juli 2026, sore)
+1. Tunggu forward-test ML BUY (threshold 0.65) dan Breakout BUY kumpulkan cukup data closed
+2. Saat evaluasi nanti, filter berdasarkan `sentAt`/`probBuy` — jangan campur sinyal era threshold lama
+3. Bandingkan performa REAL vs backtest setelah data cukup, putuskan promosi ke production
+4. **Rebuild scoring engine pakai logistic regression** — keputusan sudah diambil, script (`train-logistic-model.ts`) sudah aman ter-backup di git, implementasi belum mulai — bisa dikerjakan kapan saja, tidak perlu nunggu item 1-3
