@@ -1344,3 +1344,64 @@ build-ml-dataset.ts, train-logistic-model.ts, validate-model-robustness.ts, comp
 3. Lanjutkan perbandingan breakout BUY vs logistic regression BUY (item roadmap terakhir yang tersisa)
 4. Terus pantau forward-test signal trading & shadow ML sampai closed count cukup untuk evaluasi (standing instruction: 15-20 untuk awal, 50 untuk final)
 5. Repo cleanup lama yang masih belum dikerjakan: banyak file `cron.ts.backup`, `.backup2`...`.backup6`, serta file patch lama (`whale-*.patch`) menumpuk di root — aman dihapus kapan saja, tidak mendesak
+
+---
+
+## Sesi 7 Juli 2026 — Fix Support/Resistance N/A + Riset Breakout vs ML BUY SELESAI ✅
+
+### 1. Fix Support/Resistance "N/A" di Web App — DONE ✅
+**Masalah**: Halaman signals web app (nexus-alpha-api-server.vercel.app/signals) selalu tampilkan Support/Resistance = "N/A" untuk semua pair, padahal skor S/R Level di breakdown normal (12/20).
+**Root cause**: Sejak sesi unifikasi rule-based (30 Juni 2026) yang ganti otak web app dari Gemini ke `computeRealtimeSignal()`, field `keySupport`/`keyResistance` di endpoint `/api/ai/signal` HARDCODE `"N/A"` — bukan dihitung dari apapun. Logic lama yang benar-benar hitung S/R (`swingLevels()`, `sup1`/`res1`) masih ada di kode tapi jadi dead code (cuma dipakai jalur Gemini yang sudah tidak aktif).
+**Fix**:
+- `signal-engine-realtime.ts`: `computeRealtimeSignal()` sudah HITUNG `sup1`/`res1` (dari `swingLevels(h4h, h4l, 42)` = swing 7 hari) untuk keperluan scoring internal, tapi tidak di-expose ke return value. Ditambahkan `sup1`/`res1` ke interface `RealtimeSignal` dan ke return statement function.
+- `ai.ts`: `keySupport`/`keyResistance` diganti dari hardcode `"N/A"` jadi `rtSignal.sup1`/`rtSignal.res1` (format `$X.XXXX`, fallback N/A kalau null).
+- **Verified**: user konfirmasi Support/Resistance sekarang muncul dengan benar di web app untuk semua pair.
+- **Catatan**: fix ini HANYA untuk web app, TIDAK berlaku untuk Telegram (pesan Telegram dari awal memang tidak pernah tampilkan S/R, hanya Entry/SL/TP1-3 — tidak perlu diubah).
+
+### 2. Riset: Breakout Momentum BUY vs Logistic Regression BUY — SELESAI ✅
+
+**Tujuan**: item terakhir dari roadmap lama — bandingkan 2 kandidat BUY (breakout momentum vs ML) untuk tentukan mana yang layak lanjut ke production/shadow forward-test.
+
+**Temuan kunci #1 — validasi model robustness pakai model versi LAMA secara tidak sengaja**:
+- `validate-model-robustness.ts` dijalankan ulang menunjukkan BUY cuma 4/8 fold (bukan 7/8 seperti dicatat sesi sebelumnya) — ternyata dataset `scripts/output/ml-dataset.csv` TIDAK PERNAH benar-benar diupdate dengan kolom `rolling_vol_pct` (fitur volatilitas itu cuma ditambahkan on-the-fly di script `retrain-with-volatility.ts`, bukan permanen ke CSV/model tersimpan).
+- Re-run `retrain-with-volatility.ts` (yang enrich dataset dengan `rolling_vol_pct` on-the-fly) mengonfirmasi angka yang benar: **BUY 7/8 fold ✅, SELL 8/8 fold ✅** — sesuai catatan sesi sebelumnya.
+- **Pelajaran penting**: kalau mau validasi ulang model ML kapan saja, WAJIB pakai script yang enrich fitur volatilitas (`retrain-with-volatility.ts` atau turunannya), JANGAN pakai `validate-model-robustness.ts` polos — itu masih pakai 37 fitur lama tanpa `rolling_vol_pct`.
+
+**Temuan kunci #2 — perbandingan head-to-head di threshold production (0.52) awalnya timpang**:
+- Script baru dibuat: `scripts/src/backtest-ml-threshold.ts` — backtest ML di threshold production yang SAMA PERSIS dengan cara breakout diukur (bukan top/bottom percentile, tapi "kalau semua sinyal >= threshold benar-benar di-trade").
+- Breakout BUY (lookback 10 hari): PF 1.45 (P1) / 1.29 (P2) — konsisten profitable.
+- ML BUY di threshold 0.52 (threshold production LAMA): PF 1.24 (P1) / **0.89 ❌ (P2, rugi)** — memburuk signifikan di data terbaru.
+- ML SELL di threshold 0.52: PF 0.90/0.95 — rugi di kedua periode.
+- Kesimpulan awal: breakout menang telak, ML terlihat tidak layak di threshold saat itu.
+
+**Temuan kunci #3 — threshold ML SELALU terlalu longgar, bukan modelnya yang buruk**:
+- Script baru dibuat: `scripts/src/backtest-ml-threshold-sweep.ts` — sweep 9 threshold (0.52 s/d 0.75), latih SEKALI per fold (efisien), cari titik optimal.
+- **ML BUY @ threshold 0.65**: N=152/152, WR 63.2%/55.9%, AvgPnL +2.85%/+2.33%, **PF 2.23/1.88** — MENGALAHKAN breakout BUY di semua metrik, DAN konsisten di kedua periode (bukan overfitting satu sisi).
+- Di atas 0.65 (0.68+), Periode 1 mulai melemah sementara Periode 2 makin kuat — pola divergen = sinyal overfitting kalau threshold dinaikkan lebih jauh. **0.65 adalah sweet spot**, bukan titik ekstrem.
+- **ML SELL**: TIDAK ada threshold (sampai 0.70) yang bikin kedua periode profitable bersamaan — baru di 0.75 kedua periode positif tipis tapi sample kecil (435) dan margin tipis. SELL belum terbukti punya edge solid di threshold manapun yang diuji.
+
+### 3. Fix Threshold ML BUY — DONE ✅ (deploy sedang berjalan saat context ini ditulis)
+- `artifacts/api-server/src/lib/ml-signal-engine.ts`: konstanta `ML_THRESHOLD = 0.52` dipecah jadi `ML_BUY_THRESHOLD = 0.65` dan `ML_SELL_THRESHOLD = 0.52` (SELL sengaja TIDAK dinaikkan — tidak ada bukti backtest yang mendukung threshold SELL manapun aman).
+- Logic `computeMlSignal()` disesuaikan pakai threshold terpisah per side.
+- Efek yang diharapkan: sinyal ML BUY jadi jauh lebih jarang muncul (dari ~2013 baris jadi ~304 baris di seluruh histori backtest — jauh lebih selektif) tapi kualitas jauh lebih tinggi.
+- Build lokal sukses (`node --check` + `pnpm run build`), commit & push dilakukan, deploy Render sedang berjalan (belum dikonfirmasi live saat catatan ini ditulis).
+
+### File-File Baru Sesi Ini
+- `scripts/src/backtest-ml-threshold.ts` — backtest ML di satu threshold tetap (0.52), murni riset
+- `scripts/src/backtest-ml-threshold-sweep.ts` — sweep 9 threshold sekaligus, murni riset
+- Keduanya reuse training pipeline dari `retrain-with-volatility.ts` (38 fitur, 8-fold walk-forward) — TIDAK menyentuh kode production, aman dijalankan ulang kapan saja untuk re-validasi
+
+### Belum Dikerjakan (lanjutkan sesi berikutnya)
+1. **Verifikasi deploy threshold ML BUY 0.65** — cek Render dashboard status Live, lalu pantau apakah sinyal ML BUY berikutnya yang terkirim ke Telegram memang lebih jarang & confidence lebih tinggi dari sebelumnya
+2. **Implementasi Breakout BUY (lookback 10 hari) sebagai shadow forward-test baru** — TERPISAH dari sinyal ML dan rule-based yang sudah ada, supaya bisa dibandingkan dengan data real:
+   - Signal generator baru (kemungkinan `breakout-signal-engine.ts`) — hitung breakout momentum real-time (close > highest-high N hari + volume > 1.5x rata-rata)
+   - Tabel DB baru untuk forward-test (`breakout_signal_log`), pola sama seperti `signal_log`/`ml_signal_log`
+   - Cron baru: scan tiap interval + kirim Telegram (channel/label terpisah, jangan campur) + cek TP/SL forward-test
+   - Dashboard section baru di `/api/cron/dashboard`
+3. Setelah breakout BUY live sebagai shadow test, kumpulkan minimal 15-20 sinyal closed (standing instruction) sebelum bandingkan dengan ML BUY @ 0.65 memakai data REAL (bukan cuma backtest)
+4. Keputusan akhir nanti: pilih salah satu (breakout ATAU ML BUY) untuk dipromosikan ke rule-based production, atau jalankan keduanya permanen sebagai sinyal terpisah — belum diputuskan, tunggu forward-test data dulu
+
+### Catatan Penting untuk Sesi Berikutnya
+- SELL yang sedang LIVE di production (rule-based, confidence 45-55) masih dianggap TIDAK PROFITABLE berdasarkan walk-forward lama (PF 0.95) — sirkuit breaker tetap jadi pengaman minimal, belum ada perubahan di sesi ini untuk SELL rule-based
+- ML SELL (shadow) threshold TIDAK diubah — tetap 0.52, TAPI perlu diingat data menunjukkan belum ada threshold yang terbukti aman untuk SELL, jadi sebaiknya jangan terlalu percaya sinyal SELL dari ML manapun sampai ada riset lanjutan
+- Kalau nanti mau retrain ulang model final dengan data lebih baru, WAJIB pakai pipeline yang include `rolling_vol_pct` (jangan lupa lagi seperti insiden di sesi ini)
