@@ -1,0 +1,8 @@
+========================================================================
+NEXUS ALPHA — BACKTEST v3 (Paginated | Vol Approx | trend1d FIXED)
+Pairs: BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT, LINKUSDT, DOGEUSDT
+Daily: 4x1000 candles | 4H: 5x1000 candles (time-aligned)
+========================================================================
+
+[BTCUSDT] Fetching daily (4 batches)... 1826 candles
+[BTCUSDT] Fetching 4H   (5 batches)... 5000 candles
