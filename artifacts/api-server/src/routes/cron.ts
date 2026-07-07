@@ -902,34 +902,47 @@ async function saveMemeSignalToLog(coin: any, triggerLabel: string) {
 }
 
 async function fetchDexScreenerData(contractAddress: string): Promise<{ price: number; liquidity: number; mcap: number } | null> {
-  try {
-    if (!contractAddress) return null;
-    const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${contractAddress}`, {
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) {
-      console.log(`[DEX-DEBUG] HTTP error for ${contractAddress}: status ${res.status}`);
-      return null;
+  if (!contractAddress) return null;
+  const maxAttempts = 4;
+  const delays = [0, 1500, 3000, 6000]; // ms tunggu sebelum tiap percobaan
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (delays[attempt] > 0) {
+      await new Promise((r) => setTimeout(r, delays[attempt]));
     }
-    const json = (await res.json()) as any;
-    const pairs = json?.pairs;
-    if (!pairs || pairs.length === 0) {
-      console.log(`[DEX-DEBUG] No pairs returned for ${contractAddress}`);
-      return null;
+    try {
+      const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${contractAddress}`, {
+        signal: AbortSignal.timeout(10000),
+      });
+      if (res.status === 429) {
+        console.log(`[DEX-DEBUG] Rate limited (429) for ${contractAddress}, percobaan ${attempt + 1}/${maxAttempts}`);
+        continue; // coba lagi setelah delay berikutnya
+      }
+      if (!res.ok) {
+        console.log(`[DEX-DEBUG] HTTP error for ${contractAddress}: status ${res.status}`);
+        return null;
+      }
+      const json = (await res.json()) as any;
+      const pairs = json?.pairs;
+      if (!pairs || pairs.length === 0) {
+        console.log(`[DEX-DEBUG] No pairs returned for ${contractAddress}`);
+        return null;
+      }
+      // Ambil pair dengan liquidity terbesar (paling representatif)
+      const best = pairs.reduce((a: any, b: any) =>
+        (parseFloat(b?.liquidity?.usd ?? "0") > parseFloat(a?.liquidity?.usd ?? "0") ? b : a)
+      );
+      return {
+        price: parseFloat(best.priceUsd ?? "0"),
+        liquidity: parseFloat(best?.liquidity?.usd ?? "0"),
+        mcap: parseFloat(best.fdv ?? best.marketCap ?? "0"),
+      };
+    } catch (err: any) {
+      console.log(`[DEX-DEBUG] Exception for ${contractAddress} (percobaan ${attempt + 1}/${maxAttempts}):`, err?.message || String(err));
     }
-    // Ambil pair dengan liquidity terbesar (paling representatif)
-    const best = pairs.reduce((a: any, b: any) =>
-      (parseFloat(b?.liquidity?.usd ?? "0") > parseFloat(a?.liquidity?.usd ?? "0") ? b : a)
-    );
-    return {
-      price: parseFloat(best.priceUsd ?? "0"),
-      liquidity: parseFloat(best?.liquidity?.usd ?? "0"),
-      mcap: parseFloat(best.fdv ?? best.marketCap ?? "0"),
-    };
-  } catch (err: any) {
-    console.log(`[DEX-DEBUG] Exception for ${contractAddress}:`, err?.message || String(err));
-    return null;
   }
+  console.log(`[DEX-DEBUG] Gagal total setelah ${maxAttempts}x percobaan untuk ${contractAddress}`);
+  return null;
 }
 
 async function checkMemeSignals() {
