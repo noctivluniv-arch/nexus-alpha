@@ -182,7 +182,13 @@ export interface MlSignalResult {
   atr14: number | null;
 }
 
-const ML_THRESHOLD = 0.52; // setara kira-kira desil 9+ dari analisis training
+// Threshold dipisah per side setelah backtest-ml-threshold-sweep.ts (7 Juli 2026):
+// BUY @ 0.65 terbukti konsisten profitable di 2 periode (PF 2.23/1.88), bahkan
+// mengalahkan breakout momentum. SELL TIDAK ditemukan threshold yang aman di
+// kedua periode sampai 0.70 — tetap di 0.52 lama sambil menunggu riset lanjutan,
+// JANGAN naikkan asal tanpa bukti backtest baru.
+const ML_BUY_THRESHOLD = 0.65;
+const ML_SELL_THRESHOLD = 0.52;
 
 export async function computeMlSignal(symbol: string): Promise<MlSignalResult> {
   const [daily, h4, h1] = await Promise.all([
@@ -248,8 +254,8 @@ export async function computeMlSignal(symbol: string): Promise<MlSignalResult> {
 
   let side: "BUY" | "SELL" | "NO_TRADE" = "NO_TRADE";
   let confidence = 0;
-  if (probBuy >= ML_THRESHOLD && probBuy >= probSell) { side = "BUY"; confidence = probBuy; }
-  else if (probSell >= ML_THRESHOLD && probSell > probBuy) { side = "SELL"; confidence = probSell; }
+  if (probBuy >= ML_BUY_THRESHOLD && probBuy >= probSell) { side = "BUY"; confidence = probBuy; }
+  else if (probSell >= ML_SELL_THRESHOLD && probSell > probBuy) { side = "SELL"; confidence = probSell; }
 
   let sl: number | null = null, tp1: number | null = null, tp2: number | null = null, tp3: number | null = null;
   if (side !== "NO_TRADE") {
