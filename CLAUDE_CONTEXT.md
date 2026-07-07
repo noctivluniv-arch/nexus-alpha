@@ -1405,3 +1405,58 @@ build-ml-dataset.ts, train-logistic-model.ts, validate-model-robustness.ts, comp
 - SELL yang sedang LIVE di production (rule-based, confidence 45-55) masih dianggap TIDAK PROFITABLE berdasarkan walk-forward lama (PF 0.95) — sirkuit breaker tetap jadi pengaman minimal, belum ada perubahan di sesi ini untuk SELL rule-based
 - ML SELL (shadow) threshold TIDAK diubah — tetap 0.52, TAPI perlu diingat data menunjukkan belum ada threshold yang terbukti aman untuk SELL, jadi sebaiknya jangan terlalu percaya sinyal SELL dari ML manapun sampai ada riset lanjutan
 - Kalau nanti mau retrain ulang model final dengan data lebih baru, WAJIB pakai pipeline yang include `rolling_vol_pct` (jangan lupa lagi seperti insiden di sesi ini)
+
+---
+
+## Sesi 7 Juli 2026 (lanjutan) — Breakout BUY Shadow Forward-Test LIVE ✅ — Roadmap Lama SELESAI
+
+### Implementasi Breakout Momentum BUY sebagai Shadow Forward-Test — DONE ✅
+
+Setelah riset (lihat entri sebelumnya) menunjukkan ML BUY @ threshold 0.65 sedikit lebih baik dari breakout tapi keduanya kandidat kuat, diputuskan: **jalankan keduanya paralel sebagai shadow forward-test**, biar keputusan akhir nanti berbasis data real (bukan cuma backtest).
+
+**File baru dibuat:**
+- `artifacts/api-server/src/lib/breakout-signal-engine.ts` — `computeBreakoutSignal(symbol)`, formula identik persis dengan `backtest-breakout-walkforward.ts`:
+  - Entry BUY: close hari ini > highest-high 10 hari sebelumnya
+  - Filter: volume hari ini >= 1.5x rata-rata volume 10 hari sebelumnya
+  - SL = harga - (ATR14 × 1.5), TP (single target, "exit ketat") = harga + (ATR14 × 1.5 × 1.5)
+  - BUY only, murni breakout momentum (bukan mean-reversion)
+- `lib/db/src/schema/breakout-signal-log.ts` — tabel `breakout_signal_log`, mirip pola `ml_signal_log` tapi cuma 1 TP + status `EXPIRED` (untuk exit karena max-hold 10 hari terlampaui tanpa kena TP/SL)
+- `scripts/src/create-breakout-signal-log-table.cjs` — script buat tabel (pola sama seperti tabel-tabel sebelumnya), sudah dijalankan sukses ke DB production
+
+**cron.ts dipatch** (4 fungsi baru + 1 endpoint):
+- `saveBreakoutSignalToLog()`, `runBreakoutScan()`, `checkOpenBreakoutSignals()`
+- `startBreakoutSignalCron()` — interval **24 jam** (BUKAN 15 menit seperti sinyal lain) — breakout ini strategi berbasis candle harian, jadi scan lebih sering cuma buang resource dan berisiko sinyal "berubah-ubah" sebelum candle benar-benar close
+- `startBreakoutSignalCheckCron()` — interval 6 jam (sama pola seperti meme/whale check), cek TP/SL + expired (max hold 10 hari)
+- Endpoint baru: `GET /api/cron/breakout-results`
+- Pesan Telegram breakout pakai label "📊 SHADOW BREAKOUT SIGNAL", channel yang sama dengan sinyal lain, plus saran leverage non-binding (reuse `suggestLeverage()` yang sudah ada)
+
+**index.ts**: `startBreakoutSignalCron()` dan `startBreakoutSignalCheckCron()` dipanggil di startup.
+
+### Insiden Kedua: File Ter-Truncate Lagi (Encoding Emoji) — DIPERBAIKI ✅
+Persis masalah yang sama seperti sesi sebelumnya (leverage suggestion) TERULANG: script Python pertama untuk patch cron.ts pakai escape unicode `\uXXXX` untuk emoji, `f.write()` gagal di tengah jalan karena surrogate pair tidak valid untuk UTF-8, file `cron.ts` ter-truncate (1811 baris hilang, 0 export). Fix: `git checkout -- cron.ts` untuk restore, tulis ulang SEMUA patch (termasuk 2 import kecil yang sempat hilang ikut ter-restore) sekaligus dalam SATU script dengan emoji sebagai karakter UTF-8 literal langsung di dalam triple-quoted string — bukan escape code apapun.
+
+**PELAJARAN YANG SUDAH 2X TERULANG — WAJIB DIINGAT untuk sesi berikutnya**: kalau menulis patch Python yang menyisipkan teks berisi emoji ke file manapun di project ini, **JANGAN PERNAH** pakai escape `\uXXXX` untuk emoji 4-byte (seperti 💡🎯📊). Selalu tulis emoji sebagai karakter literal langsung di dalam string Python. Setelah setiap patch besar, WAJIB langsung cek `grep -c "^export" <file>` untuk pastikan tidak ter-truncate SEBELUM lanjut ke langkah berikutnya.
+
+### Verifikasi Deploy — SEMUA SUKSES ✅
+- Build lokal: `node --check` + `pnpm --filter @workspace/api-server run build` — sukses, no error
+- Export count `cron.ts`: naik dari 11 → 13 (tambah `startBreakoutSignalCron`, `startBreakoutSignalCheckCron`) — dikonfirmasi tidak ter-truncate
+- `git status` dicek sebelum commit — cuma 6 file yang sengaja diubah, sisanya noise `node_modules`/lockfile lama (bug lama yang belum dibereskan, tidak mendesak)
+- Commit & push sukses, Render deploy **Live**, dikonfirmasi dari log:- Semua sistem lain (rule-based, ML, meme, whale, dex-radar) tetap jalan normal, tidak ada regresi
+
+### STATUS ROADMAP LAMA — SEMUA 4 ITEM SELESAI ✅✅✅✅
+1. ~~Circuit breaker~~ — DONE (5 Juli 2026)
+2. ~~Filter trend1d~~ — DONE (5 Juli 2026)
+3. ~~Riset breakout momentum vs logistic regression BUY~~ — DONE (7 Juli 2026) — **kedua kandidat sekarang LIVE sebagai shadow forward-test paralel**, keputusan akhir (pilih satu atau jalankan keduanya) ditunda sampai data real terkumpul
+4. ~~Leverage & position sizing recommendation~~ — DONE (7 Juli 2026) — di Telegram (semua 3 jenis sinyal: rule-based, ML, breakout) DAN di web app (kalkulator sudah ada, ditambah saran otomatis)
+
+### State Forward-Test Saat Ini (4 sistem sinyal paralel, semua shadow kecuali rule-based)
+1. **Rule-based SELL** (live, production) — confidence 45-55, walk-forward PF 0.95 (di bawah breakeven), sirkuit breaker aktif sebagai pengaman
+2. **Shadow ML** (BUY @ 0.65 threshold baru, SELL @ 0.52 threshold lama) — backtest BUY @ 0.65: PF 2.23/1.88 (kedua periode), SELL belum ada threshold yang terbukti aman
+3. **Shadow Breakout BUY** (baru live hari ini) — backtest PF 1.45/1.29 (kedua periode), 0 sinyal sejauh ini (breakout momentum jarang terjadi, normal)
+4. Meme coin, whale tracker, dex radar — tidak berubah dari sesi-sesi sebelumnya
+
+### Belum Dikerjakan / Agenda Selanjutnya
+1. **PANTAU** ketiga sistem sinyal (rule-based SELL, ML BUY/SELL, Breakout BUY) — kumpulkan minimal 15-20 closed masing-masing sebelum evaluasi awal, 50+ untuk kesimpulan final (standing instruction, tidak berubah)
+2. Breakout BUY kemungkinan butuh waktu LEBIH LAMA dari sinyal lain untuk kumpul cukup data — sifatnya breakout momentum yang jarang trigger (walk-forward cuma 192/110 trades dari 6 pair x beberapa TAHUN data, bandingkan dengan ML/rule-based yang scan tiap 15 menit)
+3. Setelah data cukup: bandingkan performa REAL (bukan backtest) antara ML BUY @ 0.65 vs Breakout BUY, baru putuskan mana yang dipromosikan ke production, atau apakah keduanya tetap dijalankan permanen sebagai sinyal terpisah
+4. Housekeeping lama yang masih belum dikerjakan (tidak mendesak): file `cron.ts.backup`-`.backup6` dan `whale-*.patch` menumpuk di root repo, aman dihapus kapan saja
