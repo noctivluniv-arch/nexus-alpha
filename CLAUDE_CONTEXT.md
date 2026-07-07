@@ -1460,3 +1460,43 @@ Persis masalah yang sama seperti sesi sebelumnya (leverage suggestion) TERULANG:
 2. Breakout BUY kemungkinan butuh waktu LEBIH LAMA dari sinyal lain untuk kumpul cukup data — sifatnya breakout momentum yang jarang trigger (walk-forward cuma 192/110 trades dari 6 pair x beberapa TAHUN data, bandingkan dengan ML/rule-based yang scan tiap 15 menit)
 3. Setelah data cukup: bandingkan performa REAL (bukan backtest) antara ML BUY @ 0.65 vs Breakout BUY, baru putuskan mana yang dipromosikan ke production, atau apakah keduanya tetap dijalankan permanen sebagai sinyal terpisah
 4. Housekeeping lama yang masih belum dikerjakan (tidak mendesak): file `cron.ts.backup`-`.backup6` dan `whale-*.patch` menumpuk di root repo, aman dihapus kapan saja
+
+---
+
+## Sesi 7 Juli 2026 (lanjutan 2) — Dashboard Section Breakout + Catatan Penting Evaluasi Threshold
+
+### Dashboard Section Breakout — DONE ✅
+- Section baru "📊 Shadow Breakout Signal (Momentum — Eksperimen)" ditambahkan ke `/api/cron/dashboard`, diposisikan di antara "Shadow ML Signal" dan "Meme Coin"
+- Tabel: Pair, Entry, SL, TP, Status, Close, PnL, Sent — pola sama seperti tabel Signal Trading/Shadow ML, termasuk kartu "Sample Progress" dinamis
+- Verified: export count cron.ts tetap 13 (tidak ter-truncate), build sukses, deploy Live
+
+### ⚠️ CATATAN PENTING — Cara Evaluasi Shadow ML BUY yang Benar
+
+Saat cek `/api/cron/ml-results` setelah threshold BUY dinaikkan ke 0.65 (7 Juli 2026), ditemukan **9 sinyal OPEN dengan `probBuy` di rentang 0.52-0.59** — SEMUA di bawah threshold baru (0.65). Ini BUKAN bug — ini sinyal-sinyal yang terkirim SEBELUM threshold dinaikkan (semua `sentAt` tanggal 6 Juli, threshold naik 7 Juli), masih dari aturan LAMA (threshold 0.52), dan tetap dipantau sampai closed oleh cron check yang sudah jalan duluan.
+
+**WAJIB diingat saat evaluasi nanti** (setelah closedSignals cukup untuk dibaca):
+- **JANGAN campur** sinyal dengan `sentAt` SEBELUM 7 Juli 2026 (jam threshold dinaikkan, cek commit `ml-signal-engine.ts` untuk timestamp pastinya) dengan sinyal SESUDAHNYA saat menghitung win rate/PF representatif untuk threshold 0.65
+- Sinyal lama (probBuy 0.52-0.59) mencerminkan kualitas threshold LAMA, bukan yang baru — kalau tercampur, hasil evaluasi jadi bias dan tidak mencerminkan perubahan yang baru dibuat
+- Cara filter: lihat field `sentAt` di response `/api/cron/ml-results`, atau `probBuy` — sinyal dengan probBuy < 0.65 pasti dari sebelum perubahan (karena setelah patch, mustahil ada sinyal BUY baru dengan probBuy di bawah 0.65)
+- Setelah ke-9 sinyal lama ini closed (kena TP/SL), tabel akan otomatis terisi sinyal-sinyal baru yang sudah pakai threshold 0.65 — evaluasi yang representatif baru bisa dilakukan dari situ
+
+### State Saat Ini (7 Juli 2026, malam)
+- Shadow ML: 9 sinyal OPEN (semua BUY, semua dari aturan threshold lama 0.52, probBuy 0.52-0.59), 0 closed
+- Shadow Breakout: 0 sinyal sama sekali (baru live beberapa jam, breakout momentum secara alami jarang trigger — backtest cuma ~302 sinyal dalam 5 tahun untuk 6 pair)
+- Cara cek progress kapan saja:
+```bash
+  curl -s https://nexus-alpha-j3yb.onrender.com/api/cron/ml-results | python3 -m json.tool
+  curl -s https://nexus-alpha-j3yb.onrender.com/api/cron/breakout-results | python3 -m json.tool
+```
+  atau buka dashboard visual: https://nexus-alpha-j3yb.onrender.com/api/cron/dashboard
+
+### Estimasi Waktu Tunggu (kasar, bukan janji pasti)
+- ML BUY @ 0.65: threshold jauh lebih selektif dari sebelumnya (backtest cuma ~304 baris lolos dari ribuan data bertahun-tahun) — estimasi 15-20 closed baru bisa terkumpul dalam **2-4 minggu**
+- Breakout BUY: paling jarang trigger dari semua sinyal yang ada — backtest cuma ~302 sinyal dalam 5 tahun untuk 6 pair — estimasi 15-20 closed bisa **2-3 bulan**
+- Rekomendasi: cek endpoint di atas cukup **1x seminggu**, tidak perlu dipantau harian
+
+### Belum Dikerjakan / Agenda Selanjutnya
+1. Tunggu forward-test ML BUY (threshold baru) dan Breakout BUY kumpulkan cukup data closed
+2. Saat evaluasi nanti, WAJIB filter berdasarkan `sentAt`/`probBuy` sesuai catatan di atas — jangan campur sinyal era threshold lama dengan yang baru
+3. Setelah data cukup dari kedua kandidat: bandingkan performa REAL vs prediksi backtest, putuskan mana yang dipromosikan ke production atau apakah keduanya tetap jalan permanen sebagai sinyal terpisah
+4. Housekeeping lama (tidak mendesak): file `cron.ts.backup`-`.backup6` dan `whale-*.patch` di root repo masih belum dibersihkan
