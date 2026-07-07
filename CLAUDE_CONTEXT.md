@@ -1647,3 +1647,41 @@ Catatan "item 4 belum mulai" di atas **sudah tidak akurat** — sempat tidak ter
 3. Saat evaluasi nanti: WAJIB filter berdasarkan `sentAt`/`probBuy`, jangan campur era threshold lama dengan yang baru
 4. Bandingkan performa REAL (bukan backtest) antara: rule-based lama vs shadow ML vs Breakout — baru putuskan mana yang dipromosikan ke production
 5. Cek endpoint `/api/cron/dashboard` atau `/api/cron/results` secara rutin untuk pantau progress shadow ML tanpa mengganggu apa pun yang sudah jalan
+
+---
+
+## Sesi 8 Juli 2026 (lanjutan ke-2) — Analisis Progress Forward-Test & Investigasi Anomali Sinyal
+
+### Snapshot Data per 8 Juli 2026 (dari export database langsung)
+- **`signal_log`** (rule-based, live/Telegram): 15 total, 6 closed, 9 open. Win rate closed: **0/6 (0%)**. Semua 15 sinyal **SELL** (0 BUY). Semua closed kena SL_HIT, total pnl% sum -43.90%.
+- **`ml_signal_log`** (shadow ML): 10 total, 0 closed sama sekali. Side breakdown: 9 BUY + 1 SELL. **Belum bisa dinilai profit/rugi** — sample 0 closed.
+- **`breakout_signal_log`**: 0 baris — belum ada satupun sinyal terkirim sejak deploy.
+- **`meme_signal_log`**: 109 coin tracked, 78% saat ini negatif dari harga deteksi awal, avg PnL -30.75%, portofolio virtual $100/coin (modal $10.900) → nilai sekarang $7.548,78 (PnL -$3.351,22). Cuma 9.2% pernah sentuh 2x ATH, 1.8% sentuh 5x.
+
+### Investigasi: Kenapa rule-based 100% SELL, 0% BUY? — SELESAI DIINVESTIGASI ✓
+**Bukan bug.** Dikonfirmasi di kode `signal-engine-realtime.ts` (fungsi `computeRealtimeSignal`, dipanggil `cron.ts` baris 220): BUY **sengaja dimatikan total** dengan komentar eksplisit di kode: *"BUY disabled — re-enable setelah ada bukti zona profitable (backtest v3: semua bucket negatif)"*. SELL hanya aktif kalau bias BEARISH + confidence 45-55 + `trend1d` juga BEARISH (filter searah-tren ditambah 5 Juli 2026).
+
+**Catatan penting:** 6 trade yang sudah closed (win rate 0%) itu `sent_at`-nya 29 Juni - 2 Juli 2026 — **SEBELUM** filter trend1d searah-tren ditambahkan (5 Juli). Jadi performa 0/6 itu mencerminkan versi lama, belum menguji perbaikan terbaru.
+
+### Temuan Tambahan: Ada 2 Jalur Rule-Based Berbeda yang Tidak Konsisten — DITEMUKAN, BELUM DIPERBAIKI
+Saat investigasi, ditemukan **dua implementasi rule-based terpisah** dengan kebijakan berbeda:
+
+1. **Jalur otomatis** (cron → Telegram → `signal_log`): `computeRealtimeSignal()` di `signal-engine-realtime.ts` — BUY dimatikan (lihat di atas)
+2. **Jalur manual** (tombol "Generate" di tab Signals aplikasi → `POST /api/ai/signal`): `generateRuleBasedSignal()` di `rule-based-engine.ts` — **BUY masih aktif**, ditampilkan hijau di UI (`app/(tabs)/signals.tsx` baris 121, 152-157). Hasil generate manual ini **TIDAK tercatat di database manapun** — tidak ada forward-test/validasi untuk jalur ini sama sekali.
+
+Juga ada detail kecil: di pemanggilan `/ai/signal` (ai.ts baris 1205), `trend1d` di-isi dari data `trend4h` (`trend1d: trend4h`), bukan dari trend harian sungguhan seperti di jalur cron. Belum dikonfirmasi apakah ini disengaja atau human error — belum berdampak karena jalur ini tidak dipakai untuk keputusan trading otomatis.
+
+**KEPUTUSAN (diambil 8 Juli 2026):** Biarkan dulu apa adanya (tidak disamakan/tidak dikasih warning tambahan di UI). Tunggu sampai hasil forward-test (ML dan/atau Breakout) benar-benar bagus dan profitable dengan sample cukup besar, baru nanti diimplementasikan sebagai produk final — saat itu kedua jalur ini akan direvisi/disatukan sekalian.
+
+### Cara Export Data untuk Sesi Berikutnya (kalau perlu cek progress lagi)
+Ada 2 script kecil yang dibuat sesi ini untuk baca database langsung tanpa screenshot:
+- `list-tables.cjs` — lihat semua nama tabel + jumlah baris
+- `export-data.cjs` — export `signal_log`, `ml_signal_log`, `breakout_signal_log`, `meme_signal_log` ke file JSON
+
+Cara pakai: taruh file di `~/nexus-alpha`, lalu `DATABASE_URL="<url_postgres>" node export-data.cjs`. File-file `.cjs` ini sebaiknya juga ditambahkan ke git supaya tidak hilang (belum dicek apakah sudah di-commit).
+
+### Belum Dikerjakan / Agenda Selanjutnya (update final, 8 Juli 2026 malam)
+1. Tunggu forward-test ML, Breakout, dan rule-based lama kumpulkan cukup data closed (target minimal 15-20 untuk baca awal, 50 untuk kesimpulan solid)
+2. Setelah data cukup: bandingkan performa REAL ketiga jalur, putuskan mana yang dipromosikan ke production
+3. **BARU**: setelah promosi ke production nanti, revisi/satukan 2 jalur rule-based (otomatis vs manual tombol) supaya konsisten — untuk sekarang dibiarkan apa adanya sesuai keputusan di atas
+4. Opsional: commit `list-tables.cjs` dan `export-data.cjs` ke git kalau mau dipakai lagi nanti (jangan commit file yang berisi `DATABASE_URL` asli!)
