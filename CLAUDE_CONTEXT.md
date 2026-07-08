@@ -1650,38 +1650,77 @@ Catatan "item 4 belum mulai" di atas **sudah tidak akurat** — sempat tidak ter
 
 ---
 
-## Sesi 8 Juli 2026 (lanjutan ke-2) — Analisis Progress Forward-Test & Investigasi Anomali Sinyal
+## Sesi 8 Juli 2026 (lanjutan) — Analisis Forward-Test, Investigasi Anomali, & Strategi Meme/Whale
 
-### Snapshot Data per 8 Juli 2026 (dari export database langsung)
+### A. Snapshot Data Forward-Test per 8 Juli 2026 (dari export database langsung)
 - **`signal_log`** (rule-based, live/Telegram): 15 total, 6 closed, 9 open. Win rate closed: **0/6 (0%)**. Semua 15 sinyal **SELL** (0 BUY). Semua closed kena SL_HIT, total pnl% sum -43.90%.
-- **`ml_signal_log`** (shadow ML): 10 total, 0 closed sama sekali. Side breakdown: 9 BUY + 1 SELL. **Belum bisa dinilai profit/rugi** — sample 0 closed.
+- **`ml_signal_log`** (shadow ML): 10 total, 0 closed. Side breakdown: 9 BUY + 1 SELL. Belum bisa dinilai profit/rugi.
 - **`breakout_signal_log`**: 0 baris — belum ada satupun sinyal terkirim sejak deploy.
-- **`meme_signal_log`**: 109 coin tracked, 78% saat ini negatif dari harga deteksi awal, avg PnL -30.75%, portofolio virtual $100/coin (modal $10.900) → nilai sekarang $7.548,78 (PnL -$3.351,22). Cuma 9.2% pernah sentuh 2x ATH, 1.8% sentuh 5x.
+- **`meme_signal_log`**: 109 coin tracked, 78% saat ini negatif dari harga deteksi awal, avg PnL -30.75%, portofolio virtual $100/coin (modal $10.900) → nilai sekarang $7.548,78 (PnL -$3.351,22). Cuma 9.2% pernah sentuh 2x ATH, 1.8% sentuh 5x, 1.8% DEAD.
+- **`whale_alerts`**: 4096 alert dari 448 wallet unik (per 8 Juli malam). Overall avg ATH multiplier 2.132x (tapi rawan bias mean, lihat bagian D).
 
-### Investigasi: Kenapa rule-based 100% SELL, 0% BUY? — SELESAI DIINVESTIGASI ✓
-**Bukan bug.** Dikonfirmasi di kode `signal-engine-realtime.ts` (fungsi `computeRealtimeSignal`, dipanggil `cron.ts` baris 220): BUY **sengaja dimatikan total** dengan komentar eksplisit di kode: *"BUY disabled — re-enable setelah ada bukti zona profitable (backtest v3: semua bucket negatif)"*. SELL hanya aktif kalau bias BEARISH + confidence 45-55 + `trend1d` juga BEARISH (filter searah-tren ditambah 5 Juli 2026).
+### B. Investigasi: Kenapa rule-based 100% SELL, 0% BUY? — SELESAI, BUKAN BUG
+Dikonfirmasi di kode `signal-engine-realtime.ts` (fungsi `computeRealtimeSignal`, dipanggil `cron.ts` baris 220): BUY **sengaja dimatikan total** — komentar eksplisit di kode: *"BUY disabled — re-enable setelah ada bukti zona profitable (backtest v3: semua bucket negatif)"*. SELL hanya aktif kalau bias BEARISH + confidence 45-55 + `trend1d` juga BEARISH (filter searah-tren ditambah 5 Juli 2026). 6 trade closed (win rate 0%) itu `sent_at`-nya SEBELUM filter trend1d ditambahkan — performa itu belum menguji perbaikan terbaru.
 
-**Catatan penting:** 6 trade yang sudah closed (win rate 0%) itu `sent_at`-nya 29 Juni - 2 Juli 2026 — **SEBELUM** filter trend1d searah-tren ditambahkan (5 Juli). Jadi performa 0/6 itu mencerminkan versi lama, belum menguji perbaikan terbaru.
+### C. Temuan: Ada 2 Jalur Rule-Based Berbeda yang Tidak Konsisten — DITEMUKAN, BELUM DIPERBAIKI (keputusan: dibiarkan dulu)
+Ada **dua implementasi rule-based terpisah** dengan kebijakan berbeda:
+1. **Jalur otomatis** (cron → Telegram → `signal_log`): `computeRealtimeSignal()` di `signal-engine-realtime.ts` — BUY dimatikan
+2. **Jalur manual** (tombol "Generate" di tab Signals aplikasi, `app/(tabs)/signals.tsx` → `POST /api/ai/signal`): `generateRuleBasedSignal()` di `rule-based-engine.ts` — **BUY masih aktif**, ditampilkan hijau di UI. Hasil generate manual ini **TIDAK tercatat di database manapun** — tidak ada forward-test/validasi untuk jalur ini sama sekali.
 
-### Temuan Tambahan: Ada 2 Jalur Rule-Based Berbeda yang Tidak Konsisten — DITEMUKAN, BELUM DIPERBAIKI
-Saat investigasi, ditemukan **dua implementasi rule-based terpisah** dengan kebijakan berbeda:
+Detail kecil belum dikonfirmasi: di pemanggilan `/ai/signal` (ai.ts baris 1205), `trend1d` di-isi dari data `trend4h` (`trend1d: trend4h`), bukan trend harian sungguhan seperti jalur cron.
 
-1. **Jalur otomatis** (cron → Telegram → `signal_log`): `computeRealtimeSignal()` di `signal-engine-realtime.ts` — BUY dimatikan (lihat di atas)
-2. **Jalur manual** (tombol "Generate" di tab Signals aplikasi → `POST /api/ai/signal`): `generateRuleBasedSignal()` di `rule-based-engine.ts` — **BUY masih aktif**, ditampilkan hijau di UI (`app/(tabs)/signals.tsx` baris 121, 152-157). Hasil generate manual ini **TIDAK tercatat di database manapun** — tidak ada forward-test/validasi untuk jalur ini sama sekali.
+**KEPUTUSAN (8 Juli 2026):** Biarkan dulu apa adanya. Tunggu sampai hasil forward-test (ML dan/atau Breakout) benar-benar bagus dan profitable dengan sample cukup besar, baru diimplementasikan sebagai produk final — saat itu kedua jalur ini akan direvisi/disatukan sekalian.
 
-Juga ada detail kecil: di pemanggilan `/ai/signal` (ai.ts baris 1205), `trend1d` di-isi dari data `trend4h` (`trend1d: trend4h`), bukan dari trend harian sungguhan seperti di jalur cron. Belum dikonfirmasi apakah ini disengaja atau human error — belum berdampak karena jalur ini tidak dipakai untuk keputusan trading otomatis.
+### D. Analisis Mendalam: Meme Coin Tracker & Whale Tracker
 
-**KEPUTUSAN (diambil 8 Juli 2026):** Biarkan dulu apa adanya (tidak disamakan/tidak dikasih warning tambahan di UI). Tunggu sampai hasil forward-test (ML dan/atau Breakout) benar-benar bagus dan profitable dengan sample cukup besar, baru nanti diimplementasikan sebagai produk final — saat itu kedua jalur ini akan direvisi/disatukan sekalian.
+**Konteks penting:** sistem meme coin & whale tracker ini murni **tracking pasif** (belum ada bot auto-trading, belum ada wallet nyata). Arah ke depan: cari strategi & scoring yang benar-benar profitable dulu lewat data, BARU nanti dibangun bot eksekusi (wallet, auto swap, dst).
 
-### Cara Export Data untuk Sesi Berikutnya (kalau perlu cek progress lagi)
-Ada 2 script kecil yang dibuat sesi ini untuk baca database langsung tanpa screenshot:
+**D1. Kode meme scoring (`memes.ts`) — assessment:**
+- Lapisan anti-scam sudah bagus: hard reject untuk likuiditas <$50K, umur <12 jam, volume palsu <$5K, volatilitas >400%, konsentrasi holder ekstrem. Terbukti: cuma 1.8% dari 109 coin yang jadi DEAD.
+- **Masalah utama ditemukan**: `early_gem_score` **berbanding TERBALIK** dengan hasil real — makin tinggi skor, makin buruk performanya (bucket 50-59: +6.42% avg PnL vs bucket 100+: -59.08% avg PnL). Kemungkinan skor tinggi = coin sudah kepanasan/sudah dibeli banyak orang, bukan indikator upside tersisa.
+- Trigger `PUMP_IMMINENT` (sendirian) jauh lebih sehat (+4.18% avg, n=7) dibanding trigger `GEM` (-36.05% avg, n=100, mendominasi volume alert). `BOTH` (kombinasi keduanya) tampil sangat baik (+112% avg) tapi n=2, sample kecil.
+- **Tidak ada strategi exit (TP/SL) sama sekali** di meme tracker — ini gap desain utama, beda dari sinyal trading yang punya SL/TP1-3 jelas.
+
+**D2. Simulasi TP/SL terhadap data historis 109 meme coin (BUKAN forward-test, cuma backtest atas data yang sudah ada):**
+- Baseline (hold tanpa exit rule, kondisi sekarang): **-30.75%** dari modal virtual $10.900
+- TP saja tanpa SL (berbagai level 20-100%): masih rugi berat (-25% s/d -26%) — TP saja tidak cukup
+- **Kombinasi TP+20% / SL-8%: PnL +1.80%** (skenario terbaik yang ditemukan) — dari rugi besar jadi mendekati breakeven positif
+- Insight utama: **kerugian besar disebabkan TIDAK ADANYA stop-loss** (posisi rugi dibiarkan terus turun tanpa batas), bukan karena deteksi entry-nya buruk
+- **Keterbatasan simulasi ini (penting, jangan lupa):** (1) cuma pakai data initial/last/ATH price, bukan histori harga penuh, jadi asumsi TP/SL "pasti kena persis di harga itu" adalah optimis; (2) belum ada biaya transaksi/gas/slippage sama sekali — di DEX spot, ini bisa signifikan terutama untuk SL ketat (-8%); (3) belum ada estimasi biaya eksekusi (bot harus swap on-chain aktif, ada risiko MEV/sandwich attack, latency); (4) sample 109 coin dalam window ~1 minggu, belum tentu bertahan di kondisi market lain
+- **Status: MURNI HIPOTESIS dari backtest, BELUM di-forward-test.** Langkah selanjutnya yang disepakati: implementasikan sebagai shadow forward-test baru (pola sama seperti ML/Breakout) sebelum dipercaya.
+
+**D3. Analisis Whale/Smart Money Tracker — temuan besar soal MEAN vs MEDIAN:**
+- Whale tracker saat ini 100% mengandalkan label "smart money" dari GMGN (pihak ketiga), tidak ada scoring sendiri berbasis track record wallet.
+- Overall: 4096 alert dari 448 wallet, tapi **median avg_ath_multiplier cuma 1.15x** (dari 356 wallet dengan ≥2 alert) — mayoritas wallet yang di-follow GMGN performanya biasa saja/flat. Cuma 10.1% wallet yang rata-rata pernah tembus 2x.
+- **PELAJARAN PENTING**: wallet dengan sample besar (n=158 alert, avg_ath_multiplier 11x, avg PnL sekarang tercatat +932%) ternyata JEBAKAN STATISTIK — setelah dicek per-transaksi: **median PnL sebenarnya -7.16%, win rate cuma 37.2%**. Rata-rata +932% itu 100% didorong oleh 2 token yang meledak ~460x, menutupi fakta bahwa wallet ini lebih sering rugi. **Untuk data fat-tail seperti meme coin, MEAN sangat menyesatkan — WAJIB pakai MEDIAN + win rate untuk menilai konsistensi wallet, bukan rata-rata.**
+- **Wallet kandidat yang genuinely konsisten bagus** (median≈mean, bukan outlier-driven, dari 220 wallet dengan ≥5 alert):
+  - `0xdc171b07169a...` (eth) n=8: win rate 100%, median +102.3%
+  - `0xd254acc47b02...` (eth) n=12: win rate 83%, median +42.6%
+  - `AoZ74CzdUHekKG...` (sol) n=8: win rate 75%, median +36.3%, 38% pernah 2x
+  - `0x922b7bd63edb...` (eth) n=6: win rate 100%, median +23.9%
+  - **Catatan penting: n=6-12 masih kecil secara statistik, ini kandidat untuk dipantau lebih lanjut, BUKAN kesimpulan final.**
+
+**D4. Arah strategi "Smart Wallet Scoring" (disepakati sebagai arah pengembangan, belum diimplementasikan):**
+Alih-alih ikut label GMGN mentah-mentah, bangun scoring sendiri berbasis data `whale_alerts` yang sudah dikumpulkan sendiri:
+1. Hitung track record tiap wallet (win rate + MEDIAN pnl, bukan mean) dari histori alert mereka
+2. Kriteria kandidat "wallet terpercaya": win rate >70% DAN median PnL positif DAN sample ≥8-10 alert
+3. **Confluence idea**: kalau suatu token kena flag GEM/PUMP_IMMINENT di meme tracker **DAN** dibeli oleh wallet di watchlist terpercaya sendiri → sinyal dari dua sumber independen, berpotensi jauh lebih kuat dari masing-masing sendirian (belum ada data overlap untuk uji ini, perlu ditrack ke depan)
+4. Kalau nanti ke arah bot auto-trading sungguhan: WAJIB hitung ulang semua simulasi profit dengan buffer biaya realistis (estimasi gas + slippage + fee swap DEX, ~1-3% per transaksi bolak-balik tergantung chain) — karena breakeven yang kelihatan di simulasi backtest (+1.8%) bisa jadi minus kalau biaya riil tidak diperhitungkan dari awal.
+
+### E. Tools yang Dibuat Sesi Ini (untuk dipakai lagi nanti)
+Semua script `.cjs` berikut connect ke Postgres pakai `DATABASE_URL` env var, `ssl: { rejectUnauthorized: false }` (wajib dari MacBook lokal ke Render external URL):
 - `list-tables.cjs` — lihat semua nama tabel + jumlah baris
-- `export-data.cjs` — export `signal_log`, `ml_signal_log`, `breakout_signal_log`, `meme_signal_log` ke file JSON
+- `export-data.cjs` — export `signal_log`, `ml_signal_log`, `breakout_signal_log`, `meme_signal_log` ke JSON
+- `export-whale-wallets.cjs` — agregasi performa per wallet (mean-based, ada jebakan lihat poin D3, tetap berguna untuk skrining awal)
+- `export-whale-wallet-detail.cjs` — detail per-transaksi untuk wallet dengan ≥5 alert (dipakai untuk hitung median/win rate yang lebih jujur)
 
-Cara pakai: taruh file di `~/nexus-alpha`, lalu `DATABASE_URL="<url_postgres>" node export-data.cjs`. File-file `.cjs` ini sebaiknya juga ditambahkan ke git supaya tidak hilang (belum dicek apakah sudah di-commit).
+**Catatan keamanan:** `DATABASE_URL` sempat tertulis di chat (password: `sC7MoYJjueDrF1wAJx6PDWfV8GigsPsv`, host: `dpg-d91hb30js32c739dp220-a.singapore-postgres.render.com`). Disarankan reset password lewat dashboard Render kapan-kapan sebagai praktik aman, meski tidak darurat. Script-script `.cjs` ini sebaiknya di-commit ke git TANPA menyertakan URL asli di dalam file (URL selalu di-pass lewat env var saat run, sudah begitu dari awal, aman).
 
 ### Belum Dikerjakan / Agenda Selanjutnya (update final, 8 Juli 2026 malam)
-1. Tunggu forward-test ML, Breakout, dan rule-based lama kumpulkan cukup data closed (target minimal 15-20 untuk baca awal, 50 untuk kesimpulan solid)
-2. Setelah data cukup: bandingkan performa REAL ketiga jalur, putuskan mana yang dipromosikan ke production
-3. **BARU**: setelah promosi ke production nanti, revisi/satukan 2 jalur rule-based (otomatis vs manual tombol) supaya konsisten — untuk sekarang dibiarkan apa adanya sesuai keputusan di atas
-4. Opsional: commit `list-tables.cjs` dan `export-data.cjs` ke git kalau mau dipakai lagi nanti (jangan commit file yang berisi `DATABASE_URL` asli!)
+1. Tunggu forward-test ML, Breakout, dan rule-based lama kumpulkan cukup data closed (target 15-20 untuk baca awal, 50 untuk kesimpulan solid)
+2. Setelah data cukup: bandingkan performa REAL ketiga jalur trading signal, putuskan mana yang dipromosikan ke production
+3. Revisi/satukan 2 jalur rule-based (otomatis vs manual tombol) — ditunda sampai ada bukti profit dari salah satu jalur
+4. **Meme coin**: pertimbangkan implementasi TP+20%/SL-8% sebagai shadow forward-test baru (pola sama seperti ML/Breakout) untuk validasi real-time, bukan cuma backtest
+5. **Whale tracker**: bangun scoring wallet sendiri berbasis win rate + median (bukan mean) dari data `whale_alerts` yang sudah ada; mulai track overlap antara wallet terpercaya dan meme coin GEM untuk uji ide confluence
+6. Kalau progress ke arah bot auto-trading sungguhan nanti: WAJIB masukkan estimasi biaya transaksi/slippage/gas ke semua simulasi sebelum dipakai keputusan modal riil
+7. Opsional: commit `list-tables.cjs`, `export-data.cjs`, `export-whale-wallets.cjs`, `export-whale-wallet-detail.cjs` ke git kalau mau dipakai lagi nanti
