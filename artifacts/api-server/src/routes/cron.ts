@@ -4,7 +4,7 @@ import { SUPPORTED_PAIRS } from "../../../nexusalpha/lib/types";
 import { computeRealtimeSignal } from "../lib/signal-engine-realtime";
 import { computeMlSignal } from "../lib/ml-signal-engine";
 import { computeBreakoutSignal } from "../lib/breakout-signal-engine";
-import { db, ohlcvDaily, signalLog, memeSignalLog, whaleAlerts, circuitBreaker, mlSignalLog, breakoutSignalLog } from "@workspace/db";
+import { db, pool, ohlcvDaily, signalLog, memeSignalLog, whaleAlerts, whaleWalletScores, circuitBreaker, mlSignalLog, breakoutSignalLog } from "@workspace/db";
 
 const router = Router();
 
@@ -1813,6 +1813,20 @@ async function runWhaleScan() {
         }
       }
 
+      // ── Cek apakah wallet ini sudah masuk kategori "trusted" (scoring sendiri, ──
+      // berbasis win rate + median PnL — lihat computeWalletScores) ───────────────
+      let isTrustedWallet = false;
+      try {
+        const scoreRows = await (db as any)
+          .select()
+          .from(whaleWalletScores)
+          .where(and(eq(whaleWalletScores.walletAddress, wallet), eq(whaleWalletScores.chain, chain)))
+          .limit(1);
+        isTrustedWallet = scoreRows[0]?.isTrusted ?? false;
+      } catch (err) {
+        console.error("[WHALE] Gagal cek wallet score:", err);
+      }
+
       const amountUsd = trade.amount_usd ?? trade.usd_value ?? 0;
       const priceUsd = trade.price_usd ?? trade.price ?? 0;
       // Deteksi simpel: token dengan karakter non-ASCII (Cyrillic, CJK, dll) sering
@@ -1824,6 +1838,9 @@ async function runWhaleScan() {
 
       let msg = `🐋 <b>WHALE ALERT — SMART MONEY BUY</b>\n`;
       msg += `━━━━━━━━━━━━━━━\n`;
+      if (isTrustedWallet) {
+        msg += `⭐ <b>TRUSTED WALLET</b> — track record sendiri: win rate >70%, median PnL positif\n`;
+      }
       if (isSuspiciousSymbol) {
         msg += `⚠️ <b>WARNING:</b> nama token pakai karakter non-Latin — waspada lookalike/scam token.\n`;
       }
@@ -1851,6 +1868,7 @@ async function runWhaleScan() {
           amountUsd,
           priceAtAlert: priceUsd,
           txHash: trade.tx_hash ?? trade.transaction_hash ?? null,
+          trustedAtAlert: isTrustedWallet,
         });
 
         console.log(`[WHALE] ✅ Alert terkirim: ${symbol} (${chain}) oleh ${wallet.slice(0, 8)}...`);
@@ -2027,6 +2045,114 @@ export function startWhaleCheckCron() {
   checkWhaleAlerts();
   setInterval(checkWhaleAlerts, INTERVAL_6H);
 }
+
+// ─── SMART WALLET SCORING ────────────────────────────────────────────────────
+// Scoring wallet SENDIRI dari histori whale_alerts, TIDAK ikut label GMGN
+// mentah-mentah. Kriteria "trusted" (disepakati 8 Juli 2026, lihat bagian D4
+// di CLAUDE_CONTEXT.md): win rate > 70% DAN median PnL positif DAN sample
+// >= 8 alert. WAJIB pakai MEDIAN, bukan mean — satu wallet bisa kelihatan
+// hebat di rata-rata (avg +932%) padahal cuma didorong 1-2 token yang
+// meledak, sementara median transaksi aslinya minus (lihat temuan D3).
+const WALLET_SCORE_MIN_ALERTS = 8;
+const WALLET_SCORE_MIN_WIN_RATE_PCT = 70;
+const WALLET_SCORE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+async function computeWalletScores() {
+  console.log("[WALLET-SCORE] Computing wallet scores...");
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        wallet_address,
+        chain,
+        COUNT(*) AS total_alerts,
+        ROUND(
+          100.0 * COUNT(*) FILTER (
+            WHERE price_at_alert IS NOT NULL AND price_at_alert > 0 AND last_price IS NOT NULL
+              AND (last_price - price_at_alert) / price_at_alert > 0
+          ) / NULLIF(COUNT(*) FILTER (
+            WHERE price_at_alert IS NOT NULL AND price_at_alert > 0 AND last_price IS NOT NULL
+          ), 0)
+        , 2) AS win_rate_pct,
+        ROUND(
+          (PERCENTILE_CONT(0.5) WITHIN GROUP (
+            ORDER BY CASE WHEN price_at_alert IS NOT NULL AND price_at_alert > 0 AND last_price IS NOT NULL
+              THEN (last_price - price_at_alert) / price_at_alert * 100 END
+          ))::numeric, 2
+        ) AS median_pnl_pct,
+        ROUND(AVG(
+          CASE WHEN price_at_alert IS NOT NULL AND price_at_alert > 0 AND last_price IS NOT NULL
+          THEN (last_price - price_at_alert) / price_at_alert * 100 END
+        )::numeric, 2) AS mean_pnl_pct,
+        COUNT(*) FILTER (WHERE ath_multiplier >= 2) AS count_ge_2x
+      FROM whale_alerts
+      GROUP BY wallet_address, chain
+      HAVING COUNT(*) >= 2;
+    `);
+
+    let trustedCount = 0;
+    for (const row of rows) {
+      const totalAlerts = parseInt(row.total_alerts, 10);
+      const winRatePct = row.win_rate_pct !== null ? parseFloat(row.win_rate_pct) : 0;
+      const medianPnlPct = row.median_pnl_pct !== null ? parseFloat(row.median_pnl_pct) : null;
+      const meanPnlPct = row.mean_pnl_pct !== null ? parseFloat(row.mean_pnl_pct) : null;
+      const countGe2x = parseInt(row.count_ge_2x, 10);
+
+      const isTrusted =
+        totalAlerts >= WALLET_SCORE_MIN_ALERTS &&
+        winRatePct > WALLET_SCORE_MIN_WIN_RATE_PCT &&
+        medianPnlPct !== null && medianPnlPct > 0;
+
+      if (isTrusted) trustedCount++;
+
+      await pool.query(
+        `
+        INSERT INTO whale_wallet_scores
+          (wallet_address, chain, total_alerts, win_rate_pct, median_pnl_pct, mean_pnl_pct, count_ge_2x, is_trusted, last_computed_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        ON CONFLICT (wallet_address, chain) DO UPDATE SET
+          total_alerts = EXCLUDED.total_alerts,
+          win_rate_pct = EXCLUDED.win_rate_pct,
+          median_pnl_pct = EXCLUDED.median_pnl_pct,
+          mean_pnl_pct = EXCLUDED.mean_pnl_pct,
+          count_ge_2x = EXCLUDED.count_ge_2x,
+          is_trusted = EXCLUDED.is_trusted,
+          last_computed_at = NOW();
+        `,
+        [row.wallet_address, row.chain, totalAlerts, winRatePct, medianPnlPct, meanPnlPct, countGe2x, isTrusted],
+      );
+    }
+
+    console.log(`[WALLET-SCORE] Done. ${rows.length} wallet dinilai, ${trustedCount} masuk kategori trusted.`);
+  } catch (err) {
+    console.error("[WALLET-SCORE] Error:", err);
+  }
+}
+
+export function startWalletScoreCron() {
+  console.log(`[WALLET-SCORE] Wallet scoring cron started. Interval: ${WALLET_SCORE_INTERVAL_MS / 1000}s`);
+  computeWalletScores();
+  setInterval(computeWalletScores, WALLET_SCORE_INTERVAL_MS);
+}
+
+router.get("/whale-wallet-scores", async (req, res) => {
+  try {
+    const trustedOnly = req.query.trusted === "true";
+    const all = await (db as any).select().from(whaleWalletScores);
+    const filtered = trustedOnly ? all.filter((w: any) => w.isTrusted) : all;
+    const sorted = [...filtered].sort(
+      (a: any, b: any) => (b.medianPnlPct ?? -Infinity) - (a.medianPnlPct ?? -Infinity),
+    );
+    res.json({
+      total: all.length,
+      trustedCount: all.filter((w: any) => w.isTrusted).length,
+      minAlertsForTrusted: WALLET_SCORE_MIN_ALERTS,
+      minWinRatePctForTrusted: WALLET_SCORE_MIN_WIN_RATE_PCT,
+      wallets: sorted,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
 
 router.get("/whale-results", async (_req, res) => {
   try {

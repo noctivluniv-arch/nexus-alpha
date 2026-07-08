@@ -1,0 +1,47 @@
+[
+  {
+    "column_name": "sent_at"
+  },
+  {
+    "column_name": "amount_usd"
+  },
+  {
+    "column_name": "price_at_alert"
+  },
+  {
+    "column_name": "last_price"
+  },
+  {
+    "column_name": "ath_price"
+  },
+  {
+    "column_name": "ath_multiplier"
+  },
+  {
+    "column_name": "last_checked_at"
+  },
+  {
+    "column_name": "id"
+  },
+  {
+    "column_name": "chain"
+  },
+  {
+    "column_name": "wallet_address"
+  },
+  {
+    "column_name": "side"
+  },
+  {
+    "column_name": "token_address"
+  },
+  {
+    "column_name": "token_symbol"
+  },
+  {
+    "column_name": "tx_hash"
+  },
+  {
+    "column_name": "status"
+  }
+]

@@ -1,5 +1,5 @@
 import {
-  pgTable, serial, varchar, text, real, timestamp,
+  pgTable, serial, varchar, text, real, boolean, timestamp,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -31,6 +31,10 @@ export const whaleAlerts = pgTable("whale_alerts", {
 
   txHash:          text("tx_hash"),
   status:          varchar("status", { length: 20 }).notNull().default("TRACKING"), // TRACKING | DEAD | STOPPED
+  // Flag: apakah wallet ini sudah berstatus "trusted" (lihat whale_wallet_scores)
+  // PADA SAAT alert ini dikirim. Dipakai untuk uji ide confluence ke depan
+  // (token GEM/PUMP_IMMINENT di meme tracker + dibeli wallet trusted sendiri).
+  trustedAtAlert:  boolean("trusted_at_alert").notNull().default(false),
   sentAt:          timestamp("sent_at").defaultNow(),
 });
 
