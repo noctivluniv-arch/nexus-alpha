@@ -1724,3 +1724,20 @@ Semua script `.cjs` berikut connect ke Postgres pakai `DATABASE_URL` env var, `s
 5. **Whale tracker**: bangun scoring wallet sendiri berbasis win rate + median (bukan mean) dari data `whale_alerts` yang sudah ada; mulai track overlap antara wallet terpercaya dan meme coin GEM untuk uji ide confluence
 6. Kalau progress ke arah bot auto-trading sungguhan nanti: WAJIB masukkan estimasi biaya transaksi/slippage/gas ke semua simulasi sebelum dipakai keputusan modal riil
 7. Opsional: commit `list-tables.cjs`, `export-data.cjs`, `export-whale-wallets.cjs`, `export-whale-wallet-detail.cjs` ke git kalau mau dipakai lagi nanti
+
+### F. Estimasi Checkpoint Waktu (dihitung 8 Juli 2026, dari rate sinyal aktual — bukan tebakan)
+
+**Metodologi:** rate dihitung dari data historis yang sudah ada (`span waktu / jumlah sinyal`). Ini ekstrapolasi linear, BUKAN jaminan — rate closed sangat bergantung volatilitas market ke depan, dan dihitung dari sample yang sendirinya masih kecil, jadi presisinya terbatas. Estimasi ini untuk arah checkpoint, bukan jadwal pasti. **Hitung ulang rate ini setiap kali cek progress**, karena akan makin presisi seiring data bertambah.
+
+| Item | Rate saat ini (8 Juli 2026) | Estimasi tercapai |
+|---|---|---|
+| `signal_log` (rule-based) → 15 closed | 1,28 closed/hari (6 closed dalam 4,7 hari) | **~11 Juli 2026** |
+| `signal_log` → 20 closed | sama | **~15 Juli 2026** |
+| `signal_log` → 50 closed (kesimpulan solid) | sama | **~7 Agustus 2026** |
+| `ml_signal_log` → 15-20 sinyal terkirim | 6,15 sinyal/hari (10 sinyal dalam 1,6 hari) | **~10-11 Juli 2026** |
+| `ml_signal_log` → closed pertama | Belum ada data sendiri (0 closed per 8 Juli) | Tidak presisi — dugaan kasar pakai rata2 rule-based (~54 jam/sinyal), bisa meleset jauh |
+| Bandingkan REAL performance 3 jalur (item #2) | — | Paling cepat **~15 Juli 2026** (nunggu jalur paling lambat capai 15-20 closed) |
+| `breakout_signal_log` | 0 sinyal sejak deploy, tidak ada rate terhitung | **Tidak bisa diprediksi** — murni nunggu kondisi breakout market terjadi |
+| Meme TP/SL shadow forward-test | Belum diaktifkan; meme detection rate ~15-16 coin/hari | Kalau diaktifkan sekarang, ~50 sample kira-kira **3-4 hari setelah diaktifkan** |
+| Smart wallet scoring (item #5) | Data sudah cukup (220 wallet ≥5 alert per 8 Juli) | **Sudah bisa dikerjakan sekarang**, bukan soal waktu tunggu |
+| Item #3 (satukan 2 jalur rule-based) & #6 (biaya transaksi bot) | — | Bergantung hasil item #1 & #2, bukan soal waktu murni |
