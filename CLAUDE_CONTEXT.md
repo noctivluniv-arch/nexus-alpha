@@ -1741,3 +1741,45 @@ Semua script `.cjs` berikut connect ke Postgres pakai `DATABASE_URL` env var, `s
 | Meme TP/SL shadow forward-test | Belum diaktifkan; meme detection rate ~15-16 coin/hari | Kalau diaktifkan sekarang, ~50 sample kira-kira **3-4 hari setelah diaktifkan** |
 | Smart wallet scoring (item #5) | Data sudah cukup (220 wallet ≥5 alert per 8 Juli) | **Sudah bisa dikerjakan sekarang**, bukan soal waktu tunggu |
 | Item #3 (satukan 2 jalur rule-based) & #6 (biaya transaksi bot) | — | Bergantung hasil item #1 & #2, bukan soal waktu murni |
+
+## Sesi 8-9 Juli 2026 — Smart Wallet Scoring, Confluence Detection & Dashboard — SELESAI ✅
+
+### Yang dibangun (item #5 dari agenda sebelumnya)
+1. **Smart wallet scoring** — tabel baru `whale_wallet_scores`, cron hitung ulang tiap 24 jam. Per wallet: win rate + **median** PnL (bukan mean, sesuai pelajaran D3) dari histori `whale_alerts`. Kriteria trusted: win rate >70% DAN median PnL positif DAN sample ≥8 alert. Whale alert baru dari wallet trusted dapat badge ⭐ di Telegram + kolom `trusted_at_alert` di `whale_alerts` (buat data confluence).
+2. **Confluence detection** — tabel baru `confluence_signal_log`. Deteksi 2 arah: whale alert dari wallet trusted yang tokennya juga kena flag GEM/PUMP_IMMINENT di meme scanner, dan sebaliknya. Kirim Telegram khusus "🎯 CONFLUENCE SIGNAL" (disclaimer tegas: masih hipotesis) + forward-test ATH tracking otomatis tiap 6 jam (pola sama seperti whale-check/meme-check).
+3. **Dashboard** (`/api/cron/dashboard`) — 2 section baru: Smart Wallet Scoring (daftar wallet + skor) dan Confluence Signal (daftar kejadian overlap), auto-refresh 60 detik sama seperti section lain.
+4. Endpoint baru: `GET /api/cron/whale-wallet-scores`, `GET /api/cron/confluence-results`.
+
+### Snapshot data per 8 Juli 2026 malam (setelah ~3,8 hari whale tracker jalan)
+- 475 wallet unik terpantau, 4551 alert
+- 167 wallet (35%) sudah ≥8 alert (cukup buat dievaluasi kriteria trusted), tapi **cuma 2 dari 167 (~1,2%) yang lolos jadi trusted**:
+  - `0xdc171b07169a...` (eth): 8 alert, win rate 100%, median PnL +99,43%
+  - `0x1721e6b17e20...` (eth): 11 alert, win rate 83,33%, median PnL +7,72%
+- 369 kejadian overlap ditemukan antara whale alert manapun dan token GEM/PUMP di meme scanner (confluence dalam arti umum SERING terjadi) — tapi **belum ada satupun yang melibatkan 2 wallet trusted di atas** (wajar, daftar trusted masih sangat kecil)
+- **Koreksi metodologi**: sempat salah hitung "rata-rata 376 alert/hari per wallet" pakai MEAN — angka itu meledak karena beberapa wallet transaksi 2x dalam hitungan menit. Ini jebakan mean vs median yang SAMA seperti temuan D3, terulang di perhitungan sendiri. Pelajaran: hati-hati pakai AVG di rate manapun ke depan, cek juga median/distribusinya.
+
+### Kapan cek lagi & apa yang perlu dilihat (checkpoint, bukan jaminan)
+**Saran realistis: cek lagi sekitar 1-2 minggu dari sekarang (~22-23 Juli 2026)**, dengan pertanyaan spesifik ini (bukan cuma "sudah profit belum"):
+1. **Jumlah wallet trusted bertambah jadi berapa?** Target minimal 5-10 wallet trusted sebelum bisa bicara "pola", bukan cuma 2 kasus.
+2. **Apakah 2 wallet trusted saat ini TETAP konsisten di alert BARU mereka setelah 8 Juli?** Ini forward-test sungguhan — status trusted sekarang dihitung dari data historis (retrospektif), belum tervalidasi ke depan. Kalau alert baru dari wallet ini mulai banyak yang rugi, itu tanda status trusted-nya tidak reliable.
+3. **Apakah sudah ada confluence event yang melibatkan wallet trusted?** Saat ini 0. Berhubung overlap umum (369) muncul dalam <4 hari, kemungkinan besar akan muncul dalam 1-2 minggu — tapi belum tentu.
+
+### Kenapa BELUM bisa disebut "produk mencari profit" bahkan setelah checkpoint di atas
+Fitur ini murni **tracking pasif + scoring**, belum sinyal beli/jual siap pakai, karena:
+- Belum ada strategi exit (TP/SL) — ini masih agenda #4 yang belum dikerjakan
+- Belum ada estimasi biaya transaksi/gas/slippage — masih agenda #6
+- Sample masih sangat kecil (n=8-11 per wallet trusted) — rawan berubah drastis begitu ada 1-2 transaksi rugi baru
+- Confluence belum punya satupun data forward-test yang closed untuk dinilai
+
+**Realistisnya**, kalau semua bintang di atas (checkpoint 1-2 minggu + agenda #4 + #6) tercapai dengan hasil bagus, kemungkinan baru masuk akal dipertimbangkan jadi bagian sinyal produk sekitar **akhir Juli - pertengahan Agustus 2026** — itu pun masih sebagai salah satu input tambahan (confluence/trusted badge), bukan sinyal beli/jual mandiri. Ini estimasi kasar berdasarkan rate data hari ini, bukan janji pasti — market bisa berubah, rate akumulasi data bisa melambat/cepat.
+
+### Update Agenda (status per 9 Juli 2026)
+1. ~~Tunggu forward-test ML, Breakout, rule-based kumpulkan data~~ → masih berjalan, cek estimasi di tabel F sesi sebelumnya
+2. Bandingkan performa REAL 3 jalur trading signal — belum, nunggu sample cukup
+3. Satukan 2 jalur rule-based — masih ditunda
+4. **Meme coin TP+20%/SL-8% shadow forward-test — BELUM dikerjakan, prioritas berikutnya**
+5. ~~Smart wallet scoring~~ → **SELESAI ✅** (lihat sesi ini), sekarang masuk fase observasi pasif
+6. Biaya transaksi/slippage untuk bot auto-trading — masih menunggu tahap eksekusi riil
+7. ~~Commit script export ke git~~ → sudah dilakukan sesi sebelumnya
+
+**Prioritas selanjutnya yang disarankan: item #4 (meme TP/SL shadow forward-test)** — ini satu-satunya item yang bisa langsung dikerjakan sekarang tanpa nunggu data tambahan, sama seperti smart wallet scoring kemarin.
