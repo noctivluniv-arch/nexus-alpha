@@ -1783,3 +1783,38 @@ Fitur ini murni **tracking pasif + scoring**, belum sinyal beli/jual siap pakai,
 7. ~~Commit script export ke git~~ → sudah dilakukan sesi sebelumnya
 
 **Prioritas selanjutnya yang disarankan: item #4 (meme TP/SL shadow forward-test)** — ini satu-satunya item yang bisa langsung dikerjakan sekarang tanpa nunggu data tambahan, sama seperti smart wallet scoring kemarin.
+
+## Sesi 9 Juli 2026 — Shadow Meme TP/SL Forward-Test — SELESAI ✅ (item #4)
+
+### Yang dibangun
+Tabel baru `meme_tpsl_signal_log` — forward-test strategi exit **TP+20% / SL-8%** untuk coin yang lolos filter GEM/PUMP_IMMINENT (lihat latar belakang backtest di bagian D2 sesi 8 Juli: baseline hold-tanpa-exit -30.75% → +1.80% dengan kombinasi ini, TAPI itu cuma backtest atas data historis, belum forward-test).
+
+Cara kerja:
+- Setiap coin yang lolos filter GEM/PUMP di `runMemeScan()` otomatis dapat entry baru di tabel ini (paralel dengan `meme_signal_log` yang sudah ada, bukan gantiin)
+- TP = harga masuk × 1,20, SL = harga masuk × 0,92
+- Dicek tiap 6 jam (pola sama seperti checker lain): status jadi `TP_HIT`, `SL_HIT`, `EXPIRED` (14 hari lewat tanpa kena TP/SL, exit di harga terakhir), atau `DEAD` (likuiditas <$1000)
+- Telegram terpisah: "🧪 SHADOW MEME TP/SL", jelas ditandai **masih hipotesis**
+- Dashboard: section baru di `/api/cron/dashboard`, sama persis pola card (Win Rate/Total PnL/Sample Progress) seperti section ML dan Breakout
+- Endpoint baru: `GET /api/cron/meme-tpsl-results`
+
+### Kenapa max hold 14 hari (bukan 60 hari seperti `meme_signal_log`)
+Karena tabel ini punya exit rule pasti (TP/SL), bukan tracking ATH terbuka. Dipilih 14 hari karena data historis nunjukin mayoritas meme coin pump/dump dalam hitungan hari, bukan minggu — kalau belum kena TP/SL dalam 14 hari, dianggap "kadaluarsa", exit di harga terakhir yang diketahui (`EXPIRED`), sama logikanya dengan `breakout_signal_log`.
+
+### Checkpoint kapan cek lagi
+Meme detection rate ~15-16 coin GEM/PUMP per hari (dari data 8 Juli). Kalau rate serupa berlanjut, target **15-20 sinyal terkirim** (bukan closed) tercapai dalam **~1 hari** sejak diaktifkan (9 Juli 2026). Tapi closed (kena TP/SL/EXPIRED) butuh waktu lebih lama karena max hold 14 hari — realistisnya:
+- **~16-23 Juli 2026**: mulai ada beberapa closed pertama (yang kena TP/SL cepat)
+- **~23 Juli 2026** (14 hari dari sekarang): batch besar EXPIRED mulai muncul untuk sinyal-sinyal awal, di titik ini baru cukup data buat evaluasi awal (target 15-20 closed)
+- **Kesimpulan solid (50 closed)**: kemungkinan awal-pertengahan Agustus 2026, tergantung rate GEM/PUMP tetap konsisten
+
+**Catatan jujur**: ini forward-test PERTAMA untuk strategi exit meme coin — belum ada bukti performanya bertahan di data baru, backtest sebelumnya cuma pakai data yang sudah lewat. Jangan dipakai keputusan uang asli sampai closed sample ≥50 dan win rate/PnL konsisten positif.
+
+### Update Agenda (status per 9 Juli 2026, sesi lanjutan)
+1. Tunggu forward-test ML, Breakout, rule-based — masih berjalan
+2. Bandingkan performa REAL 3 jalur trading signal — belum, nunggu sample cukup
+3. Satukan 2 jalur rule-based — masih ditunda
+4. ~~Meme coin TP+20%/SL-8% shadow forward-test~~ → **SELESAI ✅** (lihat sesi ini)
+5. Smart wallet scoring + confluence detection → selesai sesi sebelumnya, observasi pasif
+6. Biaya transaksi/slippage bot auto-trading — masih menunggu tahap eksekusi riil
+7. Commit script export ke git — selesai
+
+**Semua item yang bisa dikerjakan aktif SAAT INI sudah selesai.** Sisa agenda (1, 2, 3, 6) murni menunggu data terkumpul sesuai checkpoint masing-masing di atas — tidak ada tindakan pengembangan lagi yang perlu dilakukan sampai salah satu checkpoint tercapai.
