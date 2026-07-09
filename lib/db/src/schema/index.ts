@@ -22,6 +22,7 @@ export * from "./signal-log";
 export * from "./meme-signal-log";
 export * from "./whale-alerts";
 export * from "./whale-wallet-scores";
+export * from "./confluence-signal-log";
 export * from "./circuit-breaker";
 export * from "./ml-signal-log";
 export * from "./breakout-signal-log";

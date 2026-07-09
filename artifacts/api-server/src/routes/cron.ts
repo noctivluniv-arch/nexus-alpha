@@ -4,7 +4,7 @@ import { SUPPORTED_PAIRS } from "../../../nexusalpha/lib/types";
 import { computeRealtimeSignal } from "../lib/signal-engine-realtime";
 import { computeMlSignal } from "../lib/ml-signal-engine";
 import { computeBreakoutSignal } from "../lib/breakout-signal-engine";
-import { db, pool, ohlcvDaily, signalLog, memeSignalLog, whaleAlerts, whaleWalletScores, circuitBreaker, mlSignalLog, breakoutSignalLog } from "@workspace/db";
+import { db, pool, ohlcvDaily, signalLog, memeSignalLog, whaleAlerts, whaleWalletScores, confluenceSignalLog, circuitBreaker, mlSignalLog, breakoutSignalLog } from "@workspace/db";
 
 const router = Router();
 
@@ -1733,6 +1733,71 @@ async function fetchGmgnSmartMoney(chain: string): Promise<GmgnSmartMoneyTrade[]
   }
 }
 
+// ─── CONFLUENCE DETECTION ────────────────────────────────────────────────────
+// Ide dari analisis 8 Juli 2026 (bagian D4.3): kalau token yang SAMA kena flag
+// GEM/PUMP_IMMINENT di meme scanner DAN dibeli oleh wallet yang sudah trusted
+// (scoring sendiri), itu dua sumber independen yang searah — berpotensi lebih
+// kuat dari masing-masing sendirian. MASIH HIPOTESIS, makanya dicatat ke
+// confluence_signal_log untuk divalidasi forward-test dulu, TIDAK dipakai
+// sebagai sinyal beli/jual otomatis.
+async function checkAndLogConfluence(params: {
+  tokenAddress: string;
+  tokenSymbol: string;
+  chain: string;
+  walletAddress: string;
+  walletMedianPnlPct: number | null;
+  walletWinRatePct: number | null;
+  memeTriggerLabel: string | null;
+  priceAtDetection: number | null;
+  detectedVia: "WHALE_FIRST" | "MEME_FIRST";
+}): Promise<boolean> {
+  try {
+    const { rows: existingRows } = await pool.query(
+      `SELECT id FROM confluence_signal_log WHERE LOWER(token_address) = LOWER($1) AND wallet_address = $2 LIMIT 1`,
+      [params.tokenAddress, params.walletAddress],
+    );
+    if (existingRows.length > 0) {
+      return false; // sudah pernah dicatat, jangan spam alert berulang
+    }
+
+    await pool.query(
+      `
+      INSERT INTO confluence_signal_log
+        (token_address, token_symbol, chain, wallet_address, wallet_median_pnl_pct, wallet_win_rate_pct, meme_trigger_label, detected_via, price_at_detection, last_price, ath_price, ath_multiplier)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $9, 1);
+      `,
+      [
+        params.tokenAddress,
+        params.tokenSymbol,
+        params.chain,
+        params.walletAddress,
+        params.walletMedianPnlPct,
+        params.walletWinRatePct,
+        params.memeTriggerLabel,
+        params.detectedVia,
+        params.priceAtDetection,
+      ],
+    );
+
+    const msg =
+      `🎯 <b>CONFLUENCE SIGNAL — NEXUSALPHA</b>\n` +
+      `━━━━━━━━━━━━━━━\n` +
+      `Token <b>${escapeHtml(params.tokenSymbol || "?")}</b> (${escapeHtml(params.chain)}) kena flag <b>${escapeHtml(params.memeTriggerLabel ?? "?")}</b> di meme scanner\n` +
+      `DAN dibeli wallet trusted <code>${escapeHtml(params.walletAddress)}</code>\n` +
+      `Track record wallet: win rate ${params.walletWinRatePct ?? "—"}%, median PnL ${params.walletMedianPnlPct ?? "—"}%\n` +
+      `Terdeteksi via: ${params.detectedVia === "WHALE_FIRST" ? "whale alert" : "meme scanner"}\n\n` +
+      `<i>⚠️ Ini MASIH HIPOTESIS forward-test, BELUM tervalidasi sebagai sinyal beli/jual — DYOR.</i>\n` +
+      `<i>⏰ ${new Date().toLocaleString("id-ID")}</i>`;
+
+    await sendWhaleTelegram(msg);
+    console.log(`[CONFLUENCE] ✅ Terdeteksi & dicatat: ${params.tokenSymbol} x wallet ${params.walletAddress.slice(0, 10)}...`);
+    return true;
+  } catch (err) {
+    console.error("[CONFLUENCE] Error:", err);
+    return false;
+  }
+}
+
 async function runWhaleScan() {
   console.log("[WHALE] Starting smart money scan...");
   if (!process.env.GMGN_API_KEY) {
@@ -1816,6 +1881,8 @@ async function runWhaleScan() {
       // ── Cek apakah wallet ini sudah masuk kategori "trusted" (scoring sendiri, ──
       // berbasis win rate + median PnL — lihat computeWalletScores) ───────────────
       let isTrustedWallet = false;
+      let trustedWalletMedianPnlPct: number | null = null;
+      let trustedWalletWinRatePct: number | null = null;
       try {
         const scoreRows = await (db as any)
           .select()
@@ -1823,6 +1890,8 @@ async function runWhaleScan() {
           .where(and(eq(whaleWalletScores.walletAddress, wallet), eq(whaleWalletScores.chain, chain)))
           .limit(1);
         isTrustedWallet = scoreRows[0]?.isTrusted ?? false;
+        trustedWalletMedianPnlPct = scoreRows[0]?.medianPnlPct ?? null;
+        trustedWalletWinRatePct = scoreRows[0]?.winRatePct ?? null;
       } catch (err) {
         console.error("[WHALE] Gagal cek wallet score:", err);
       }
@@ -1872,6 +1941,34 @@ async function runWhaleScan() {
         });
 
         console.log(`[WHALE] ✅ Alert terkirim: ${symbol} (${chain}) oleh ${wallet.slice(0, 8)}...`);
+
+        // ── Cek confluence: token ini sudah pernah kena flag GEM/PUMP_IMMINENT ──
+        // di meme scanner? Kalau wallet-nya trusted DAN token-nya pernah flagged,
+        // ini kejadian confluence (lihat ide D4.3 di CLAUDE_CONTEXT.md) ──────────
+        if (isTrustedWallet) {
+          try {
+            const { rows: memeMatches } = await pool.query(
+              `SELECT trigger_label FROM meme_signal_log WHERE LOWER(contract_address) = LOWER($1) ORDER BY detected_at DESC LIMIT 1`,
+              [token],
+            );
+            if (memeMatches.length > 0) {
+              await checkAndLogConfluence({
+                tokenAddress: token,
+                tokenSymbol: symbol,
+                chain,
+                walletAddress: wallet,
+                walletMedianPnlPct: trustedWalletMedianPnlPct,
+                walletWinRatePct: trustedWalletWinRatePct,
+                memeTriggerLabel: memeMatches[0].trigger_label,
+                priceAtDetection: priceUsd || null,
+                detectedVia: "WHALE_FIRST",
+              });
+            }
+          } catch (err) {
+            console.error("[WHALE] Gagal cek confluence:", err);
+          }
+        }
+
         await new Promise((r) => setTimeout(r, 1000));
       } catch (err) {
         console.error("[WHALE] Gagal kirim/simpan alert:", err);
@@ -2154,6 +2251,114 @@ router.get("/whale-wallet-scores", async (req, res) => {
   }
 });
 
+// ─── CONFLUENCE FORWARD-TEST CHECKER ─────────────────────────────────────────
+// Sama seperti checkWhaleAlerts/checkMemeSignals — pantau ATH & harga terkini
+// tiap kejadian confluence yang tercatat di confluence_signal_log, supaya bisa
+// dievaluasi nanti apakah confluence beneran outperform sinyal biasa sendirian.
+async function checkConfluenceSignals() {
+  console.log("[CONFLUENCE-CHECK] Checking tracked confluence_signal_log...");
+  try {
+    const tracking = await (db as any)
+      .select()
+      .from(confluenceSignalLog)
+      .where(eq(confluenceSignalLog.status, "TRACKING"));
+
+    if (tracking.length === 0) {
+      console.log("[CONFLUENCE-CHECK] Belum ada confluence yang di-tracking.");
+      return;
+    }
+
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    const validSignals: any[] = [];
+    for (const sig of tracking) {
+      const detectedTime = sig.detectedAt ? new Date(sig.detectedAt).getTime() : now;
+      if (now - detectedTime > THIRTY_DAYS_MS) {
+        await (db as any)
+          .update(confluenceSignalLog)
+          .set({ status: "STOPPED", lastCheckedAt: new Date() })
+          .where(eq(confluenceSignalLog.id, sig.id));
+        console.log(`[CONFLUENCE-CHECK] ⏹️ ${sig.tokenSymbol} — 30 hari tercapai, stop tracking`);
+        continue;
+      }
+      if (!sig.priceAtDetection || sig.priceAtDetection <= 0) continue;
+      validSignals.push(sig);
+    }
+
+    const BATCH_SIZE = 25;
+    const uniqueAddresses = Array.from(new Set(validSignals.map((s: any) => s.tokenAddress).filter(Boolean)));
+    const dataMap = new Map<string, { price: number; liquidity: number; mcap: number }>();
+
+    for (let i = 0; i < uniqueAddresses.length; i += BATCH_SIZE) {
+      const chunk = uniqueAddresses.slice(i, i + BATCH_SIZE);
+      const batchResult = await fetchDexScreenerBatch(chunk);
+      for (const [addr, val] of batchResult) {
+        dataMap.set(addr, val);
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+
+    for (const sig of validSignals) {
+      const data = dataMap.get(sig.tokenAddress);
+      if (!data || data.price <= 0) continue;
+
+      const priceRatio = data.price / sig.priceAtDetection;
+      if (priceRatio > 500) continue; // anomali harga, skip
+
+      const newAth = Math.max(sig.athPrice ?? sig.priceAtDetection, data.price);
+      const athMultiplier = newAth / sig.priceAtDetection;
+      const isDead = data.liquidity < 1000;
+
+      await (db as any)
+        .update(confluenceSignalLog)
+        .set({
+          lastPrice: data.price,
+          athPrice: newAth,
+          athMultiplier,
+          lastCheckedAt: new Date(),
+          status: isDead ? "DEAD" : "TRACKING",
+        })
+        .where(eq(confluenceSignalLog.id, sig.id));
+
+      console.log(`[CONFLUENCE-CHECK] ${sig.tokenSymbol} → price $${data.price}, ATH x${athMultiplier.toFixed(2)}${isDead ? " — DEAD" : ""}`);
+    }
+
+    console.log("[CONFLUENCE-CHECK] Done.");
+  } catch (err) {
+    console.error("[CONFLUENCE-CHECK] Error:", err);
+  }
+}
+
+export function startConfluenceCheckCron() {
+  const INTERVAL_6H = 6 * 60 * 60 * 1000;
+  console.log(`[CONFLUENCE-CHECK] Confluence forward-test checker started. Interval: ${INTERVAL_6H / 1000}s`);
+  checkConfluenceSignals();
+  setInterval(checkConfluenceSignals, INTERVAL_6H);
+}
+
+router.get("/confluence-results", async (_req, res) => {
+  try {
+    const all = await (db as any).select().from(confluenceSignalLog);
+    const withMultiplier = all.filter((c: any) => c.athMultiplier !== null);
+    const total = all.length;
+    const dead = all.filter((c: any) => c.status === "DEAD").length;
+    const above2x = withMultiplier.filter((c: any) => c.athMultiplier >= 2).length;
+    const sorted = [...all].sort(
+      (a: any, b: any) => (b.athMultiplier ?? -Infinity) - (a.athMultiplier ?? -Infinity),
+    );
+    res.json({
+      total,
+      dead,
+      above2xCount: above2x,
+      note: "MASIH HIPOTESIS forward-test (lihat D4.3 di CLAUDE_CONTEXT.md) — belum tervalidasi sebagai sinyal beli/jual.",
+      signals: sorted,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 router.get("/whale-results", async (_req, res) => {
   try {
     const all = await (db as any).select().from(whaleAlerts);
@@ -2303,6 +2508,43 @@ async function runMemeScan() {
       // Forward testing: simpan coin ke meme_signal_log untuk dipantau ATH-nya
       await saveMemeSignalToLog(coin, label.includes("GEM") && label.includes("PUMP") ? "BOTH" : isGem ? "GEM" : "PUMP_IMMINENT");
       console.log(`[MEME-CRON] ✅ Alert sent: ${coin.name} (${coin.symbol})`);
+
+      // ── Cek confluence arah sebaliknya: token ini sudah pernah dibeli wallet ──
+      // trusted SEBELUM kena flag GEM/PUMP di sini? (lihat ide D4.3 di ─────────
+      // CLAUDE_CONTEXT.md — arah WHALE_FIRST dicek di runWhaleScan) ───────────
+      if (coin.contractAddress) {
+        try {
+          const { rows: trustedBuys } = await pool.query(
+            `
+            SELECT w.wallet_address, s.median_pnl_pct, s.win_rate_pct, w.price_at_alert
+            FROM whale_alerts w
+            INNER JOIN whale_wallet_scores s
+              ON s.wallet_address = w.wallet_address AND s.chain = w.chain
+            WHERE LOWER(w.token_address) = LOWER($1) AND s.is_trusted = true
+            ORDER BY w.sent_at DESC
+            LIMIT 1;
+            `,
+            [coin.contractAddress],
+          );
+          if (trustedBuys.length > 0) {
+            const buy = trustedBuys[0];
+            await checkAndLogConfluence({
+              tokenAddress: coin.contractAddress,
+              tokenSymbol: coin.symbol,
+              chain: coin.network,
+              walletAddress: buy.wallet_address,
+              walletMedianPnlPct: buy.median_pnl_pct ?? null,
+              walletWinRatePct: buy.win_rate_pct ?? null,
+              memeTriggerLabel: isGem && isPump ? "BOTH" : isGem ? "GEM" : "PUMP_IMMINENT",
+              priceAtDetection: buy.price_at_alert ?? null,
+              detectedVia: "MEME_FIRST",
+            });
+          }
+        } catch (err) {
+          console.error("[MEME-CRON] Gagal cek confluence:", err);
+        }
+      }
+
       await new Promise((r) => setTimeout(r, 1000));
     }
 
