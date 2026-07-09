@@ -1154,6 +1154,26 @@ router.get("/dashboard", (_req, res) => {
     </table>
   </section>
 
+  <section>
+    <h2>⭐ Smart Wallet Scoring</h2>
+    <div class="note" style="margin-bottom:12px">Scoring wallet SENDIRI dari histori whale_alerts (bukan label GMGN mentah). Trusted = win rate &gt;70% DAN median PnL positif DAN sample ≥8 alert. Pakai MEDIAN, bukan mean — hindari jebakan wallet yang kelihatan hebat cuma karena 1-2 token meledak.</div>
+    <div class="grid" id="wallet-score-stats"><div class="loading">Memuat...</div></div>
+    <table id="wallet-score-table">
+      <thead><tr><th>Wallet</th><th>Chain</th><th>Total Alert</th><th>Win Rate</th><th>Median PnL</th><th>Mean PnL</th><th>≥2x</th><th>Status</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>🎯 Confluence Signal (Trusted Wallet × Meme Scanner)</h2>
+    <div class="note" style="margin-bottom:12px">⚠️ MASIH HIPOTESIS forward-test. Terjadi kalau token yang SAMA kena flag GEM/PUMP_IMMINENT DAN dibeli wallet trusted. Belum tervalidasi sebagai sinyal beli/jual — DYOR.</div>
+    <div class="grid" id="confluence-stats"><div class="loading">Memuat...</div></div>
+    <table id="confluence-table">
+      <thead><tr><th>Token</th><th>Chain</th><th>Wallet</th><th>Trigger</th><th>Via</th><th>Harga Deteksi ($)</th><th>Harga Skrg ($)</th><th>ATH x</th><th>Status</th><th>Detected</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
 <script>
 const MODAL = 100; // modal virtual per trade/coin
 
@@ -1520,6 +1540,71 @@ async function load() {
     document.querySelector('#whale-table tbody').innerHTML = rows.join('');
   } catch(e) {
     document.getElementById('whale-stats').innerHTML = '<div class="loading">Gagal memuat data whale tracker.</div>';
+  }
+
+  // ── SMART WALLET SCORING ─────────────────────────────────────────────
+  try {
+    const wsRes = await fetch('/api/cron/whale-wallet-scores').then(r => r.json());
+    const wallets = (wsRes.wallets || []).slice(); // sudah terurut median PnL desc dari backend
+
+    const wsRows = wallets.map(w => {
+      const shortWallet = w.walletAddress ? w.walletAddress.slice(0, 6) + '...' + w.walletAddress.slice(-4) : '-';
+      const medianCls = w.medianPnlPct > 0 ? 'pnl-pos' : w.medianPnlPct < 0 ? 'pnl-neg' : 'pnl-neutral';
+      const meanCls = w.meanPnlPct > 0 ? 'pnl-pos' : w.meanPnlPct < 0 ? 'pnl-neg' : 'pnl-neutral';
+      return '<tr>' +
+        '<td>' + shortWallet + '</td>' +
+        '<td>' + w.chain + '</td>' +
+        '<td>' + w.totalAlerts + '</td>' +
+        '<td>' + w.winRatePct + '%</td>' +
+        '<td><span class="' + medianCls + '">' + (w.medianPnlPct ?? '—') + '%</span></td>' +
+        '<td><span class="' + meanCls + '">' + (w.meanPnlPct ?? '—') + '%</span></td>' +
+        '<td>' + w.countGe2x + '</td>' +
+        '<td>' + (w.isTrusted ? '<span class="badge badge-win">⭐ TRUSTED</span>' : '<span class="badge badge-stopped">—</span>') + '</td>' +
+        '</tr>';
+    });
+
+    const wsStats = document.getElementById('wallet-score-stats');
+    wsStats.innerHTML =
+      '<div class="card"><div class="label">Total Wallet Dinilai</div><div class="value">' + wsRes.total + '</div></div>' +
+      '<div class="card"><div class="label">Trusted</div><div class="value green">' + wsRes.trustedCount + '</div><div class="sublabel">win rate &gt;' + wsRes.minWinRatePctForTrusted + '%, sample ≥' + wsRes.minAlertsForTrusted + '</div></div>';
+
+    document.querySelector('#wallet-score-table tbody').innerHTML = wsRows.join('');
+  } catch(e) {
+    document.getElementById('wallet-score-stats').innerHTML = '<div class="loading">Gagal memuat data wallet scoring.</div>';
+  }
+
+  // ── CONFLUENCE SIGNAL ─────────────────────────────────────────────────
+  try {
+    const confRes = await fetch('/api/cron/confluence-results').then(r => r.json());
+    const signals = (confRes.signals || []).slice();
+
+    const confRows = signals.map(c => {
+      const badge = c.status === 'DEAD' ? 'badge-dead' : c.status === 'TRACKING' ? 'badge-tracking' : 'badge-stopped';
+      const athDisplay = c.athMultiplier ? 'x' + c.athMultiplier.toFixed(2) : '-';
+      const shortWallet = c.walletAddress ? c.walletAddress.slice(0, 6) + '...' + c.walletAddress.slice(-4) : '-';
+      return '<tr>' +
+        '<td>' + (c.tokenSymbol || '?') + '</td>' +
+        '<td>' + c.chain + '</td>' +
+        '<td>' + shortWallet + '</td>' +
+        '<td>' + (c.memeTriggerLabel || '-') + '</td>' +
+        '<td>' + (c.detectedVia === 'WHALE_FIRST' ? 'Whale→Meme' : 'Meme→Whale') + '</td>' +
+        '<td>' + (c.priceAtDetection ? '$' + c.priceAtDetection : '-') + '</td>' +
+        '<td>' + (c.lastPrice ? '$' + c.lastPrice : '-') + '</td>' +
+        '<td>' + athDisplay + '</td>' +
+        '<td><span class="badge ' + badge + '">' + c.status + '</span></td>' +
+        '<td>' + new Date(c.detectedAt).toLocaleString('id-ID') + '</td>' +
+        '</tr>';
+    });
+
+    const confStats = document.getElementById('confluence-stats');
+    confStats.innerHTML =
+      '<div class="card"><div class="label">Total Confluence</div><div class="value">' + confRes.total + '</div></div>' +
+      '<div class="card"><div class="label">≥ 2x</div><div class="value green">' + confRes.above2xCount + '</div></div>' +
+      '<div class="card"><div class="label">Dead / Rug</div><div class="value red">' + confRes.dead + '</div></div>';
+
+    document.querySelector('#confluence-table tbody').innerHTML = confRows.join('');
+  } catch(e) {
+    document.getElementById('confluence-stats').innerHTML = '<div class="loading">Gagal memuat data confluence.</div>';
   }
 }
 load();
