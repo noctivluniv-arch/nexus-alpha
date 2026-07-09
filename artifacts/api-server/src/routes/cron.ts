@@ -4,7 +4,7 @@ import { SUPPORTED_PAIRS } from "../../../nexusalpha/lib/types";
 import { computeRealtimeSignal } from "../lib/signal-engine-realtime";
 import { computeMlSignal } from "../lib/ml-signal-engine";
 import { computeBreakoutSignal } from "../lib/breakout-signal-engine";
-import { db, pool, ohlcvDaily, signalLog, memeSignalLog, whaleAlerts, whaleWalletScores, confluenceSignalLog, circuitBreaker, mlSignalLog, breakoutSignalLog } from "@workspace/db";
+import { db, pool, ohlcvDaily, signalLog, memeSignalLog, memeTpslSignalLog, whaleAlerts, whaleWalletScores, confluenceSignalLog, circuitBreaker, mlSignalLog, breakoutSignalLog } from "@workspace/db";
 
 const router = Router();
 
@@ -901,6 +901,165 @@ async function saveMemeSignalToLog(coin: any, triggerLabel: string) {
   }
 }
 
+// ─── SHADOW MEME TP/SL FORWARD-TEST (TP+20% / SL-8%) ─────────────────────────
+// Latar belakang: backtest atas 109 coin historis (lihat CLAUDE_CONTEXT.md D2)
+// menunjukkan kombinasi ini ubah baseline hold-tanpa-exit dari -30.75% jadi
+// +1.80%. Tabel ini MASIH HIPOTESIS — forward-test real-time buat validasi,
+// belum boleh dipakai keputusan uang asli sampai sample cukup (target 50 closed).
+const MEME_TP_MULTIPLIER = 1.20;
+const MEME_SL_MULTIPLIER = 0.92;
+
+async function saveMemeTpslSignalToLog(coin: any) {
+  try {
+    const existing = await (db as any)
+      .select()
+      .from(memeTpslSignalLog)
+      .where(and(eq(memeTpslSignalLog.coinId, String(coin.id)), eq(memeTpslSignalLog.status, "TRACKING")));
+
+    if (existing.length > 0) {
+      console.log(`[MEME-TPSL-LOG] ⏭️ Skip ${coin.symbol} — masih TRACKING (id #${existing[0].id})`);
+      return;
+    }
+
+    const price = parseFloat(String(coin.price)) || 0;
+    if (price <= 0) {
+      console.log(`[MEME-TPSL-LOG] ⏭️ Skip ${coin.symbol} — harga tidak valid`);
+      return;
+    }
+
+    const tp = price * MEME_TP_MULTIPLIER;
+    const sl = price * MEME_SL_MULTIPLIER;
+
+    await (db as any).insert(memeTpslSignalLog).values({
+      coinId: String(coin.id),
+      symbol: coin.symbol,
+      network: coin.network,
+      contractAddress: coin.contractAddress ?? "",
+      entryPrice: price,
+      tp,
+      sl,
+      lastPrice: price,
+      status: "TRACKING",
+    });
+
+    let msg = `🧪 <b>SHADOW MEME TP/SL — NEXUSALPHA (Eksperimen)</b>\n`;
+    msg += `━━━━━━━━━━━━━━━\n`;
+    msg += `<b>Coin:</b> ${escapeHtml(coin.name)} (${escapeHtml(coin.symbol)})\n`;
+    msg += `<b>Network:</b> ${escapeHtml(coin.network)}\n`;
+    msg += `<b>📍 Entry:</b> $${price}\n`;
+    msg += `<b>🎯 TP (+20%):</b> $${tp.toFixed(10)}\n`;
+    msg += `<b>🛑 SL (-8%):</b> $${sl.toFixed(10)}\n`;
+    msg += `<b>⏳ Max Hold:</b> 14 hari (exit di harga terakhir kalau belum kena TP/SL)\n\n`;
+    msg += `<i>⏰ ${new Date().toLocaleString("id-ID")}</i>\n`;
+    msg += `━━━━━━━━━━━━━━━\n`;
+    msg += `<i>⚠️ MASIH HIPOTESIS dari backtest, BELUM tervalidasi forward. JANGAN dipakai uang asli.</i>`;
+    await sendMemeTelegram(msg);
+
+    console.log(`[MEME-TPSL-LOG] ✅ Saved ${coin.symbol} @ $${price} (TP $${tp}, SL $${sl})`);
+  } catch (err) {
+    console.error(`[MEME-TPSL-LOG] Error saving ${coin.symbol}:`, err);
+  }
+}
+
+async function checkMemeTpslSignals() {
+  console.log("[MEME-TPSL-CHECK] Checking tracked meme TP/SL signals...");
+  try {
+    const tracking = await (db as any)
+      .select()
+      .from(memeTpslSignalLog)
+      .where(eq(memeTpslSignalLog.status, "TRACKING"));
+
+    if (tracking.length === 0) {
+      console.log("[MEME-TPSL-CHECK] No signals being tracked.");
+      return;
+    }
+
+    const MAX_HOLD_MS = 14 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    for (const sig of tracking) {
+      await new Promise((r) => setTimeout(r, 300)); // jaga rate limit DexScreener
+
+      const data = await fetchDexScreenerData(sig.contractAddress);
+      const detectedTime = sig.detectedAt ? new Date(sig.detectedAt).getTime() : now;
+      const expired = now - detectedTime >= MAX_HOLD_MS;
+
+      if (!data || data.price <= 0) {
+        if (expired) {
+          // Data tidak tersedia lagi DAN sudah lewat max hold — anggap DEAD, exit di harga terakhir yang diketahui
+          await (db as any)
+            .update(memeTpslSignalLog)
+            .set({ status: "DEAD", closedPrice: sig.lastPrice, closedAt: new Date(), lastCheckedAt: new Date() })
+            .where(eq(memeTpslSignalLog.id, sig.id));
+          console.log(`[MEME-TPSL-CHECK] ${sig.symbol} — data tidak tersedia & lewat max hold, tandai DEAD`);
+        } else {
+          console.log(`[MEME-TPSL-CHECK] ⚠️ ${sig.symbol} — data DexScreener tidak tersedia, skip`);
+        }
+        continue;
+      }
+
+      // Sanity check anomali harga (sama seperti checkMemeSignals)
+      const priceRatio = data.price / sig.entryPrice;
+      if (priceRatio > 500) {
+        console.log(`[MEME-TPSL-CHECK] ⚠️ ${sig.symbol} — harga anomali (x${priceRatio.toFixed(0)}), skip`);
+        continue;
+      }
+
+      const isDead = data.liquidity < 1000;
+      let newStatus: string | null = null;
+
+      if (isDead) {
+        newStatus = "DEAD";
+      } else if (data.price <= sig.sl) {
+        newStatus = "SL_HIT";
+      } else if (data.price >= sig.tp) {
+        newStatus = "TP_HIT";
+      } else if (expired) {
+        newStatus = "EXPIRED";
+      }
+
+      if (newStatus) {
+        await (db as any)
+          .update(memeTpslSignalLog)
+          .set({
+            status: newStatus,
+            closedPrice: data.price,
+            closedAt: new Date(),
+            lastPrice: data.price,
+            lastCheckedAt: new Date(),
+          })
+          .where(eq(memeTpslSignalLog.id, sig.id));
+        console.log(`[MEME-TPSL-CHECK] ${sig.symbol} #${sig.id} -> ${newStatus} @ $${data.price}`);
+      } else {
+        await (db as any)
+          .update(memeTpslSignalLog)
+          .set({ lastPrice: data.price, lastCheckedAt: new Date() })
+          .where(eq(memeTpslSignalLog.id, sig.id));
+      }
+    }
+
+    console.log("[MEME-TPSL-CHECK] Done.");
+  } catch (err) {
+    console.error("[MEME-TPSL-CHECK] Error:", err);
+  }
+}
+
+export function startMemeTpslCheckCron() {
+  const INTERVAL_6H = 6 * 60 * 60 * 1000;
+  console.log(`[MEME-TPSL-CHECK] Shadow meme TP/SL forward-test checker started. Interval: ${INTERVAL_6H / 1000}s`);
+  checkMemeTpslSignals();
+  setInterval(checkMemeTpslSignals, INTERVAL_6H);
+}
+
+router.get("/meme-tpsl-results", async (_req, res) => {
+  try {
+    const all = await (db as any).select().from(memeTpslSignalLog);
+    res.json({ total: all.length, signals: all });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 async function fetchDexScreenerData(contractAddress: string): Promise<{ price: number; liquidity: number; mcap: number } | null> {
   if (!contractAddress) return null;
   const maxAttempts = 4;
@@ -1141,6 +1300,16 @@ router.get("/dashboard", (_req, res) => {
     <div class="grid" id="meme-stats"><div class="loading">Memuat...</div></div>
     <table id="meme-table">
       <thead><tr><th>Coin</th><th>Network</th><th>Entry ($)</th><th>Harga Skrg ($)</th><th>ATH x</th><th>PnL Skrg</th><th>PnL ATH</th><th>Status</th><th>Detected</th><th>Chart</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>🧪 Shadow Meme TP/SL (TP+20% / SL-8% — Eksperimen)</h2>
+    <div class="note" style="margin-bottom:12px">⚠️ MASIH HIPOTESIS dari backtest data historis (baseline hold-tanpa-exit -30.75% → +1.80% dengan TP/SL ini). Belum ada biaya transaksi/slippage diperhitungkan. Murni forward-test untuk validasi sebelum dipertimbangkan production.</div>
+    <div class="grid" id="meme-tpsl-stats"><div class="loading">Memuat...</div></div>
+    <table id="meme-tpsl-table">
+      <thead><tr><th>Coin</th><th>Network</th><th>Entry ($)</th><th>TP ($)</th><th>SL ($)</th><th>Harga Skrg ($)</th><th>Status</th><th>PnL (dari $100)</th><th>Detected</th></tr></thead>
       <tbody></tbody>
     </table>
   </section>
@@ -1508,6 +1677,67 @@ async function load() {
     document.querySelector('#meme-table tbody').innerHTML = rows.join('');
   } catch(e) {
     document.getElementById('meme-stats').innerHTML = '<div class="loading">Gagal memuat data meme coin.</div>';
+  }
+
+  // ── SHADOW MEME TP/SL ─────────────────────────────────────────────────
+  try {
+    const mtRes = await fetch('/api/cron/meme-tpsl-results').then(r => r.json());
+    const mtSignals = (mtRes.signals || []).slice();
+
+    let mtTotalPnl = 0;
+    let mtClosedCount = 0;
+    let mtWinCount = 0;
+    let mtLossCount = 0;
+
+    const mtRows = mtSignals.slice().reverse().map(s => {
+      let pnl = null;
+      let badge = s.status === 'TRACKING' ? 'badge-tracking' : 'badge-open';
+      const isClosed = s.status === 'SL_HIT' || s.status === 'TP_HIT' || s.status === 'EXPIRED' || s.status === 'DEAD';
+
+      if (isClosed && s.closedPrice && s.entryPrice) {
+        const pct = (s.closedPrice - s.entryPrice) / s.entryPrice;
+        pnl = pct * MODAL;
+        mtTotalPnl += pnl;
+        mtClosedCount++;
+        if (pnl > 0) { mtWinCount++; badge = 'badge-win'; }
+        else { mtLossCount++; badge = 'badge-loss'; }
+      }
+
+      let unrealizedHint = '';
+      if (!isClosed && s.entryPrice && s.lastPrice) {
+        const pct = (s.lastPrice - s.entryPrice) / s.entryPrice;
+        const unrealizedPnl = pct * MODAL;
+        const sign = unrealizedPnl >= 0 ? '+' : '';
+        const cls = unrealizedPnl > 0 ? 'pnl-pos' : unrealizedPnl < 0 ? 'pnl-neg' : 'pnl-neutral';
+        unrealizedHint = '<span class="' + cls + '">' + sign + '$' + unrealizedPnl.toFixed(2) + '</span>';
+      }
+
+      return '<tr>' +
+        '<td>' + (s.symbol || '?') + '</td>' +
+        '<td>' + (s.network || '-') + '</td>' +
+        '<td>' + s.entryPrice + '</td>' +
+        '<td>' + (s.tp ? '$' + s.tp : '-') + '</td>' +
+        '<td>' + (s.sl ? '$' + s.sl : '-') + '</td>' +
+        '<td>' + (s.lastPrice ? '$' + s.lastPrice : '-') + '</td>' +
+        '<td><span class="badge ' + badge + '">' + s.status + '</span></td>' +
+        '<td>' + (pnl !== null ? pnlHtml(pnl) : unrealizedHint) + '</td>' +
+        '<td>' + new Date(s.detectedAt).toLocaleString('id-ID') + '</td>' +
+        '</tr>';
+    });
+
+    const mtWinRate = mtClosedCount > 0 ? (mtWinCount / mtClosedCount * 100).toFixed(1) + '%' : 'N/A';
+    const mtStats = document.getElementById('meme-tpsl-stats');
+    mtStats.innerHTML =
+      '<div class="card"><div class="label">Total Closed</div><div class="value">' + mtClosedCount + '</div><div class="sublabel">dari ' + mtSignals.length + ' signal</div></div>' +
+      '<div class="card"><div class="label">Wins</div><div class="value green">' + mtWinCount + '</div></div>' +
+      '<div class="card"><div class="label">Losses</div><div class="value red">' + mtLossCount + '</div></div>' +
+      '<div class="card"><div class="label">Win Rate</div><div class="value yellow">' + mtWinRate + '</div></div>' +
+      '<div class="card"><div class="label">Total PnL</div><div class="value ' + (mtTotalPnl >= 0 ? 'green' : 'red') + '">' + (mtTotalPnl >= 0 ? '+' : '') + '$' + mtTotalPnl.toFixed(2) + '</div><div class="sublabel">dari modal $' + (mtSignals.length * MODAL) + ' virtual</div></div>' +
+      '<div class="card"><div class="label">Sample Progress</div><div class="value ' + (mtClosedCount >= 50 ? 'green' : mtClosedCount >= 15 ? 'yellow' : 'red') + '">' + mtClosedCount + ' / 50</div><div class="sublabel">' + (mtClosedCount < 15 ? (15 - mtClosedCount) + ' lagi menuju evaluasi awal (15)' : mtClosedCount < 50 ? (50 - mtClosedCount) + ' lagi menuju kesimpulan final (50)' : 'Sample cukup untuk kesimpulan final') + '</div></div>';
+
+    document.querySelector('#meme-tpsl-table tbody').innerHTML = mtRows.join('');
+  } catch(e) {
+    document.getElementById('meme-tpsl-stats').innerHTML = '<div class="loading">Gagal memuat data shadow meme TP/SL.</div>';
   }
 
   // ── WHALE / SMART MONEY ─────────────────────────────────────────────
@@ -2593,6 +2823,9 @@ async function runMemeScan() {
       // Forward testing: simpan coin ke meme_signal_log untuk dipantau ATH-nya
       await saveMemeSignalToLog(coin, label.includes("GEM") && label.includes("PUMP") ? "BOTH" : isGem ? "GEM" : "PUMP_IMMINENT");
       console.log(`[MEME-CRON] ✅ Alert sent: ${coin.name} (${coin.symbol})`);
+
+      // Shadow forward-test: strategi exit TP+20%/SL-8% (lihat CLAUDE_CONTEXT.md D2)
+      await saveMemeTpslSignalToLog(coin);
 
       // ── Cek confluence arah sebaliknya: token ini sudah pernah dibeli wallet ──
       // trusted SEBELUM kena flag GEM/PUMP di sini? (lihat ide D4.3 di ─────────
