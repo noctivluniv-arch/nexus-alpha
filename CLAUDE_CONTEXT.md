@@ -1818,3 +1818,60 @@ Meme detection rate ~15-16 coin GEM/PUMP per hari (dari data 8 Juli). Kalau rate
 7. Commit script export ke git — selesai
 
 **Semua item yang bisa dikerjakan aktif SAAT INI sudah selesai.** Sisa agenda (1, 2, 3, 6) murni menunggu data terkumpul sesuai checkpoint masing-masing di atas — tidak ada tindakan pengembangan lagi yang perlu dilakukan sampai salah satu checkpoint tercapai.
+
+## Sesi 14 Juli 2026 — Cek Forward-Test Lengkap, Fix Interval Meme TP/SL, Fitur Trusted Wallet di Halaman Memes
+
+### A. Hasil Cek Forward-Test Lengkap (data per 14 Juli 2026 siang)
+
+Semua sistem dicek sekaligus (via curl semua endpoint `/api/cron/*-results`, di-upload user sebagai RTF, di-parse jadi JSON). Ringkasan:
+
+| Sistem | Total | Closed | Win Rate | PnL / Catatan |
+|---|---|---|---|---|
+| Signal rule-based (SELL) | 18 | 7 | 0% | Semua closed = SL_HIT. Konsisten dengan temuan lama (SELL performa buruk). |
+| ML Shadow | 10 | 3 | 0% | 3 closed itu dari era threshold LAMA (probBuy 0.52-0.59, sebelum naik ke 0.65 tanggal 7 Juli) — JANGAN dipakai evaluasi threshold baru. |
+| Breakout Shadow | 0 | 0 | - | Belum ada sinyal sama sekali. |
+| Meme Coin (tracker umum) | 156 | - | - | 3,8% dead, 10,9% pernah ≥2x, 2,6% pernah ≥5x, 0,6% pernah ≥10x. |
+| **Shadow Meme TP/SL** | 200 | **169** | **22,5%** | **Total PnL -$700,27 dari $16.900 (-4,14%)**. Lihat temuan penting di bagian B. |
+| Whale Tracker | 10.627 | - | - | 19,2% dead, 7,7% pernah ≥2x, 2,6% pernah ≥5x. Naik dari 4.551 (8 Juli) → 10.627 (14 Juli). |
+| Wallet Scoring | 559 dinilai | - | - | **13 trusted** (naik dari 2 di sesi 8 Juli). Lihat detail di bagian C. |
+| Confluence | 4 sinyal | 0 | - | Semua masih TRACKING, ATH multiplier 1,08x-1,91x, belum ada yang ≥2x. |
+
+### B. TEMUAN PENTING: Shadow Meme TP/SL Meleset Jauh dari Target — SUDAH DIPERBAIKI ✅
+
+Dari 169 closed: rata-rata TP_HIT kena di **+54,33%** (bukan +20% seperti target), rata-rata SL_HIT kena di **-21,10%** (bukan -8%). Root cause: checker cuma jalan tiap **6 jam** — meme coin bergerak jauh lebih cepat dari itu, jadi pas dicek harga udah "lewat" jauh dari level TP/SL seharusnya.
+
+**Fix yang sudah dideploy (14 Juli 2026):**
+- Interval checker diturunkan dari 6 jam → **1 jam**
+- Refactor `checkMemeTpslSignals()` ke **batch fetching** (`fetchDexScreenerBatch`, fungsi yang sama dipakai whale-check) supaya interval lebih rapat TIDAK kena rate limit DexScreener (pelajaran dari insiden 7 Juli)
+
+**PENTING untuk evaluasi ke depan**: 169 data closed yang sudah ada itu **metodologinya "tercemar"** (interval 6 jam). Jangan dicampur dengan closed BARU pasca perbaikan ini saat menghitung win rate/PnL representatif — filter berdasarkan tanggal fix ini di-deploy (14 Juli 2026 malam).
+
+### C. Wallet Scoring — Progress Sehat, Bukti Sistem Bekerja Jujur
+
+Trusted naik dari 2 → **13 wallet** (dari 559 total dievaluasi, naik dari 375). Yang menarik: wallet `0xdc171b07...` yang di sesi 8 Juli cuma 8 alert dengan median +99,43%, sekarang (24 alert) median-nya **turun jadi +20,54%** — ini pertanda BAGUS, bukan buruk: sample kecil di awal kasih angka terlalu optimis, begitu sample nambah angkanya terkoreksi ke lebih realistis.
+
+Beberapa wallet baru punya gap ekstrem median vs mean (misal wallet `0xd254acc47b`: median 51,17% vs mean 1836,93%) — bukti nyata lagi kenapa median dipilih sebagai metrik utama, bukan mean.
+
+### D. Fitur Baru: Trusted Wallet Activity di Halaman Memes — SELESAI ✅
+
+User usul: manfaatkan wallet scoring dengan cara ditampilkan di halaman Memes (bukan dijadikan sinyal beli/jual otomatis — user pernah tanya soal ini, dijawab: menyambungkan wallet scoring + meme TP/SL jadi 1 sinyal baru itu HIPOTESIS BARU yang belum ada datanya sama sekali, beda dari sekadar "menampilkan info").
+
+**Implementasi:**
+- Backend (`memes.ts`): 1 query tambahan per refresh cache (bukan per-coin) — join `whale_alerts` × `whale_wallet_scores` WHERE `is_trusted=true`, cocokkan `contractAddress` per coin
+- Field baru di `MemeCoin` type: `trustedWalletActivity` (walletAddress, chain, winRatePct, medianPnlPct, buyCount, lastAlertAt)
+- Frontend: badge "⭐ DIBELI TRUSTED WALLET" di kartu coin + section detail collapsible (dropdown) yang nampilin wallet mana yang beli, dengan disclaimer eksplisit "MURNI informasi, BUKAN sinyal beli/jual — DYOR"
+
+**Bug ditemukan & diperbaiki di hari yang sama**: versi awal menampilkan wallet yang sama berulang-ulang (1 wallet bisa punya banyak whale_alerts untuk token yang sama = banyak baris duplikat). Diperbaiki dengan dedupe per (token, wallet) — sekarang 1 wallet = 1 baris, dengan keterangan "Nx beli" kalau lebih dari sekali. Section juga dijadikan collapsible.
+
+**Status**: fitur informasi, BUKAN sinyal beli/jual otomatis. Belum ada rencana untuk otomatisasi lebih jauh (misal auto-alert Telegram) — ditunda sampai ada permintaan eksplisit.
+
+### Update Agenda (status per 14 Juli 2026 malam)
+1. Forward-test ML/Breakout/rule-based — masih berjalan, sample masih kecil, closed lama tercampur era threshold berbeda (perlu filter tanggal saat evaluasi nanti)
+2. Bandingkan performa REAL 3 jalur — belum, tunggu sample cukup DAN bersih dari era lama
+3. Satukan 2 jalur rule-based — masih ditunda
+4. Shadow Meme TP/SL — interval SUDAH diperbaiki (6 jam → 1 jam + batch fetching). Tunggu closed BARU pasca perbaikan sebelum evaluasi ulang
+5. Smart wallet scoring + confluence — jalan terus, progress sehat (13 trusted, masih observasi pasif)
+6. Biaya transaksi/slippage — masih menunggu tahap eksekusi riil
+7. **BARU**: Trusted Wallet Activity di halaman Memes — SELESAI ✅, murni fitur informasi
+
+**Catatan checkpoint berikutnya**: karena metodologi meme TP/SL baru diperbaiki hari ini, target 15-20 closed "bersih" (pasca-fix) kemungkinan baru tercapai sekitar **21-28 Juli 2026** (menggantikan estimasi lama yang berbasis data tercemar). Untuk sistem lain, checkpoint sebelumnya masih berlaku.
