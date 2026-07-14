@@ -1,6 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { logger } from "../lib/logger";
 import { chartLimiter } from "../middlewares/rateLimiter";
+import { db, whaleAlerts, whaleWalletScores } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -2865,10 +2867,69 @@ async function refreshMemes(): Promise<any[]> {
       delete row._marketCap; delete row._iconic; delete row._fromTrending;
     }
 
+    await enrichWithTrustedWalletActivity(filtered);
+
     cache = { ts: Date.now(), data: filtered };
     return filtered;
   } finally {
     memesInflight = null;
+  }
+}
+
+// ─── TRUSTED WALLET ACTIVITY ENRICHMENT ──────────────────────────────────────
+// Tandai coin di halaman Memes yang PERNAH dibeli wallet trusted (dari sistem
+// smart wallet scoring — lihat CLAUDE_CONTEXT.md bagian D4/D5). Ini MURNI
+// informasi/label, BUKAN sinyal beli/jual otomatis — keputusan tetap di
+// tangan user. 1 query DB per refresh cache (bukan per-coin), aman performa.
+async function enrichWithTrustedWalletActivity(rows: any[]): Promise<void> {
+  try {
+    const trustedBuys = await (db as any)
+      .select({
+        tokenAddress: whaleAlerts.tokenAddress,
+        chain: whaleAlerts.chain,
+        walletAddress: whaleAlerts.walletAddress,
+        sentAt: whaleAlerts.sentAt,
+        winRatePct: whaleWalletScores.winRatePct,
+        medianPnlPct: whaleWalletScores.medianPnlPct,
+      })
+      .from(whaleAlerts)
+      .innerJoin(
+        whaleWalletScores,
+        eq(whaleAlerts.walletAddress, whaleWalletScores.walletAddress),
+      )
+      .where(eq(whaleWalletScores.isTrusted, true));
+
+    if (trustedBuys.length === 0) return;
+
+    const byToken = new Map<string, any[]>();
+    for (const buy of trustedBuys) {
+      if (!buy.tokenAddress) continue;
+      const key = String(buy.tokenAddress).toLowerCase();
+      const list = byToken.get(key) ?? [];
+      list.push({
+        walletAddress: buy.walletAddress,
+        chain: buy.chain,
+        winRatePct: buy.winRatePct,
+        medianPnlPct: buy.medianPnlPct,
+        alertAt: buy.sentAt,
+      });
+      byToken.set(key, list);
+    }
+
+    let matchCount = 0;
+    for (const row of rows) {
+      const key = String(row.contractAddress ?? "").toLowerCase();
+      const activity = byToken.get(key);
+      if (activity && activity.length > 0) {
+        row.trustedWalletActivity = activity;
+        matchCount++;
+      }
+    }
+    if (matchCount > 0) {
+      logger.info({ matchCount }, "memes: trusted wallet activity matched");
+    }
+  } catch (err: any) {
+    logger.error({ err: err?.message ?? String(err) }, "enrichWithTrustedWalletActivity failed");
   }
 }
 

@@ -287,6 +287,17 @@ export interface MemeCoin {
   buyScore?: number;
   buyReasons?: string[];
   buyRedFlags?: string[];
+  // ─── TRUSTED WALLET ACTIVITY (smart wallet scoring) ────────────────────────
+  // MURNI informasi, BUKAN sinyal beli/jual — wallet dengan win rate >70% DAN
+  // median PnL positif (bukan mean) dari histori transaksi mereka sendiri
+  // (lihat CLAUDE_CONTEXT.md D4/D5) pernah membeli coin ini.
+  trustedWalletActivity?: {
+    walletAddress: string;
+    chain: string;
+    winRatePct: number;
+    medianPnlPct: number | null;
+    alertAt: string;
+  }[];
 }
 
 export type ChartTimeframe = "1h" | "24h" | "7d";
