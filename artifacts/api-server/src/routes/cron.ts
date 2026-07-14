@@ -977,10 +977,26 @@ async function checkMemeTpslSignals() {
     const MAX_HOLD_MS = 14 * 24 * 60 * 60 * 1000;
     const now = Date.now();
 
-    for (const sig of tracking) {
-      await new Promise((r) => setTimeout(r, 300)); // jaga rate limit DexScreener
+    // Pass 1: fetch harga secara BATCH (bukan satu-satu) — hindari rate limit
+    // DexScreener seperti yang pernah kejadian di whale-check (lihat CLAUDE_CONTEXT.md
+    // 7 Juli 2026). WAJIB pola ini karena interval checker sekarang 1 jam (naik dari
+    // 6 jam) supaya TP/SL kena lebih presisi di levelnya, bukan telat kedeteksi.
+    const BATCH_SIZE = 25;
+    const uniqueAddresses = Array.from(new Set(tracking.map((s: any) => s.contractAddress).filter(Boolean))) as string[];
+    const dataMap = new Map<string, { price: number; liquidity: number; mcap: number }>();
 
-      const data = await fetchDexScreenerData(sig.contractAddress);
+    for (let i = 0; i < uniqueAddresses.length; i += BATCH_SIZE) {
+      const chunk = uniqueAddresses.slice(i, i + BATCH_SIZE);
+      const batchResult = await fetchDexScreenerBatch(chunk);
+      for (const [addr, val] of batchResult) {
+        dataMap.set(addr, val);
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+
+    // Pass 2: proses tiap sinyal pakai data dari dataMap — tanpa network call lagi
+    for (const sig of tracking) {
+      const data = dataMap.get(sig.contractAddress);
       const detectedTime = sig.detectedAt ? new Date(sig.detectedAt).getTime() : now;
       const expired = now - detectedTime >= MAX_HOLD_MS;
 
@@ -1045,11 +1061,17 @@ async function checkMemeTpslSignals() {
 }
 
 export function startMemeTpslCheckCron() {
-  const INTERVAL_6H = 6 * 60 * 60 * 1000;
-  console.log(`[MEME-TPSL-CHECK] Shadow meme TP/SL forward-test checker started. Interval: ${INTERVAL_6H / 1000}s`);
+  // Interval diturunkan dari 6 jam jadi 1 jam (9 Juli → 14 Juli 2026) — analisis
+  // forward-test pertama nunjukin rata-rata TP_HIT kena di +54% (bukan +20%) dan
+  // SL_HIT di -21% (bukan -8%) karena interval 6 jam terlalu jarang buat meme coin
+  // yang gerak cepat. Refactor ke batch fetching (lihat fetchDexScreenerBatch) biar
+  // interval lebih rapat tanpa kena rate limit DexScreener.
+  const INTERVAL_1H = 60 * 60 * 1000;
+  console.log(`[MEME-TPSL-CHECK] Shadow meme TP/SL forward-test checker started. Interval: ${INTERVAL_1H / 1000}s`);
   checkMemeTpslSignals();
-  setInterval(checkMemeTpslSignals, INTERVAL_6H);
+  setInterval(checkMemeTpslSignals, INTERVAL_1H);
 }
+
 
 router.get("/meme-tpsl-results", async (_req, res) => {
   try {
