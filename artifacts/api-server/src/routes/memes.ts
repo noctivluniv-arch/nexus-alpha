@@ -2901,27 +2901,44 @@ async function enrichWithTrustedWalletActivity(rows: any[]): Promise<void> {
 
     if (trustedBuys.length === 0) return;
 
-    const byToken = new Map<string, any[]>();
+    // Dedupe per (token, wallet) — 1 wallet bisa punya banyak whale_alerts
+    // untuk token yang sama (beli berkali-kali), jadi harus digabung jadi
+    // 1 baris per wallet, bukan ditampilkan berulang-ulang.
+    const byToken = new Map<string, Map<string, any>>();
     for (const buy of trustedBuys) {
-      if (!buy.tokenAddress) continue;
-      const key = String(buy.tokenAddress).toLowerCase();
-      const list = byToken.get(key) ?? [];
-      list.push({
-        walletAddress: buy.walletAddress,
-        chain: buy.chain,
-        winRatePct: buy.winRatePct,
-        medianPnlPct: buy.medianPnlPct,
-        alertAt: buy.sentAt,
-      });
-      byToken.set(key, list);
+      if (!buy.tokenAddress || !buy.walletAddress) continue;
+      const tokenKey = String(buy.tokenAddress).toLowerCase();
+      const walletKey = String(buy.walletAddress).toLowerCase();
+
+      const walletMap = byToken.get(tokenKey) ?? new Map<string, any>();
+      const existing = walletMap.get(walletKey);
+      const alertTime = buy.sentAt ? new Date(buy.sentAt).getTime() : 0;
+
+      if (!existing) {
+        walletMap.set(walletKey, {
+          walletAddress: buy.walletAddress,
+          chain: buy.chain,
+          winRatePct: buy.winRatePct,
+          medianPnlPct: buy.medianPnlPct,
+          buyCount: 1,
+          lastAlertAt: buy.sentAt,
+        });
+      } else {
+        existing.buyCount += 1;
+        const existingTime = existing.lastAlertAt ? new Date(existing.lastAlertAt).getTime() : 0;
+        if (alertTime > existingTime) existing.lastAlertAt = buy.sentAt;
+      }
+      byToken.set(tokenKey, walletMap);
     }
 
     let matchCount = 0;
     for (const row of rows) {
       const key = String(row.contractAddress ?? "").toLowerCase();
-      const activity = byToken.get(key);
-      if (activity && activity.length > 0) {
-        row.trustedWalletActivity = activity;
+      const walletMap = byToken.get(key);
+      if (walletMap && walletMap.size > 0) {
+        row.trustedWalletActivity = Array.from(walletMap.values()).sort(
+          (a, b) => (b.medianPnlPct ?? -Infinity) - (a.medianPnlPct ?? -Infinity),
+        );
         matchCount++;
       }
     }

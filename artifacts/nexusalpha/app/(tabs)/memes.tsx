@@ -3622,40 +3622,40 @@ function TrustedWalletSection({ coin, colors }: { coin: MemeCoin; colors: any })
   if (!activity || activity.length === 0) return null;
 
   const accent = "#10B981";
-  const bg = "rgba(16,185,129,0.08)";
-  const border = "rgba(16,185,129,0.35)";
 
   return (
-    <View style={[styles.scanSection, { backgroundColor: bg, borderColor: border }]}>
-      <View style={styles.scanHead}>
-        <Text style={[styles.scanTitle, { color: accent, flex: 1 }]}>
-          ⭐ DIBELI TRUSTED WALLET
+    <Collapsible
+      title={`⭐ DIBELI TRUSTED WALLET (${activity.length})`}
+      icon="star"
+      accent={accent}
+      colors={colors}
+    >
+      <View style={[styles.scanSection, { backgroundColor: "rgba(16,185,129,0.08)", borderColor: "rgba(16,185,129,0.35)" }]}>
+        <Text style={[styles.scanSummary, { color: colors.mutedForeground, marginBottom: 6 }]}>
+          Wallet dengan track record win rate &gt;70% dan median PnL positif (dari histori transaksi mereka sendiri) pernah membeli coin ini. Ini MURNI informasi, BUKAN sinyal beli/jual — DYOR.
         </Text>
+        {activity.map((w, i) => (
+          <View
+            key={i}
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              paddingVertical: 4,
+              borderTopWidth: i > 0 ? 1 : 0,
+              borderTopColor: "rgba(255,255,255,0.08)",
+            }}
+          >
+            <Text style={[styles.scanCellLabel, { color: colors.foreground }]}>
+              {shortAddress(w.walletAddress)} ({w.chain}){w.buyCount > 1 ? ` · ${w.buyCount}x beli` : ""}
+            </Text>
+            <Text style={{ color: accent, fontSize: 11, fontFamily: "Helvetica Neue" }}>
+              WR {w.winRatePct}% · Median {w.medianPnlPct !== null ? `${w.medianPnlPct}%` : "—"}
+            </Text>
+          </View>
+        ))}
       </View>
-      <Text style={[styles.scanSummary, { color: colors.mutedForeground, marginBottom: 6 }]}>
-        Wallet dengan track record win rate &gt;70% dan median PnL positif (dari histori transaksi mereka sendiri) pernah membeli coin ini. Ini MURNI informasi, BUKAN sinyal beli/jual — DYOR.
-      </Text>
-      {activity.map((w, i) => (
-        <View
-          key={i}
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            paddingVertical: 4,
-            borderTopWidth: i > 0 ? 1 : 0,
-            borderTopColor: "rgba(255,255,255,0.08)",
-          }}
-        >
-          <Text style={[styles.scanCellLabel, { color: colors.foreground }]}>
-            {shortAddress(w.walletAddress)} ({w.chain})
-          </Text>
-          <Text style={{ color: accent, fontSize: 11, fontFamily: "Helvetica Neue" }}>
-            WR {w.winRatePct}% · Median {w.medianPnlPct !== null ? `${w.medianPnlPct}%` : "—"}
-          </Text>
-        </View>
-      ))}
-    </View>
+    </Collapsible>
   );
 }
 

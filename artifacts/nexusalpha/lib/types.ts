@@ -296,7 +296,8 @@ export interface MemeCoin {
     chain: string;
     winRatePct: number;
     medianPnlPct: number | null;
-    alertAt: string;
+    buyCount: number;
+    lastAlertAt: string;
   }[];
 }
 
