@@ -1875,3 +1875,49 @@ User usul: manfaatkan wallet scoring dengan cara ditampilkan di halaman Memes (b
 7. **BARU**: Trusted Wallet Activity di halaman Memes — SELESAI ✅, murni fitur informasi
 
 **Catatan checkpoint berikutnya**: karena metodologi meme TP/SL baru diperbaiki hari ini, target 15-20 closed "bersih" (pasca-fix) kemungkinan baru tercapai sekitar **21-28 Juli 2026** (menggantikan estimasi lama yang berbasis data tercemar). Untuk sistem lain, checkpoint sebelumnya masih berlaku.
+
+## Sesi 16 Juli 2026 — Review Forward-Test Lengkap + Bug Kritis Ditemukan & Diperbaiki (Partial Daily Candle)
+
+### A. Hasil Cek Forward-Test (data per 16 Juli 2026)
+
+| Sistem | Total | Closed | Win Rate | Catatan |
+|---|---|---|---|---|
+| Signal rule-based (SELL) | 16 | 8 | 0% | Semua closed = SL_HIT. Termasuk BTCUSDT (1 closed SL_HIT, 1 masih OPEN). |
+| ML Shadow | 10 | 3 | 0% | Masih 3 closed yang SAMA dari 6 Juli (era threshold lama) — 0 sinyal baru sejak 7 Juli sampai fix di bagian C. |
+| Breakout Shadow | 0 | 0 | - | 0 sinyal sejak live 7 Juli (9 hari) — investigasi di bagian B/C. |
+| Meme Coin | 173 | - | - | 3,5% dead, 10,4% pernah ≥2x. |
+| Shadow Meme TP/SL | 318 | 288 | 21,3-23,1% | Sebelum fix interval (14 Juli): 199 closed, WR 23,1%. Sesudah fix: 89 closed, WR 21,3%, avg TP +32,24%/SL -14,38% (membaik dari +54%/-21%, tapi strategi TETAP negatif — kemungkinan besar bukan cuma soal presisi exit, tapi soal win rate dasar yang terlalu rendah, lihat analisis breakeven ~31% vs realisasi 21,3%). |
+| Whale Tracker | 12.694 | - | - | Dead rate turun ke 18,8% (dari 19,2%). |
+| Wallet Scoring | 614 dinilai | - | - | 16 trusted (naik dari 13). |
+| Confluence | 5 sinyal | 0 | - | Semua TRACKING, DOGEUS (Ethereum) ATH 1,999x — sangat dekat 2x. |
+
+**Klarifikasi penting (sempat ditanyakan user)**: Shadow Meme TP/SL 100% khusus meme coin receh (DOGEUS, MENSA, dll di jaringan Ethereum/Solana/BNB Chain) — BUKAN trading BTC/ETH/SOL/BNB sebagai aset utama. Kolom "network" di data cuma menunjukkan jaringan blockchain tempat token meme-nya di-deploy, bukan aset yang ditradingkan. Sinyal BTC/ETH/SOL/BNB/dll ada di sistem terpisah: Signal rule-based, ML Shadow, Breakout Shadow (10 pair: BTC, ETH, BNB, SUI, SOL, HYPE, LINK, XRP, DOGE, AVAX).
+
+### B. Investigasi: Kenapa ML "Macet" 10 Hari & Breakout 0 Sinyal 9 Hari
+
+User minta investigasi teliti. Cron ML jalan tiap 15 menit (bukan jarang), jadi 0 sinyal baru dalam 900+ scan mencurigakan. Log Render diperiksa:
+
+- **ML**: log `[ML-CRON]` menunjukkan scan jalan normal tiap 15 menit, probBuy/probSell dihitung untuk semua 10 pair, tapi memang genuinely tidak ada yang lolos threshold (BUY≥0.65, SELL≥0.52) di kebanyakan pair pada 16 Juli — ini bagian NORMAL (market quiet). TAPI ditemukan 1 kasus menarik: 14 Juli, HYPEUSDT sempat lolos threshold SELL (probSell 52,9%) tapi di-skip pengiriman karena masih ada 1 sinyal HYPEUSDT OPEN lama (id #10, dari 7 Juli, belum closed). Ini bukan bug — cuma menunjukkan gating "1 sinyal OPEN per pair" bekerja seperti didesain, tapi berarti selama sinyal lama HYPEUSDT belum closed, pair itu tidak akan dapat sinyal baru.
+
+### C. BUG KRITIS DITEMUKAN & DIPERBAIKI: Partial Daily Candle Bias
+
+**Root cause utama** kenapa Breakout 0 sinyal 9 hari: log `[BREAKOUT-CRON]` 14 Juli jam 06:39 UTC menunjukkan volRatio SEMUA 10 pair kompak di bawah 0,35x (BTCUSDT 0,27x, ETHUSDT 0,34x, dst) — pola yang terlalu seragam untuk kebetulan pasar sepi bareng-bareng semua pair.
+
+**Analisis**: jam 06:39 UTC = 6,65 jam sejak tengah malam UTC. 6,65 ÷ 24 = 0,277 — **cocok presisi** dengan volRatio BTCUSDT (0,27x). Dikonfirmasi lewat kode: `volumeProfile()` di `indicators.ts` pakai `volumes[volumes.length-1]` sebagai "today" — tapi Bybit selalu mengembalikan candle harian TERAKHIR yang **masih berjalan (belum closed)**, jadi volume yang dipakai cuma sebagian hari (~6,65 jam), dibandingkan ke rata-rata 10-30 hari yang full 24 jam. Bias sistemik, bukan soal market.
+
+**Dampak**: filter volume 1,5x di Breakout jadi butuh volume real ~5,4x lipat cuma buat menutup bias ini — praktis mustahil lolos, menjelaskan 0 sinyal sejak live. ML juga kena bias sama di fitur `vol_ratio`/`volH1`/`volH6`, meski dampaknya lebih halus dibanding Breakout.
+
+**Fix (dideploy 16 Juli 2026)**: `fetchDailyKlines` (breakout) dan `fetchKlines` interval `1d` (ML) sekarang fetch 1 candle ekstra, lalu buang candle yang `openTime + 24 jam` masih di masa depan (belum closed), sebelum dipakai hitung apapun. Interval 4h/1h sengaja TIDAK diubah (dampak partial-candle jauh lebih kecil di situ). Bonus: ini juga bikin logika live SEKARANG konsisten dengan metodologi backtest aslinya (backtest cuma pernah lihat candle harian yang sudah final).
+
+**PENTING untuk evaluasi ke depan**: SEMUA data ML/Breakout **sebelum fix ini di-deploy (16 Juli 2026)** dianggap tidak representatif untuk menilai apakah strategi ML/Breakout profitable — sample sebelumnya kemungkinan besar under-counting sinyal breakout secara drastis. Checkpoint evaluasi ML/Breakout REALISTIS dimulai dari tanggal fix ini, bukan dari tanggal live awal (24 Juni/7 Juli).
+
+### Update Agenda (status per 16 Juli 2026)
+1. Forward-test ML/Breakout/rule-based — **checkpoint di-reset** karena bug candle harian baru diperbaiki hari ini; data sebelum 16 Juli tidak representatif untuk ML/Breakout
+2. Bandingkan performa REAL 3 jalur — tunda sampai ada sample bersih pasca-fix
+3. Satukan 2 jalur rule-based — masih ditunda
+4. Shadow Meme TP/SL — data sesudah fix interval (89 closed) tetap nunjukin hasil negatif (WR 21,3%, breakeven butuh ~31%) — kemungkinan masalah di win rate/kualitas entry, bukan cuma presisi exit. Belum diputuskan lanjut/stop, didiskusikan lebih lanjut nanti
+5. Smart wallet scoring + confluence — jalan terus, 16 trusted
+6. Biaya transaksi/slippage — masih menunggu tahap eksekusi riil
+7. Trusted Wallet Activity di Memes — selesai, sudah ada di production
+
+**Checkpoint baru**: karena bug candle harian baru diperbaiki 16 Juli, kasih waktu minimal 2-3 minggu (~awal Agustus 2026) untuk ML/Breakout kumpul sample BARU yang bersih dari bug ini, sebelum dievaluasi ulang.
