@@ -44,7 +44,13 @@ interface Candles {
 
 async function fetchKlines(symbol: string, interval: string, limit = 300): Promise<Candles> {
   const bybitInterval = interval === "1d" ? "D" : interval === "4h" ? "240" : interval;
-  const url = `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${bybitInterval}&limit=${limit}`;
+  // Untuk daily: minta 1 lebih banyak, lalu buang candle yang masih berjalan
+  // (belum closed) — root cause bug 16 Juli 2026: volume hari berjalan cuma
+  // sebagian (bukan 24 jam penuh), bikin fitur vol_ratio/volH1/volH6 bias.
+  // Interval 4h/1h TIDAK diubah (dampaknya jauh lebih kecil ke EMA/RSI/MACD
+  // dibanding perbandingan rasio volume harian yang sensitif).
+  const fetchLimit = interval === "1d" ? limit + 1 : limit;
+  const url = `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${bybitInterval}&limit=${fetchLimit}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Bybit klines error ${res.status} for ${symbol} ${interval}`);
   const json = (await res.json()) as any;
@@ -60,6 +66,15 @@ async function fetchKlines(symbol: string, interval: string, limit = 300): Promi
     c.volumes.push(parseFloat(k[5]));
     c.closeTime.push(parseInt(k[0], 10));
   }
+
+  if (interval === "1d") {
+    const nowMs = Date.now();
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    while (c.closeTime.length > 0 && c.closeTime[c.closeTime.length - 1] + ONE_DAY_MS > nowMs) {
+      c.opens.pop(); c.highs.pop(); c.lows.pop(); c.closes.pop(); c.volumes.pop(); c.closeTime.pop();
+    }
+  }
+
   return c;
 }
 

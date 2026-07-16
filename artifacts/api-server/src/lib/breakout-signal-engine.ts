@@ -28,7 +28,13 @@ interface Candles {
 }
 
 async function fetchDailyKlines(symbol: string, limit = 120): Promise<Candles> {
-  const url = `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=D&limit=${limit}`;
+  // Minta 1 lebih banyak karena candle TERAKHIR dari Bybit sering kali masih
+  // "berjalan" (belum closed) — kalau tidak dibuang, volume-nya cuma sebagian
+  // hari (misal cron jalan jam 06:39 UTC = baru 6,65 jam dari 24 jam), bikin
+  // perbandingan volume vs rata-rata 10 hari jadi bias parah (root cause bug
+  // ditemukan 16 Juli 2026: volRatio breakout selalu <0.35x meski market wajar,
+  // karena todayVol yang dipakai cuma volume parsial, bukan volume 1 hari penuh).
+  const url = `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=D&limit=${limit + 1}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Bybit klines error ${res.status} for ${symbol}`);
   const json = (await res.json()) as any;
@@ -42,8 +48,16 @@ async function fetchDailyKlines(symbol: string, limit = 120): Promise<Candles> {
     c.lows.push(parseFloat(k[3]));
     c.closes.push(parseFloat(k[4]));
     c.volumes.push(parseFloat(k[5]));
-    c.closeTime.push(parseInt(k[0], 10));
+    c.closeTime.push(parseInt(k[0], 10)); // ini sebenarnya OPEN time candle harian
   }
+
+  // Buang candle yang openTime + 24 jam masih di masa depan (belum closed)
+  const nowMs = Date.now();
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  while (c.closeTime.length > 0 && c.closeTime[c.closeTime.length - 1] + ONE_DAY_MS > nowMs) {
+    c.opens.pop(); c.highs.pop(); c.lows.pop(); c.closes.pop(); c.volumes.pop(); c.closeTime.pop();
+  }
+
   return c;
 }
 
