@@ -1921,3 +1921,53 @@ User minta investigasi teliti. Cron ML jalan tiap 15 menit (bukan jarang), jadi 
 7. Trusted Wallet Activity di Memes — selesai, sudah ada di production
 
 **Checkpoint baru**: karena bug candle harian baru diperbaiki 16 Juli, kasih waktu minimal 2-3 minggu (~awal Agustus 2026) untuk ML/Breakout kumpul sample BARU yang bersih dari bug ini, sebelum dievaluasi ulang.
+
+## Sesi 31 Juli 2026 — Insiden Database Expired, Bug Kritis ML Shadow Ditemukan & Diperbaiki, Update Checkpoint
+
+### A. Insiden: Database Render Expired (SEMPAT DOWN, SUDAH PULIH)
+
+Database Postgres gratis di Render **expired** (kebijakan Render: 30 hari sejak dibuat, lalu 14 hari grace period sebelum data dihapus permanen — database gratis TIDAK PERNAH di-backup sama sekali). Semua endpoint API sempat error total ("Failed query...").
+
+**Tindakan**: user upgrade ke instance berbayar (**Basic-256MB, ~$7/bulan**) SEBELUM grace period habis — data 4-31 Juli (27 hari forward-test) berhasil diselamatkan, tidak ada yang hilang (dikonfirmasi: `whale-wallet-scores` jalan normal, growth data konsisten 614→1032 wallet).
+
+**PENTING ke depan**: database sekarang berbayar, otomatis dapat backup harian dari Render — risiko kejadian serupa jauh lebih kecil. Kalau ada notifikasi Render soal database lagi, JANGAN diabaikan.
+
+### B. BUG KRITIS DITEMUKAN & DIPERBAIKI: ML Shadow — Entry Price Beku (Efek Samping dari Fix 16 Juli)
+
+**Ditemukan dari data**: checkpoint 31 Juli nunjukin ML Shadow 47 closed, **0% win rate**, dengan pola aneh — 39 sinyal DOGEUSDT dalam sehari (23 Juli), SEMUA dengan entry price PERSIS SAMA ($0,073).
+
+**Root cause**: fix bug candle harian 16 Juli (yang benar untuk Breakout) punya efek samping tak terduga di ML — variabel `price` (daily close yang sudah closed) dipakai untuk DUA hal sekaligus: (1) bahan fitur teknikal [BENAR, harus konsisten sama training] dan (2) harga entry sinyal utk hitung SL/TP [SALAH — jadi beku sampai 24 jam]. Sementara checker (`checkMlOpenSignals`) selalu pakai harga LIVE. Akibatnya: tiap sinyal baru lahir sudah "kalah" dibanding harga live yang sudah bergerak → SL_HIT dalam hitungan menit → cron 15 menit berikutnya bikin sinyal baru lagi dengan entry beku yang sama → berulang terus sepanjang hari.
+
+**Kuantifikasi kontaminasi**: 45 dari 55 sinyal ML (82%) kena bug ini (window 16-31 Juli), 42 closed SEMUANYA rugi. **Data ML dari periode ini TIDAK VALID untuk evaluasi performa model** — murni artefak bug, bukan performa model asli.
+
+**Fix (dideploy 31 Juli 2026)**: `computeMlSignal()` sekarang fetch harga LIVE terpisah (`fetchLivePrice`, endpoint sama seperti checker) khusus buat entry/SL/TP. Semua fitur teknikal (RSI/MACD/trend/dst) tetap pakai daily close, tidak berubah.
+
+**Breakout TIDAK kena bug ini** — cron-nya jalan sekali per 24 jam (bukan tiap 15 menit), dan desain "entry di harga closing harian" itu memang sengaja sesuai backtest walk-forward aslinya (PF 1.45/1.29). Tidak diubah.
+
+**PENTING untuk evaluasi ke depan**: checkpoint ML Shadow **di-reset lagi** — mulai hitung dari 31 Juli 2026 (tanggal fix ini), bukan dari 16 Juli.
+
+### C. Update Data Checkpoint 31 Juli 2026
+
+| Sistem | Update |
+|---|---|
+| Shadow Meme TP/SL | 951 closed (naik dari 89), **win rate 27,7%** (naik dari 21,3%), return -1,62% (membaik dari -4,43%) — **tren membaik**, masih di bawah breakeven ~31% tapi mendekat |
+| Confluence | 7 sinyal (naik dari 5), **3 sudah di atas 2x**: token "01" ATH 4,73x, DOGEUS 2,81x & 2,46x — masih semua TRACKING, belum ada exit rule |
+| Whale Tracker | 27.384 alert (naik dari 12.694), dead rate 20,4% |
+| Wallet Scoring | 1.032 dinilai (naik dari 614), 14 trusted |
+| Signal rule-based | 9 total, 0% win rate (masih sample kecil) |
+| Breakout | 3 total, 2 closed (keduanya loss) — sample terlalu kecil, belum bisa disimpulkan |
+
+### D. Pertanyaan Off-topic: Graphify (tool eksternal, BUKAN bagian nexus-alpha)
+
+User tanya soal `Graphify` (github.com/Graphify-Labs/graphify) — tool open-source pihak ketiga (bukan buatan Anthropic) yang bikin knowledge graph dari codebase, dipasang sebagai skill `/graphify` khusus di **Claude Code** (bukan interface chat claude.ai yang dipakai sekarang). Diklarifikasi: Graphify punya sistem "work memory" sendiri (lokal, file `LESSONS.md`), TIDAK terhubung ke fitur memory Claude di claude.ai. Kalau proyek nexus-alpha nanti dikerjakan lewat Claude Code (bukan chat ini), tool ini berpotensi berguna buat efisiensi — belum dicoba/diimplementasikan.
+
+### Update Agenda (status per 31 Juli 2026)
+1. Forward-test ML/Breakout — checkpoint ML **di-reset lagi** (bug entry price baru diperbaiki 31 Juli). Breakout masih nunggu sample.
+2. Bandingkan performa REAL 3 jalur — masih tunda, ML perlu data bersih dulu
+3. Satukan 2 jalur rule-based — masih ditunda
+4. Shadow Meme TP/SL — **tren membaik** (WR 27,7%, return -1,62%), belum breakeven, terus dipantau
+5. Smart wallet scoring + confluence — jalan terus, progress bagus (3 confluence sudah ≥2x)
+6. Biaya transaksi/slippage — masih menunggu tahap eksekusi riil
+7. Trusted Wallet Activity di Memes — selesai
+
+**Checkpoint berikutnya**: sarankan ~2-3 minggu dari sekarang (~pertengahan Agustus 2026) untuk lihat data ML Shadow yang bersih pasca-fix 31 Juli, dan lihat apakah tren membaik di Shadow Meme TP/SL berlanjut sampai breakeven.
