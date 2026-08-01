@@ -205,6 +205,19 @@ export interface MlSignalResult {
 const ML_BUY_THRESHOLD = 0.65;
 const ML_SELL_THRESHOLD = 0.52;
 
+async function fetchLivePrice(symbol: string): Promise<number | null> {
+  try {
+    const res = await fetch(`https://api.bybit.com/v5/market/tickers?category=spot&symbol=${symbol}`);
+    const json = (await res.json()) as any;
+    if (json.retCode !== 0) return null;
+    const ticker = json.result?.list?.[0];
+    if (!ticker) return null;
+    return parseFloat(ticker.lastPrice);
+  } catch {
+    return null;
+  }
+}
+
 export async function computeMlSignal(symbol: string): Promise<MlSignalResult> {
   const [daily, h4, h1] = await Promise.all([
     fetchKlines(symbol, "1d", 300),
@@ -214,6 +227,11 @@ export async function computeMlSignal(symbol: string): Promise<MlSignalResult> {
 
   const dCloses = daily.closes, dHighs = daily.highs, dLows = daily.lows, dVols = daily.volumes;
   const h4c = h4.closes, h4h = h4.highs, h4l = h4.lows;
+  // "price" di bawah ini = closing harian TERAKHIR YANG SUDAH CLOSED (fix 16 Juli 2026,
+  // lihat CLAUDE_CONTEXT.md). WAJIB dipakai untuk semua fitur teknikal (RSI/MACD/trend/dst)
+  // supaya konsisten dengan data training. TAPI JANGAN dipakai sebagai harga entry sinyal —
+  // itu penyebab bug 23-24 Juli 2026: entry beku di harga kemarin sementara checker
+  // membandingkan ke harga live, jadi sinyal baru langsung SL_HIT berkali-kali dalam sehari.
   const price = dCloses[dCloses.length - 1];
 
   const ema20Val = ema(dCloses, Math.min(20, dCloses.length - 1));
@@ -273,14 +291,20 @@ export async function computeMlSignal(symbol: string): Promise<MlSignalResult> {
   else if (probSell >= ML_SELL_THRESHOLD && probSell > probBuy) { side = "SELL"; confidence = probSell; }
 
   let sl: number | null = null, tp1: number | null = null, tp2: number | null = null, tp3: number | null = null;
+  let entryPrice = price; // fallback kalau live price gagal di-fetch
   if (side !== "NO_TRADE") {
+    // Fetch harga live buat entry/SL/TP — JANGAN pakai daily close yang bisa beku
+    // sampai 24 jam (lihat catatan di atas soal bug 23-24 Juli 2026).
+    const livePrice = await fetchLivePrice(symbol);
+    if (livePrice !== null && livePrice > 0) entryPrice = livePrice;
+
     const riskAmt = atr14Val * 1.5;
     if (side === "BUY") {
-      sl = price - riskAmt; tp1 = price + riskAmt * 1.5; tp2 = price + riskAmt * 2.5; tp3 = price + riskAmt * 4.0;
+      sl = entryPrice - riskAmt; tp1 = entryPrice + riskAmt * 1.5; tp2 = entryPrice + riskAmt * 2.5; tp3 = entryPrice + riskAmt * 4.0;
     } else {
-      sl = price + riskAmt; tp1 = price - riskAmt * 1.5; tp2 = price - riskAmt * 2.5; tp3 = price - riskAmt * 4.0;
+      sl = entryPrice + riskAmt; tp1 = entryPrice - riskAmt * 1.5; tp2 = entryPrice - riskAmt * 2.5; tp3 = entryPrice - riskAmt * 4.0;
     }
   }
 
-  return { pair: symbol, price, probBuy, probSell, side, confidence: confidence * 100, sl, tp1, tp2, tp3, atr14: atr14Val };
+  return { pair: symbol, price: entryPrice, probBuy, probSell, side, confidence: confidence * 100, sl, tp1, tp2, tp3, atr14: atr14Val };
 }
