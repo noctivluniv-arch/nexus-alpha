@@ -1971,3 +1971,43 @@ User tanya soal `Graphify` (github.com/Graphify-Labs/graphify) — tool open-sou
 7. Trusted Wallet Activity di Memes — selesai
 
 **Checkpoint berikutnya**: sarankan ~2-3 minggu dari sekarang (~pertengahan Agustus 2026) untuk lihat data ML Shadow yang bersih pasca-fix 31 Juli, dan lihat apakah tren membaik di Shadow Meme TP/SL berlanjut sampai breakeven.
+
+## Sesi 8 Agustus 2026 — Checkpoint: Konfirmasi Fix ML, VIBE Token 12,2x di Confluence, Meme TP/SL Mulai Plateau
+
+### A. Konfirmasi Fix ML Shadow (31 Juli) Berhasil — Tapi Butuh Waktu Lebih Lama Lagi
+
+Setelah fix entry-price-beku (31 Juli), badai duplikasi sinyal (dulu 38 DOGEUSDT dalam sehari) **sudah hilang total**. Konfirmasi: cuma **1 sinyal baru** (XRPUSDT BUY, masih OPEN) muncul dalam 8 hari sejak fix di-deploy. Ini WAJAR dan justru bukti fix-nya benar — sinyal "banyak" sebelumnya itu ilusi dari bug, bukan laju alami sistem. **Checkpoint ML tetap terlalu dini dievaluasi**, perlu ditunggu lebih lama lagi karena laju sinyal aslinya memang jauh lebih jarang dari yang terlihat waktu masih ada bug.
+
+### B. TEMUAN MENONJOL: Token VIBE — Confluence ATH 12,2x 🔥
+
+Confluence sekarang 10 sinyal (naik dari 7), 4 di antaranya ≥2x. Yang paling menonjol: **token VIBE** (terdeteksi 3 Agustus 2026) mencapai **ATH multiplier 12,2x** — jauh di atas hasil confluence manapun sebelumnya (sebelumnya rekor tertinggi cuma "01" di 4,73x). Semua sinyal confluence masih status TRACKING (belum ada exit rule terpasang), tapi ini bukti kuat pertama bahwa hipotesis "wallet trusted + meme scanner bertemu" punya potensi signifikan. Confluence ini yang paling menjanjikan dari semua sistem di proyek saat ini.
+
+### C. Shadow Meme TP/SL — Tren Membaik Mulai Melambat (Kemungkinan Plateau)
+
+| Checkpoint | Closed | Win Rate | Return |
+|---|---|---|---|
+| 16 Juli | 89 | 21,3% | -4,43% |
+| 31 Juli | 951 | 27,7% | -1,62% |
+| 8 Agustus | 1.532 | 28,52% | -1,40% |
+
+Kenaikan win rate melambat drastis (dari +6,4 poin jadi +0,8 poin antar-checkpoint). Dengan sample sebesar ini (1.532 closed), **kemungkinan angkanya mulai stabil di kisaran -1% sampai -2%** (belum breakeven ~31%), bukan terus naik cepat. Perlu 1-2 checkpoint lagi untuk pastikan ini plateau beneran atau masih tren naik pelan.
+
+### D. Wallet Scoring — Trusted Turun Sehat (14 → 10)
+
+1.290 wallet dinilai (naik dari 1.032), tapi trusted **turun** dari 14 jadi 10 — bukan bug, ini bukti sistem terus mengoreksi diri: wallet yang track record-nya memburuk seiring waktu otomatis kehilangan status trusted begitu sample baru masuk.
+
+### E. Data Lain
+- Whale Tracker: 34.539 alert (naik dari 27.384), dead rate 21,3%
+- Signal rule-based: 11 total, masih 0% win rate
+- Breakout: masih 3 total, sample terlalu kecil
+
+### Update Agenda (status per 8 Agustus 2026)
+1. ML Shadow — fix dikonfirmasi berhasil, tapi laju sinyal asli jauh lebih lambat dari perkiraan. Checkpoint mundur lagi, butuh lebih banyak waktu untuk sample memadai.
+2. Bandingkan performa REAL 3 jalur — masih tunda
+3. Satukan 2 jalur rule-based — masih ditunda
+4. Shadow Meme TP/SL — tren membaik mulai melambat, kemungkinan plateau di sekitar -1% s/d -2%. Terus dipantau.
+5. **Smart wallet scoring + confluence — PALING MENJANJIKAN saat ini** (VIBE 12,2x). Kandidat kuat untuk mulai dipikirkan aturan exit-nya di sesi berikutnya.
+6. Biaya transaksi/slippage — masih menunggu tahap eksekusi riil
+7. Trusted Wallet Activity di Memes — selesai
+
+**Checkpoint berikutnya**: sarankan ~2 minggu dari sekarang (~akhir Agustus 2026) — fokus utama: (a) apakah Shadow Meme TP/SL beneran plateau atau masih naik, (b) apakah ML Shadow sudah cukup sample sesudah fix, (c) follow-up token VIBE — apakah confluence bisa mulai dipikirkan jadi kandidat exit-rule pertama.
