@@ -201,6 +201,8 @@ export default function MemesScreen() {
           </Text>
         </View>
 
+        <ConfluenceWatchlist colors={colors} />
+
         {error ? (
           <View
             style={[
@@ -3548,6 +3550,193 @@ function MemeIndicatorRow({
         </View>
       )}
     </Pressable>
+  );
+}
+
+// ─── CONFLUENCE WATCHLIST ─────────────────────────────────────────────────
+// MURNI informasi/forward-test — BUKAN sinyal beli/jual. Token yang sama-sama
+// kena flag GEM/PUMP di meme scanner DAN dibeli wallet trusted (smart wallet
+// scoring). Lihat CLAUDE_CONTEXT.md D4/D5. Ditaruh di atas halaman Memes,
+// terpisah dari daftar coin utama karena token confluence bisa saja sudah
+// tidak trending lagi di scanner tapi tetap layak dipantau.
+function ConfluenceWatchlist({ colors }: { colors: any }) {
+  const [signals, setSignals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .getConfluenceWatchlist()
+      .then((res: any) => {
+        if (alive) setSignals(res?.signals ?? []);
+      })
+      .catch(() => {
+        if (alive) setSignals([]);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (loading || signals.length === 0) return null;
+
+  const sorted = [...signals].sort(
+    (a, b) => (b.athMultiplier ?? 0) - (a.athMultiplier ?? 0),
+  );
+
+  return (
+    <View style={{ marginBottom: 16 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          marginBottom: 6,
+          gap: 6,
+        }}
+      >
+        <Text
+          style={{
+            color: colors.foreground,
+            fontSize: 13,
+            fontFamily: "Helvetica Neue Bold",
+          }}
+        >
+          🎯 Confluence Watchlist
+        </Text>
+        <View
+          style={{
+            backgroundColor: colors.card,
+            borderRadius: 8,
+            paddingHorizontal: 6,
+            paddingVertical: 1,
+          }}
+        >
+          <Text style={{ color: colors.mutedForeground, fontSize: 10 }}>
+            {sorted.length}
+          </Text>
+        </View>
+      </View>
+      <Text
+        style={{
+          color: colors.mutedForeground,
+          fontSize: 10,
+          marginBottom: 8,
+          lineHeight: 14,
+        }}
+      >
+        Token yang kena flag GEM/PUMP di scanner DAN pernah dibeli wallet
+        trusted. MASIH HIPOTESIS forward-test, BUKAN sinyal beli/jual — DYOR.
+      </Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 10, paddingRight: 8 }}
+      >
+        {sorted.map((s) => (
+          <ConfluenceCard key={s.id} s={s} colors={colors} />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function ConfluenceCard({ s, colors }: { s: any; colors: any }) {
+  const ath = s.athMultiplier ?? null;
+  const accent =
+    ath !== null && ath >= 5
+      ? "#F59E0B"
+      : ath !== null && ath >= 2
+        ? "#10B981"
+        : colors.fuchsia;
+  const badge =
+    s.status === "DEAD"
+      ? { label: "DEAD", color: "#EF4444" }
+      : s.status === "TRACKING"
+        ? { label: "TRACKING", color: "#60A5FA" }
+        : { label: s.status, color: colors.mutedForeground };
+
+  return (
+    <View
+      style={{
+        width: 168,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: accent + "55",
+        backgroundColor: accent + "10",
+        padding: 10,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+        }}
+      >
+        <Text
+          style={{
+            color: colors.foreground,
+            fontSize: 13,
+            fontFamily: "Helvetica Neue Bold",
+            flex: 1,
+          }}
+          numberOfLines={1}
+        >
+          {s.tokenSymbol ?? "?"}
+        </Text>
+        <View
+          style={{
+            backgroundColor: badge.color + "22",
+            borderRadius: 6,
+            paddingHorizontal: 5,
+            paddingVertical: 1,
+          }}
+        >
+          <Text style={{ color: badge.color, fontSize: 8 }}>
+            {badge.label}
+          </Text>
+        </View>
+      </View>
+      <Text
+        style={{ color: colors.mutedForeground, fontSize: 10, marginTop: 1 }}
+      >
+        {s.chain} · {s.detectedVia === "WHALE_FIRST" ? "Whale→Meme" : "Meme→Whale"}
+      </Text>
+
+      <Text
+        style={{
+          color: accent,
+          fontSize: 20,
+          fontFamily: "Helvetica Neue Bold",
+          marginTop: 8,
+        }}
+      >
+        {ath !== null ? `${ath.toFixed(2)}x` : "—"}
+      </Text>
+      <Text style={{ color: colors.mutedForeground, fontSize: 9 }}>
+        ATH sejak deteksi
+      </Text>
+
+      <View
+        style={{
+          borderTopWidth: 1,
+          borderTopColor: "rgba(255,255,255,0.08)",
+          marginTop: 8,
+          paddingTop: 6,
+        }}
+      >
+        <Text style={{ color: colors.mutedForeground, fontSize: 9 }}>
+          Wallet: WR {s.walletWinRatePct}% · Median{" "}
+          {s.walletMedianPnlPct !== null ? `${s.walletMedianPnlPct}%` : "—"}
+        </Text>
+        <Text style={{ color: colors.mutedForeground, fontSize: 9, marginTop: 2 }}>
+          {shortAddress(s.walletAddress)}
+        </Text>
+      </View>
+    </View>
   );
 }
 

@@ -88,6 +88,13 @@ export const api = {
     return jsonFetch<NewsFeedItem[]>(`/api/news/feed`);
   },
 
+  // MURNI informasi/forward-test — BUKAN sinyal beli/jual. Token yang sama-sama
+  // kena flag GEM/PUMP di meme scanner DAN dibeli wallet trusted (smart wallet
+  // scoring). Lihat CLAUDE_CONTEXT.md bagian D4/D5.
+  async getConfluenceWatchlist(): Promise<any> {
+    return jsonFetch<any>(`/api/cron/confluence-results`);
+  },
+
   async getXBuzz(): Promise<NewsFeedItem[]> {
     return jsonFetch<NewsFeedItem[]>(`/api/news/xbuzz`);
   },
