@@ -2011,3 +2011,35 @@ Kenaikan win rate melambat drastis (dari +6,4 poin jadi +0,8 poin antar-checkpoi
 7. Trusted Wallet Activity di Memes — selesai
 
 **Checkpoint berikutnya**: sarankan ~2 minggu dari sekarang (~akhir Agustus 2026) — fokus utama: (a) apakah Shadow Meme TP/SL beneran plateau atau masih naik, (b) apakah ML Shadow sudah cukup sample sesudah fix, (c) follow-up token VIBE — apakah confluence bisa mulai dipikirkan jadi kandidat exit-rule pertama.
+
+## Sesi 8 Agustus 2026 (lanjutan) — Fitur Baru: Confluence Watchlist di Halaman Memes — SELESAI ✅
+
+### Latar Belakang
+
+Setelah temuan token VIBE (ATH 12,2x) di sistem Confluence, user minta fitur ini ditampilkan di webapp — bukan cuma kelihatan di dashboard backend. Sama seperti Trusted Wallet Activity (fitur sebelumnya), ini murni informasi/display, BUKAN sinyal beli/jual otomatis.
+
+### Yang Dibangun
+
+**Confluence Watchlist** — section baru di paling atas halaman Memes (tepat di bawah banner DYOR), scroll horizontal. Tidak ada perubahan backend — murni konsumsi endpoint `/api/cron/confluence-results` yang sudah ada sejak fitur confluence detection dibangun.
+
+Tiap kartu nampilin:
+- Simbol token, chain, arah deteksi (Whale→Meme / Meme→Whale)
+- **ATH multiplier** dalam font besar — warna otomatis nyala (oranye kalau ≥5x, hijau kalau ≥2x, biar yang menonjol kayak VIBE langsung kelihatan)
+- Info wallet: win rate + median PnL, alamat wallet (short)
+- Status badge (TRACKING/DEAD/dst)
+- Disclaimer eksplisit: "MASIH HIPOTESIS forward-test, BUKAN sinyal beli/jual — DYOR"
+
+Section otomatis hilang kalau belum ada data confluence sama sekali (tidak ganggu tampilan).
+
+**File yang diubah**: `lib/api.ts` (fungsi `getConfluenceWatchlist()` baru) + `app/(tabs)/memes.tsx` (komponen `ConfluenceWatchlist` + `ConfluenceCard`).
+
+### Status
+
+Sudah dideploy ke production. Ini kedua kalinya sistem wallet scoring/confluence "naik kelas" dari backend-only jadi fitur webapp — pola yang sama kayak Trusted Wallet Activity sebelumnya: informasi transparan, disclaimer jelas, keputusan di tangan user.
+
+### Update Agenda (status per 8 Agustus 2026, sesi lanjutan)
+1-6: tidak berubah dari update sebelumnya di sesi yang sama
+7. Trusted Wallet Activity di Memes — selesai
+8. **BARU**: Confluence Watchlist di Memes — SELESAI ✅
+
+**Catatan untuk sesi berikutnya**: pertimbangkan apakah confluence sekarang sudah cukup matang buat mulai dipikirkan aturan exit resmi (TP/SL atau time-based), mengingat sudah mulai kelihatan hasil bagus (VIBE 12,2x) DAN sudah tampil di webapp — user kemungkinan makin sering merhatiin fitur ini.
