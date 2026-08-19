@@ -2846,8 +2846,13 @@ async function runMemeScan() {
       await saveMemeSignalToLog(coin, label.includes("GEM") && label.includes("PUMP") ? "BOTH" : isGem ? "GEM" : "PUMP_IMMINENT");
       console.log(`[MEME-CRON] ✅ Alert sent: ${coin.name} (${coin.symbol})`);
 
-      // Shadow forward-test: strategi exit TP+20%/SL-8% (lihat CLAUDE_CONTEXT.md D2)
-      await saveMemeTpslSignalToLog(coin);
+      // Shadow forward-test TP+20%/SL-8% DIHENTIKAN 18 Agustus 2026 — kesimpulan
+      // dari 2.172 closed (sample besar): win rate plateau di ~28,3% (breakeven
+      // butuh ~31%), return stagnan di -1% s/d -2%. Bukan strategi yang cukup
+      // profitable buat generik semua coin GEM/PUMP. Lihat CLAUDE_CONTEXT.md.
+      // Sinyal yang masih TRACKING saat ini dibiarkan jalan sampai closed
+      // (lihat checkMemeTpslSignals) — TIDAK generate sinyal BARU lagi.
+      // await saveMemeTpslSignalToLog(coin);
 
       // ── Cek confluence arah sebaliknya: token ini sudah pernah dibeli wallet ──
       // trusted SEBELUM kena flag GEM/PUMP di sini? (lihat ide D4.3 di ─────────
