@@ -4,7 +4,7 @@ import { SUPPORTED_PAIRS } from "../../../nexusalpha/lib/types";
 import { computeRealtimeSignal } from "../lib/signal-engine-realtime";
 import { computeMlSignal } from "../lib/ml-signal-engine";
 import { computeBreakoutSignal } from "../lib/breakout-signal-engine";
-import { db, pool, ohlcvDaily, signalLog, memeSignalLog, memeTpslSignalLog, whaleAlerts, whaleWalletScores, confluenceSignalLog, circuitBreaker, mlSignalLog, breakoutSignalLog } from "@workspace/db";
+import { db, pool, ohlcvDaily, signalLog, memeSignalLog, memeTpslSignalLog, whaleAlerts, whaleWalletScores, confluenceSignalLog, confluenceTpslSignalLog, circuitBreaker, mlSignalLog, breakoutSignalLog } from "@workspace/db";
 
 const router = Router();
 
@@ -1327,11 +1327,21 @@ router.get("/dashboard", (_req, res) => {
   </section>
 
   <section>
-    <h2>🧪 Shadow Meme TP/SL (TP+20% / SL-8% — Eksperimen)</h2>
-    <div class="note" style="margin-bottom:12px">⚠️ MASIH HIPOTESIS dari backtest data historis (baseline hold-tanpa-exit -30.75% → +1.80% dengan TP/SL ini). Belum ada biaya transaksi/slippage diperhitungkan. Murni forward-test untuk validasi sebelum dipertimbangkan production.</div>
+    <h2>🧪 Shadow Meme TP/SL Generik (TP+20% / SL-8% — DIHENTIKAN 18 Agustus 2026)</h2>
+    <div class="note" style="margin-bottom:12px">🛑 SUDAH DIHENTIKAN — dari 2.172 closed, win rate plateau di ~28,3% (breakeven butuh ~31%), return stagnan -1% s/d -2%. Tidak profitable untuk coin GEM/PUMP generik. Sinyal lama dibiarkan closed alami, TIDAK ada sinyal baru lagi. Digantikan versi confluence-only di bawah.</div>
     <div class="grid" id="meme-tpsl-stats"><div class="loading">Memuat...</div></div>
     <table id="meme-tpsl-table">
       <thead><tr><th>Coin</th><th>Network</th><th>Entry ($)</th><th>TP ($)</th><th>SL ($)</th><th>Harga Skrg ($)</th><th>Status</th><th>PnL (dari $100)</th><th>Detected</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>🎯 Shadow Confluence TP/SL (TP+20% / SL-8% — Eksperimen BARU)</h2>
+    <div class="note" style="margin-bottom:12px">⚠️ MASIH HIPOTESIS. Sama persis rasio TP/SL dengan versi generik yang dihentikan, TAPI entry-nya cuma token yang lolos confluence (dibeli wallet trusted DAN kena flag scanner) — bukan sembarang coin GEM/PUMP. Tujuannya: uji apakah entry lebih selektif memperbaiki win rate. Belum ada biaya transaksi/slippage diperhitungkan.</div>
+    <div class="grid" id="conf-tpsl-stats"><div class="loading">Memuat...</div></div>
+    <table id="conf-tpsl-table">
+      <thead><tr><th>Token</th><th>Chain</th><th>Via</th><th>Entry ($)</th><th>TP ($)</th><th>SL ($)</th><th>Harga Skrg ($)</th><th>Status</th><th>PnL (dari $100)</th><th>Detected</th></tr></thead>
       <tbody></tbody>
     </table>
   </section>
@@ -1762,6 +1772,68 @@ async function load() {
     document.getElementById('meme-tpsl-stats').innerHTML = '<div class="loading">Gagal memuat data shadow meme TP/SL.</div>';
   }
 
+  // ── SHADOW CONFLUENCE TP/SL ─────────────────────────────────────────────
+  try {
+    const ctRes = await fetch('/api/cron/confluence-tpsl-results').then(r => r.json());
+    const ctSignals = (ctRes.signals || []).slice();
+
+    let ctTotalPnl = 0;
+    let ctClosedCount = 0;
+    let ctWinCount = 0;
+    let ctLossCount = 0;
+
+    const ctRows = ctSignals.slice().reverse().map(s => {
+      let pnl = null;
+      let badge = s.status === 'TRACKING' ? 'badge-tracking' : 'badge-open';
+      const isClosed = s.status === 'SL_HIT' || s.status === 'TP_HIT' || s.status === 'EXPIRED' || s.status === 'DEAD';
+
+      if (isClosed && s.closedPrice && s.entryPrice) {
+        const pct = (s.closedPrice - s.entryPrice) / s.entryPrice;
+        pnl = pct * MODAL;
+        ctTotalPnl += pnl;
+        ctClosedCount++;
+        if (pnl > 0) { ctWinCount++; badge = 'badge-win'; }
+        else { ctLossCount++; badge = 'badge-loss'; }
+      }
+
+      let unrealizedHint = '';
+      if (!isClosed && s.entryPrice && s.lastPrice) {
+        const pct = (s.lastPrice - s.entryPrice) / s.entryPrice;
+        const unrealizedPnl = pct * MODAL;
+        const sign = unrealizedPnl >= 0 ? '+' : '';
+        const cls = unrealizedPnl > 0 ? 'pnl-pos' : unrealizedPnl < 0 ? 'pnl-neg' : 'pnl-neutral';
+        unrealizedHint = '<span class="' + cls + '">' + sign + '$' + unrealizedPnl.toFixed(2) + '</span>';
+      }
+
+      return '<tr>' +
+        '<td>' + (s.tokenSymbol || '?') + '</td>' +
+        '<td>' + (s.chain || '-') + '</td>' +
+        '<td>' + (s.detectedVia === 'WHALE_FIRST' ? 'Whale→Meme' : 'Meme→Whale') + '</td>' +
+        '<td>' + s.entryPrice + '</td>' +
+        '<td>' + (s.tp ? '$' + s.tp : '-') + '</td>' +
+        '<td>' + (s.sl ? '$' + s.sl : '-') + '</td>' +
+        '<td>' + (s.lastPrice ? '$' + s.lastPrice : '-') + '</td>' +
+        '<td><span class="badge ' + badge + '">' + s.status + '</span></td>' +
+        '<td>' + (pnl !== null ? pnlHtml(pnl) : unrealizedHint) + '</td>' +
+        '<td>' + new Date(s.detectedAt).toLocaleString('id-ID') + '</td>' +
+        '</tr>';
+    });
+
+    const ctWinRate = ctClosedCount > 0 ? (ctWinCount / ctClosedCount * 100).toFixed(1) + '%' : 'N/A';
+    const ctStats = document.getElementById('conf-tpsl-stats');
+    ctStats.innerHTML =
+      '<div class="card"><div class="label">Total Closed</div><div class="value">' + ctClosedCount + '</div><div class="sublabel">dari ' + ctSignals.length + ' signal</div></div>' +
+      '<div class="card"><div class="label">Wins</div><div class="value green">' + ctWinCount + '</div></div>' +
+      '<div class="card"><div class="label">Losses</div><div class="value red">' + ctLossCount + '</div></div>' +
+      '<div class="card"><div class="label">Win Rate</div><div class="value yellow">' + ctWinRate + '</div></div>' +
+      '<div class="card"><div class="label">Total PnL</div><div class="value ' + (ctTotalPnl >= 0 ? 'green' : 'red') + '">' + (ctTotalPnl >= 0 ? '+' : '') + '$' + ctTotalPnl.toFixed(2) + '</div><div class="sublabel">dari modal $' + (ctSignals.length * MODAL) + ' virtual</div></div>' +
+      '<div class="card"><div class="label">Sample Progress</div><div class="value ' + (ctClosedCount >= 50 ? 'green' : ctClosedCount >= 15 ? 'yellow' : 'red') + '">' + ctClosedCount + ' / 50</div><div class="sublabel">' + (ctClosedCount < 15 ? (15 - ctClosedCount) + ' lagi menuju evaluasi awal (15)' : ctClosedCount < 50 ? (50 - ctClosedCount) + ' lagi menuju kesimpulan final (50)' : 'Sample cukup untuk kesimpulan final') + '</div></div>';
+
+    document.querySelector('#conf-tpsl-table tbody').innerHTML = ctRows.join('');
+  } catch(e) {
+    document.getElementById('conf-tpsl-stats').innerHTML = '<div class="loading">Gagal memuat data shadow confluence TP/SL.</div>';
+  }
+
   // ── WHALE / SMART MONEY ─────────────────────────────────────────────
   try {
     const whaleRes = await fetch('/api/cron/whale-results').then(r => r.json());
@@ -2077,6 +2149,162 @@ async function fetchGmgnSmartMoney(chain: string): Promise<GmgnSmartMoneyTrade[]
 // kuat dari masing-masing sendirian. MASIH HIPOTESIS, makanya dicatat ke
 // confluence_signal_log untuk divalidasi forward-test dulu, TIDAK dipakai
 // sebagai sinyal beli/jual otomatis.
+// ─── SHADOW CONFLUENCE TP/SL FORWARD-TEST (TP+20% / SL-8%) ───────────────────
+// Dibangun 18 Agustus 2026 sebagai pengganti meme_tpsl_signal_log generik yang
+// dihentikan (plateau win rate ~28,3%, di bawah breakeven ~31%, dari 2.172
+// closed). Hipotesis baru: entry yang lebih SELEKTIF (cuma token confluence —
+// dibeli wallet trusted DAN kena flag scanner) bisa perbaiki win rate, dengan
+// RASIO TP/SL YANG SAMA supaya perbandingan apple-to-apple. MASIH HIPOTESIS.
+const CONFLUENCE_TP_MULTIPLIER = 1.20;
+const CONFLUENCE_SL_MULTIPLIER = 0.92;
+
+async function saveConfluenceTpslSignalToLog(params: {
+  tokenAddress: string;
+  tokenSymbol: string;
+  chain: string;
+  walletAddress: string;
+  detectedVia: "WHALE_FIRST" | "MEME_FIRST";
+  priceAtDetection: number | null;
+}) {
+  try {
+    const price = params.priceAtDetection;
+    if (!price || price <= 0) {
+      console.log(`[CONFLUENCE-TPSL-LOG] ⏭️ Skip ${params.tokenSymbol} — harga tidak valid`);
+      return;
+    }
+
+    const tp = price * CONFLUENCE_TP_MULTIPLIER;
+    const sl = price * CONFLUENCE_SL_MULTIPLIER;
+
+    await (db as any).insert(confluenceTpslSignalLog).values({
+      tokenAddress: params.tokenAddress,
+      tokenSymbol: params.tokenSymbol,
+      chain: params.chain,
+      walletAddress: params.walletAddress,
+      detectedVia: params.detectedVia,
+      entryPrice: price,
+      tp,
+      sl,
+      lastPrice: price,
+      status: "TRACKING",
+    });
+
+    console.log(`[CONFLUENCE-TPSL-LOG] ✅ Saved ${params.tokenSymbol} @ $${price} (TP $${tp}, SL $${sl})`);
+  } catch (err) {
+    console.error(`[CONFLUENCE-TPSL-LOG] Error saving ${params.tokenSymbol}:`, err);
+  }
+}
+
+async function checkConfluenceTpslSignals() {
+  console.log("[CONFLUENCE-TPSL-CHECK] Checking tracked confluence TP/SL signals...");
+  try {
+    const tracking = await (db as any)
+      .select()
+      .from(confluenceTpslSignalLog)
+      .where(eq(confluenceTpslSignalLog.status, "TRACKING"));
+
+    if (tracking.length === 0) {
+      console.log("[CONFLUENCE-TPSL-CHECK] No signals being tracked.");
+      return;
+    }
+
+    const MAX_HOLD_MS = 14 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    // Batch fetching (bukan satu-satu) — pola sama seperti checkMemeTpslSignals
+    // sejak fix 14 Juli 2026, biar interval 1 jam nggak kena rate limit DexScreener.
+    const BATCH_SIZE = 25;
+    const uniqueAddresses = Array.from(new Set(tracking.map((s: any) => s.tokenAddress).filter(Boolean))) as string[];
+    const dataMap = new Map<string, { price: number; liquidity: number; mcap: number }>();
+
+    for (let i = 0; i < uniqueAddresses.length; i += BATCH_SIZE) {
+      const chunk = uniqueAddresses.slice(i, i + BATCH_SIZE);
+      const batchResult = await fetchDexScreenerBatch(chunk);
+      for (const [addr, val] of batchResult) {
+        dataMap.set(addr, val);
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+
+    for (const sig of tracking) {
+      const data = dataMap.get(sig.tokenAddress);
+      const detectedTime = sig.detectedAt ? new Date(sig.detectedAt).getTime() : now;
+      const expired = now - detectedTime >= MAX_HOLD_MS;
+
+      if (!data || data.price <= 0) {
+        if (expired) {
+          await (db as any)
+            .update(confluenceTpslSignalLog)
+            .set({ status: "DEAD", closedPrice: sig.lastPrice, closedAt: new Date(), lastCheckedAt: new Date() })
+            .where(eq(confluenceTpslSignalLog.id, sig.id));
+          console.log(`[CONFLUENCE-TPSL-CHECK] ${sig.tokenSymbol} — data tidak tersedia & lewat max hold, tandai DEAD`);
+        } else {
+          console.log(`[CONFLUENCE-TPSL-CHECK] ⚠️ ${sig.tokenSymbol} — data DexScreener tidak tersedia, skip`);
+        }
+        continue;
+      }
+
+      const priceRatio = data.price / sig.entryPrice;
+      if (priceRatio > 500) {
+        console.log(`[CONFLUENCE-TPSL-CHECK] ⚠️ ${sig.tokenSymbol} — harga anomali (x${priceRatio.toFixed(0)}), skip`);
+        continue;
+      }
+
+      const isDead = data.liquidity < 1000;
+      let newStatus: string | null = null;
+
+      if (isDead) {
+        newStatus = "DEAD";
+      } else if (data.price <= sig.sl) {
+        newStatus = "SL_HIT";
+      } else if (data.price >= sig.tp) {
+        newStatus = "TP_HIT";
+      } else if (expired) {
+        newStatus = "EXPIRED";
+      }
+
+      if (newStatus) {
+        await (db as any)
+          .update(confluenceTpslSignalLog)
+          .set({
+            status: newStatus,
+            closedPrice: data.price,
+            closedAt: new Date(),
+            lastPrice: data.price,
+            lastCheckedAt: new Date(),
+          })
+          .where(eq(confluenceTpslSignalLog.id, sig.id));
+        console.log(`[CONFLUENCE-TPSL-CHECK] ${sig.tokenSymbol} #${sig.id} -> ${newStatus} @ $${data.price}`);
+      } else {
+        await (db as any)
+          .update(confluenceTpslSignalLog)
+          .set({ lastPrice: data.price, lastCheckedAt: new Date() })
+          .where(eq(confluenceTpslSignalLog.id, sig.id));
+      }
+    }
+
+    console.log("[CONFLUENCE-TPSL-CHECK] Done.");
+  } catch (err) {
+    console.error("[CONFLUENCE-TPSL-CHECK] Error:", err);
+  }
+}
+
+export function startConfluenceTpslCheckCron() {
+  const INTERVAL_1H = 60 * 60 * 1000;
+  console.log(`[CONFLUENCE-TPSL-CHECK] Shadow confluence TP/SL forward-test checker started. Interval: ${INTERVAL_1H / 1000}s`);
+  checkConfluenceTpslSignals();
+  setInterval(checkConfluenceTpslSignals, INTERVAL_1H);
+}
+
+router.get("/confluence-tpsl-results", async (_req, res) => {
+  try {
+    const all = await (db as any).select().from(confluenceTpslSignalLog);
+    res.json({ total: all.length, signals: all });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 async function checkAndLogConfluence(params: {
   tokenAddress: string;
   tokenSymbol: string;
@@ -2128,6 +2356,17 @@ async function checkAndLogConfluence(params: {
 
     await sendWhaleTelegram(msg);
     console.log(`[CONFLUENCE] ✅ Terdeteksi & dicatat: ${params.tokenSymbol} x wallet ${params.walletAddress.slice(0, 10)}...`);
+
+    // Shadow forward-test TP+20%/SL-8% khusus confluence (18 Agustus 2026)
+    await saveConfluenceTpslSignalToLog({
+      tokenAddress: params.tokenAddress,
+      tokenSymbol: params.tokenSymbol,
+      chain: params.chain,
+      walletAddress: params.walletAddress,
+      detectedVia: params.detectedVia,
+      priceAtDetection: params.priceAtDetection,
+    });
+
     return true;
   } catch (err) {
     console.error("[CONFLUENCE] Error:", err);

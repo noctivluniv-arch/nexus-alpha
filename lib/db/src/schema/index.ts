@@ -23,6 +23,7 @@ export * from "./meme-signal-log";
 export * from "./whale-alerts";
 export * from "./whale-wallet-scores";
 export * from "./confluence-signal-log";
+export * from "./confluence-tpsl-signal-log";
 export * from "./meme-tpsl-signal-log";
 export * from "./circuit-breaker";
 export * from "./ml-signal-log";
