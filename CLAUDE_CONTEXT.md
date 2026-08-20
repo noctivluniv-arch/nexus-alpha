@@ -2043,3 +2043,59 @@ Sudah dideploy ke production. Ini kedua kalinya sistem wallet scoring/confluence
 8. **BARU**: Confluence Watchlist di Memes — SELESAI ✅
 
 **Catatan untuk sesi berikutnya**: pertimbangkan apakah confluence sekarang sudah cukup matang buat mulai dipikirkan aturan exit resmi (TP/SL atau time-based), mengingat sudah mulai kelihatan hasil bagus (VIBE 12,2x) DAN sudah tampil di webapp — user kemungkinan makin sering merhatiin fitur ini.
+
+## Sesi 18 Agustus 2026 — Checkpoint Final: Shadow Meme TP/SL DIHENTIKAN, Shadow Confluence TP/SL Dibangun
+
+### A. Checkpoint Data (18 Agustus 2026)
+
+| Sistem | Update |
+|---|---|
+| Shadow Meme TP/SL (generik) | 2.172 closed, win rate **plateau di 28,36%** (turun tipis dari 28,52% meski sample +640), return -1,01%. Trennya sudah flat 3 checkpoint berturut — **kesimpulan cukup kuat: tidak profitable untuk coin GEM/PUMP generik.** |
+| ML Shadow | Cuma 4 sinyal baru pasca-fix 31 Juli (1 closed: SL_HIT, 3 masih OPEN). Entry price variatif (bukan beku lagi) — fix dikonfirmasi tetap jalan baik, tapi sample masih jauh dari cukup. |
+| Confluence | 21 sinyal (naik dari 10). VIBE masih TRACKING di ATH 12,2x (belum final). Beberapa sinyal lama (01, DOGEUS, ASTEROID, wOCT) sekarang berstatus **STOPPED** (tracking berhenti, hasil terkunci). Token baru terus masuk: V4, HEX, RELICS, usocks, uPEG, FWA — mayoritas masih di bawah 2x. |
+| Whale | 45.991 alert, dead rate 22,2% |
+| Wallet Scoring | 1.659 dinilai, 11 trusted |
+
+### B. KEPUTUSAN BESAR: Shadow Meme TP/SL Generik DIHENTIKAN ✅
+
+Setelah 3 checkpoint berturut nunjukin win rate plateau di bawah breakeven (~31%) dengan sample sangat besar (2.172 closed), diputuskan **stop generate sinyal baru**. Ini BUKAN kegagalan riset — ini kesimpulan yang jelas dan actionable: strategi TP+20%/SL-8% generik (tanpa filter kualitas entry) TIDAK profitable untuk sembarang coin GEM/PUMP.
+
+**Implementasi**: baris `saveMemeTpslSignalToLog(coin)` di `runMemeScan()` di-comment-out (bukan dihapus, biar gampang di-uncomment kalau nanti mau dibangkitkan lagi dengan alasan berbeda). 50 sinyal yang masih TRACKING saat penghentian dibiarkan closed secara alami lewat checker yang tetap jalan — datanya tetap lengkap buat referensi historis, cuma tidak ada sinyal BARU lagi.
+
+Dashboard section lama diberi label 🛑 DIHENTIKAN dengan ringkasan kenapa.
+
+### C. FITUR BARU: Shadow Confluence TP/SL Forward-Test — SELESAI ✅ (menunggu data)
+
+**Hipotesis baru**: bukan exit rule-nya yang salah, tapi ENTRY-nya kurang selektif. Token yang lolos **confluence** (dibeli wallet trusted DAN kena flag scanner) terbukti jauh lebih baik dari rata-rata (VIBE 12,2x, "01" 4,73x vs rata-rata coin generik yang plateau negatif).
+
+**Desain eksperimen** — sengaja dijaga SATU variabel berubah untuk perbandingan adil:
+- Rasio TP/SL **PERSIS SAMA** (+20%/-8%) dengan versi generik yang dihentikan
+- Bedanya CUMA di seleksi entry: hanya token yang terdeteksi via confluence (bukan semua coin GEM/PUMP)
+- Trigger: setiap kali `checkAndLogConfluence()` berhasil catat confluence baru (dari 2 arah, whale-first atau meme-first), otomatis buka juga forward-test TP/SL
+
+**Implementasi teknis**:
+- Tabel baru `confluence_tpsl_signal_log`
+- Checker jalan tiap 1 jam dengan batch fetching (pola yang sudah terbukti aman dari rate limit sejak fix 14 Juli)
+- Endpoint `GET /api/cron/confluence-tpsl-results`
+- Dashboard section baru "🎯 Shadow Confluence TP/SL"
+
+**Status**: sudah dideploy ke production (18 Agustus 2026), migration database sudah dijalankan. **Belum ada data closed sama sekali** — baru mulai kumpul dari nol.
+
+**PENTING soal ekspektasi waktu**: confluence jauh lebih jarang terjadi dibanding meme scanner generik (cuma beberapa token per minggu, vs ratusan coin GEM/PUMP per hari). Sample buat eksperimen baru ini akan terkumpul JAUH lebih lambat dari yang lama. Checkpoint pertama yang berarti kemungkinan baru bisa dilihat beberapa minggu ke depan (bukan hitungan hari seperti biasanya).
+
+### Update Agenda (status per 18 Agustus 2026)
+1. ML Shadow — masih menunggu sample, fix 31 Juli dikonfirmasi tetap jalan baik
+2. Bandingkan performa REAL 3 jalur — masih tunda
+3. Satukan 2 jalur rule-based — masih ditunda
+4. ~~Shadow Meme TP/SL generik~~ → **DIHENTIKAN**, digantikan oleh:
+5. **BARU: Shadow Confluence TP/SL** — baru dibangun, 0 data, prioritas pantau ke depan
+6. Smart wallet scoring + confluence — jalan terus
+7. Biaya transaksi/slippage — masih menunggu tahap eksekusi riil
+8. Trusted Wallet Activity di Memes — selesai
+9. Confluence Watchlist di Memes — selesai
+
+**Checkpoint berikutnya**: karena Shadow Confluence TP/SL baru mulai dari nol dan confluence jarang terjadi, sarankan cek lagi **3-4 minggu dari sekarang** (~pertengahan September 2026), bukan 2 minggu seperti biasanya — kasih waktu lebih buat sample terkumpul. Kalau user cek lebih awal dari itu, jangan kaget kalau datanya masih sangat sedikit — itu wajar, bukan tanda ada masalah.
+
+---
+
+**RINGKASAN UNTUK SESI BARU**: Proyek nexus-alpha sedang di fase "kumpul data" untuk 2 hipotesis aktif utama: (1) Shadow Confluence TP/SL (baru, entry selektif via wallet trusted + meme scanner), dan (2) ML Shadow (masih pasca-fix entry price 31 Juli, sample kecil). Sistem meme TP/SL generik sudah resmi dihentikan karena terbukti tidak profitable. Semua fitur informasi (Trusted Wallet Activity, Confluence Watchlist) sudah live di webapp. Belum ada sistem yang siap jadi "produk" sinyal beli/jual — masih murni riset dan tracking transparan.
