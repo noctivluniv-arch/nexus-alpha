@@ -2863,7 +2863,7 @@ async function checkConfluenceSignals() {
       validSignals.push(sig);
     }
 
-    const BATCH_SIZE = 25;
+    const BATCH_SIZE = 10; // diturunkan dari 25 - batch besar bisa gagal total untuk semua token di dalamnya (insiden IMD/usocks/dll, 30 Agustus 2026)
     const uniqueAddresses = Array.from(new Set(validSignals.map((s: any) => s.tokenAddress).filter(Boolean)));
     const dataMap = new Map<string, { price: number; liquidity: number; mcap: number; symbol: string | null }>();
 
@@ -2874,6 +2874,22 @@ async function checkConfluenceSignals() {
         dataMap.set(addr, val);
       }
       await new Promise((r) => setTimeout(r, 1000));
+    }
+
+    // Fallback: kalau ada token yang tetap tidak dapat data setelah batch besar
+    // (kemungkinan seluruh batch-nya gagal total karena 1 sebab yang menimpa semua
+    // token di batch itu), coba fetch satu per satu supaya tidak ada yang tertinggal
+    // permanen hanya karena nasib buruk kebagian batch yang gagal.
+    const missingAfterBatch = uniqueAddresses.filter((addr) => !dataMap.has(addr));
+    if (missingAfterBatch.length > 0) {
+      console.log(`[CONFLUENCE-CHECK] ${missingAfterBatch.length} token belum dapat data setelah batch, coba fetch satu-satu sebagai fallback...`);
+      for (const addr of missingAfterBatch) {
+        const single = await fetchDexScreenerBatch([addr]);
+        for (const [a, val] of single) {
+          dataMap.set(a, val);
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
     }
 
     const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
