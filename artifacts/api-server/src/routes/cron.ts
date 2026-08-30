@@ -2564,8 +2564,8 @@ export function startWhaleCron() {
 
 // ─── WHALE FORWARD-TEST (ATH tracking, mirip checkMemeSignals) ──────────────
 
-async function fetchDexScreenerBatch(addresses: string[]): Promise<Map<string, { price: number; liquidity: number; mcap: number }>> {
-  const result = new Map<string, { price: number; liquidity: number; mcap: number }>();
+async function fetchDexScreenerBatch(addresses: string[]): Promise<Map<string, { price: number; liquidity: number; mcap: number; symbol: string | null }>> {
+  const result = new Map<string, { price: number; liquidity: number; mcap: number; symbol: string | null }>();
   if (addresses.length === 0) return result;
 
   const maxAttempts = 4;
@@ -2614,6 +2614,7 @@ async function fetchDexScreenerBatch(addresses: string[]): Promise<Map<string, {
             price: parseFloat(best.priceUsd ?? "0"),
             liquidity: parseFloat(best?.liquidity?.usd ?? "0"),
             mcap: parseFloat(best.fdv ?? best.marketCap ?? "0"),
+            symbol: best?.baseToken?.symbol ?? null,
           });
         }
       }
@@ -2864,7 +2865,7 @@ async function checkConfluenceSignals() {
 
     const BATCH_SIZE = 25;
     const uniqueAddresses = Array.from(new Set(validSignals.map((s: any) => s.tokenAddress).filter(Boolean)));
-    const dataMap = new Map<string, { price: number; liquidity: number; mcap: number }>();
+    const dataMap = new Map<string, { price: number; liquidity: number; mcap: number; symbol: string | null }>();
 
     for (let i = 0; i < uniqueAddresses.length; i += BATCH_SIZE) {
       const chunk = uniqueAddresses.slice(i, i + BATCH_SIZE);
@@ -2875,9 +2876,25 @@ async function checkConfluenceSignals() {
       await new Promise((r) => setTimeout(r, 1000));
     }
 
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
     for (const sig of validSignals) {
       const data = dataMap.get(sig.tokenAddress);
-      if (!data || data.price <= 0) continue;
+
+      if (!data || data.price <= 0) {
+        const lastOk = sig.lastCheckedAt ? new Date(sig.lastCheckedAt).getTime() : new Date(sig.detectedAt).getTime();
+        const staleDays = ((now - lastOk) / (24 * 60 * 60 * 1000)).toFixed(1);
+        console.log(`[CONFLUENCE-CHECK] PERINGATAN: ${sig.tokenSymbol} (${sig.tokenAddress.slice(0, 10)}...) - data DexScreener tidak ditemukan, sudah ${staleDays} hari sejak update terakhir`);
+
+        if (now - lastOk > THREE_DAYS_MS) {
+          await (db as any)
+            .update(confluenceSignalLog)
+            .set({ status: "STALE" })
+            .where(eq(confluenceSignalLog.id, sig.id));
+          console.log(`[CONFLUENCE-CHECK] ${sig.tokenSymbol} ditandai STALE (lebih dari 3 hari tanpa data)`);
+        }
+        continue;
+      }
 
       const priceRatio = data.price / sig.priceAtDetection;
       if (priceRatio > 500) continue; // anomali harga, skip
@@ -2886,9 +2903,17 @@ async function checkConfluenceSignals() {
       const athMultiplier = newAth / sig.priceAtDetection;
       const isDead = data.liquidity < 1000;
 
+      const correctedSymbol = data.symbol && data.symbol.toUpperCase() !== sig.tokenSymbol?.toUpperCase()
+        ? data.symbol.toUpperCase()
+        : sig.tokenSymbol;
+      if (correctedSymbol !== sig.tokenSymbol) {
+        console.log(`[CONFLUENCE-CHECK] Simbol dikoreksi: "${sig.tokenSymbol}" -> "${correctedSymbol}" (${sig.tokenAddress.slice(0, 10)}...)`);
+      }
+
       await (db as any)
         .update(confluenceSignalLog)
         .set({
+          tokenSymbol: correctedSymbol,
           lastPrice: data.price,
           athPrice: newAth,
           athMultiplier,
@@ -2897,7 +2922,7 @@ async function checkConfluenceSignals() {
         })
         .where(eq(confluenceSignalLog.id, sig.id));
 
-      console.log(`[CONFLUENCE-CHECK] ${sig.tokenSymbol} → price $${data.price}, ATH x${athMultiplier.toFixed(2)}${isDead ? " — DEAD" : ""}`);
+      console.log(`[CONFLUENCE-CHECK] ${correctedSymbol} -> price $${data.price}, ATH x${athMultiplier.toFixed(2)}${isDead ? " - DEAD" : ""}`);
     }
 
     console.log("[CONFLUENCE-CHECK] Done.");
