@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, inArray, and } from "drizzle-orm";
+import { eq, inArray, and, or } from "drizzle-orm";
 import { SUPPORTED_PAIRS } from "../../../nexusalpha/lib/types";
 import { computeRealtimeSignal } from "../lib/signal-engine-realtime";
 import { computeMlSignal } from "../lib/ml-signal-engine";
@@ -2835,10 +2835,13 @@ router.get("/whale-wallet-scores", async (req, res) => {
 async function checkConfluenceSignals() {
   console.log("[CONFLUENCE-CHECK] Checking tracked confluence_signal_log...");
   try {
+    // PENTING: ikutkan status STALE juga - kalau cuma TRACKING, token yang sempat
+    // ditandai STALE akan permanen hilang dari pengecekan (bug ditemukan 30 Agustus 2026,
+    // kasus IMD/usocks/RELICS/dll berhenti ter-check total setelah ditandai STALE sekali).
     const tracking = await (db as any)
       .select()
       .from(confluenceSignalLog)
-      .where(eq(confluenceSignalLog.status, "TRACKING"));
+      .where(or(eq(confluenceSignalLog.status, "TRACKING"), eq(confluenceSignalLog.status, "STALE")));
 
     if (tracking.length === 0) {
       console.log("[CONFLUENCE-CHECK] Belum ada confluence yang di-tracking.");
