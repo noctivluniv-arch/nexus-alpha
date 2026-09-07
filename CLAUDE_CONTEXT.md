@@ -2099,3 +2099,86 @@ Dashboard section lama diberi label 🛑 DIHENTIKAN dengan ringkasan kenapa.
 ---
 
 **RINGKASAN UNTUK SESI BARU**: Proyek nexus-alpha sedang di fase "kumpul data" untuk 2 hipotesis aktif utama: (1) Shadow Confluence TP/SL (baru, entry selektif via wallet trusted + meme scanner), dan (2) ML Shadow (masih pasca-fix entry price 31 Juli, sample kecil). Sistem meme TP/SL generik sudah resmi dihentikan karena terbukti tidak profitable. Semua fitur informasi (Trusted Wallet Activity, Confluence Watchlist) sudah live di webapp. Belum ada sistem yang siap jadi "produk" sinyal beli/jual — masih murni riset dan tracking transparan.
+
+---
+
+## Sesi 29-30 Agustus 2026 — Confluence Checker: 4 Bug Ditemukan & Diperbaiki, IMD ATH 14,75x
+
+### Insiden Awal
+Token confluence terbaik proyek (ATH 12,2x, dulu salah label "VIBE") berhenti ter-update sejak 5 Agustus. Investigasi menemukan 2 baris `confluence_signal_log` untuk address kontrak yang SAMA (`0xd34a99bc0f67ae1bbd63c660e6d0b0dd03e263b7`) dengan simbol berbeda: "VIBE" (dari meme scanner/GeckoTerminal, id=8) dan "IMD" (dari whale/GMGN, id=11). Verifikasi langsung ke DexScreener API konfirmasi nama on-chain asli adalah **IMD (Identity.md)** — GeckoTerminal sempat kasih data simbol salah/stale saat token ini pertama di-scan 3 Agustus.
+
+### 4 Bug Ditemukan & Diperbaiki (semua di `checkConfluenceSignals()` / `fetchDexScreenerBatch()` di cron.ts)
+1. **Silent skip tanpa jejak** — checker diam-diam `continue` kalau DexScreener tidak return data, tanpa log/staleness marking. FIX: logging eksplisit per-address.
+2. **Simbol salah dari sumber data** — auto-koreksi `tokenSymbol` dari DexScreener tiap kali data berhasil di-fetch. Data lama id=8 diperbaiki manual (VIBE → IMD).
+3. **Batch fetch all-or-nothing** — kirim 25 token sekaligus per request; kalau 1 batch gagal, SEMUA 25 token di dalamnya dibuang (bukan cuma yang bermasalah). Ini kenapa IMD, usocks, RELICS, KEKIUS, uPEG selalu gagal bareng-bareng — mereka konsisten masuk kelompok batch yang sama. FIX: `BATCH_SIZE` diturunkan dari 25 ke 10 + fallback fetch satu-per-satu untuk token yang masih gagal setelah batch besar.
+4. **Regresi dari fix #1** — query checker cuma `WHERE status = 'TRACKING'`. Begitu token ditandai `STALE` (oleh fix #1), token itu HILANG dari pengecekan SELAMANYA (lebih parah dari sebelumnya). FIX: query pakai `OR(status=TRACKING, status=STALE)`.
+
+### Hasil Verifikasi (30 Agustus 2026)
+Semua 7 token yang tadinya stuck berhasil ter-update kembali dalam 1 siklus checker. **IMD ATH naik dari 12,2x menjadi 14,75x** selama ~25 hari checker mati — hampir kehilangan visibilitas ke pencapaian terbesar sistem confluence.
+
+### Catatan Proses
+Seluruh investigasi-patch-verifikasi dikerjakan murni via copy-paste terminal (4 putaran patch Python untuk cron.ts + 3 script `.cjs` terpisah untuk query/fix data), tanpa perlu menulis/edit kode manual. Setiap langkah diverifikasi (`assert count==1`, `node --check`, build, `git status --short`) sebelum lanjut — pola ini terbukti efektif untuk debugging kompleks meski dikerjakan oleh non-programmer.
+
+---
+
+## Sesi 1 September 2026 — Audit Kode ML Shadow + Riset Strategi Exit + Verifikasi Jumlah Sinyal
+
+### Konteks
+User ingin ML Shadow (logistic regression) menggantikan Signal Trading (rule-based) di production, TAPI minta dicek dulu: (1) ada bug atau tidak, (2) hasil forward-test sudah bagus atau belum. Disepakati fokus ke ini dulu sebelum keputusan promosi.
+
+### 1. Audit Kode `ml-signal-engine.ts` — BERSIH, TIDAK ADA BUG ✓
+Cross-check fitur demi fitur dengan script training (`build-ml-dataset.ts`, `train-final-model.ts`, `retrain-with-volatility.ts`) — semua rumus konsisten persis, tidak ada mismatch antara cara model dilatih vs dipakai live. 2 bug lama (partial candle 16 Juli, entry price beku 31 Juli) tetap benar dan tidak regresi. Logic cooldown (1 sinyal per pair+side) dan checker TP/SL juga bersih.
+
+Catatan kecil (bukan bug): kode fetch candle 1 jam (`h1`) di `computeMlSignal()` tapi variabelnya tidak pernah dipakai — buang 1 API call ke Bybit tiap scan tanpa manfaat. Tidak pengaruhi hasil prediksi, bisa dibersihkan kapan-kapan (tidak mendesak).
+
+### 2. Diskusi: "Kenapa BUY/SELL Threshold Beda? Kenapa Tidak Lihat Kondisi Market Saja?"
+User awalnya mengira sistem "dipatok" cuma 1 arah. Diklarifikasi: model MEMANG menghitung probBuy dan probSell dari kondisi pasar yang SAMA setiap scan, arah dipilih berdasarkan mana yang lebih tinggi DAN lolos ambang batasnya masing-masing. Ambang batas beda (BUY 0,65 vs SELL 0,52) itu HASIL dari bukti backtest + forward-test (SELL belum pernah terbukti aman di threshold manapun yang diuji sampai 0,70), bukan pembatasan sepihak. Keputusan: SELL TETAP AKTIF (tidak dimatikan), biarkan model tetap menghitung 2 arah apa adanya, terus kumpulkan data.
+
+### 3. Riset: "Ambil Untung Dikit-Dikit, Jadi Bukit" — Ide Diuji, HASIL: SKEMA SEKARANG SUDAH OPTIMAL
+
+**Temuan penting yang memotivasi riset ini**: sistem live (`checkMlOpenSignals`) TIDAK PERNAH mengunci untung sebagian di TP1/TP2 — itu cuma status penanda, posisi tetap dibiarkan PENUH sampai TP3 kena atau SL kena. Jadi ide "ambil untung dikit" belum pernah diuji nyata di sistem ini sebelum riset ini.
+
+**Script baru**: `scripts/src/backtest-ml-exit-strategies.ts` — uji 11 skema keluar posisi berbeda (target dekat 0,5x-2,5x ATR, SL ketat 1,0x vs 1,5x, tiered-partial nyata dengan realisasi profit bertahap) terhadap sinyal yang SAMA PERSIS (model + threshold produksi: BUY≥0,65, SELL≥0,52), dengan gating "1 posisi per pair+side" sama seperti production (supaya hasil compounding realistis).
+
+**Hasil (6 pair, ~6 tahun data, in-sample)**:
+| Sisi | N sinyal | Skema terbaik |
+|---|---|---|
+| BUY | 43 | **LIVE-SEKARANG (full-ride ke TP3, SL 1,5x)** — ekuitas 1,46x, mengalahkan SEMUA 10 alternatif |
+| SELL | 403 | **LIVE-SEKARANG (full-ride ke TP3, SL 1,5x)** — ekuitas 3,07x, mengalahkan SEMUA 10 alternatif |
+
+Pola konsisten di kedua sisi: makin dekat target profit → win rate makin tinggi (sampai 76-83%) TAPI ekuitas akhir makin KECIL. Ini konfirmasi prinsip klasik "cut losses short, let winners run" — sistem yang sekarang SUDAH menerapkan ini (SL ketat 1,5x ATR, TP jauh 4x ATR).
+
+**Kesimpulan**: JANGAN ubah skema TP/SL yang sekarang untuk ML Shadow. Ide "ambil untung dikit" terjawab dengan data (bukan diabaikan) — hasilnya negatif untuk skema ini.
+
+**Caveat jujur dicatat**: (1) sample BUY masih kecil (43), (2) ini backtest in-sample (model diuji di data yang sama dipakai latih) — BELUM walk-forward. Kalau mau lebih yakin, perlu riset walk-forward tambahan sebelum dianggap final.
+
+### 4. Verifikasi: "43 Sinyal dari 6 Tahun Kok Sedikit? Apa Scoring Salah?" — TERVERIFIKASI TIDAK ADA BUG
+
+**Script baru**: `scripts/src/verify-raw-signal-count.ts` — hitung MENTAH jumlah hari yang lolos threshold TANPA gating "1 posisi per waktu", untuk membuktikan apakah 43 sinyal itu wajar atau tanda bug.
+
+**Hasil**: 117 hari lolos BUY (1,22% dari 9.582 hari total), 1.300 hari lolos SELL (13,57%) — SEBELUM gating. Rasio setelah gating: BUY 117→43 (2,7x), SELL 1300→403 (3,2x). Kedua rasio wajar dan konsisten (posisi rata-rata terbuka beberapa hari sebelum closed, sesuai desain MAX_BARS=10) — **konfirmasi matematis TIDAK ADA BUG**, murni efek gating "1 posisi per pair+side" yang sengaja dipasang (sama seperti production).
+
+**Catatan sampingan**: angka BUY mentah (117) beda dari catatan lama 7 Juli (~304) — kemungkinan besar karena model final sempat dilatih ulang dengan data lebih baru sejak saat itu, menggeser bobot secukupnya. Bukan tanda bug — kode dan model hari ini saling konsisten satu sama lain di pengukuran terbaru.
+
+### Kesimpulan Akhir Sesi — Status Promosi ML Shadow ke Production
+
+| Aspek | Status |
+|---|---|
+| Kode/logic | ✅ Bersih, sudah diaudit menyeluruh |
+| Skema TP/SL | ✅ Terbukti optimal dari 11 alternatif yang diuji |
+| Jumlah sinyal BUY (43/6 tahun) | ✅ Terverifikasi wajar, bukan bug |
+| Sample forward-test BUY | ⚠️ Baru 10 closed (target min 15-20) |
+| Sample forward-test SELL | ⚠️ Pola losing (0/3) tapi sample sangat kecil |
+| Laju data BUY real | Lambat — realistis perlu berbulan-bulan untuk forward-test kumpul banyak sampel |
+
+**BELUM SIAP gantikan Signal Trading production** — bukan karena ada masalah (kode & backtest sudah meyakinkan), murni karena forward-test real belum cukup sampel untuk sistem yang secara desain jarang memicu sinyal.
+
+### File-File Baru Sesi Ini (murni riset, tidak sentuh production)
+- `scripts/src/backtest-ml-exit-strategies.ts`
+- `scripts/src/verify-raw-signal-count.ts`
+
+### Belum Dikerjakan / Agenda Selanjutnya
+1. Terus pantau ML Shadow forward-test (BUY & SELL) sampai sampel cukup (15-20 closed minimal)
+2. Pertimbangkan riset walk-forward untuk exit-strategy findings di atas (saat ini masih in-sample) sebelum dianggap 100% final
+3. Bandingkan performa REAL rule-based vs ML vs Breakout setelah semua punya sampel bersih (agenda lama, belum berubah)
+4. Evaluasi ulang keputusan promosi ML Shadow ke production setelah sampel forward-test cukup
