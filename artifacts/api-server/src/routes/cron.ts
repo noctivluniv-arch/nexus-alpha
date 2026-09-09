@@ -221,6 +221,17 @@ async function runSignalScan() {
 
       console.log(`[CRON] ${pair} → confidence: ${signal.confidence}, side: ${signal.side}, bias: ${signal.bias}`);
 
+      if (signal.side === "SELL") {
+        // KEPUTUSAN 9 September 2026: rule-based SELL DIHENTIKAN - 20/20 sinyal
+        // closed terakhir SEMUA kalah (WR 0%), konsisten dengan walk-forward
+        // lama (PF 0.95) dan backtest yang menandai peringatan bukan aman. BUY
+        // sudah lama disabled (semua bucket negatif). Checker (checkOpenSignals)
+        // TETAP jalan supaya sinyal OPEN yang masih ada selesai secara alami.
+        console.log(`[CRON] Rule-based SELL dihentikan (keputusan 9 Sep 2026, WR 0%). Skip ${pair}.`);
+        await new Promise((r) => setTimeout(r, 300));
+        continue;
+      }
+
       if (signal.side !== "NO_TRADE") {
         // Circuit breaker: skip kalau pair ini sedang di-pause karena loss beruntun
         const isPaused = await isCircuitBreakerPaused(pair);
@@ -697,7 +708,7 @@ async function runBreakoutScan() {
         continue;
       }
 
-      let msg = `📊 <b>SHADOW BREAKOUT SIGNAL — NEXUSALPHA (Momentum)</b>\n`;
+      let msg = `📊 <b>BREAKOUT MOMENTUM SIGNAL — NEXUSALPHA</b>\n`;
       msg += `━━━━━━━━━━━━━━━\n`;
       msg += `<b>Pair:</b> ${signal.pair}\n`;
       msg += `<b>Signal:</b> 🟢 BUY/LONG 📈\n`;
@@ -716,7 +727,7 @@ async function runBreakoutScan() {
 
       msg += `<i>⏰ ${new Date().toLocaleString("id-ID")}</i>\n`;
       msg += `━━━━━━━━━━━━━━━\n`;
-      msg += `<i>📊 EKSPERIMEN — breakout momentum, backtest PF 1.45 (2021-24) / 1.29 (2024-26), MASIH FORWARD-TEST, JANGAN dipakai uang asli.</i>`;
+      msg += `<i>📊 Breakout momentum — backtest PF 1.45/1.29, forward-test WR 71.4% dari 35 closed (per 9 Sep 2026). Tetap gunakan manajemen risiko sendiri.</i>`;
 
       await sendTelegram(msg);
       console.log(`[BREAKOUT-CRON] ✅ Shadow breakout signal sent for ${pair}`);
