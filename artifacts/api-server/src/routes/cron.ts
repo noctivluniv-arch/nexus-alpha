@@ -678,7 +678,7 @@ async function saveBreakoutSignalToLog(signal: {
 }
 
 async function runBreakoutScan() {
-  console.log(`[BREAKOUT-CRON] Starting SHADOW breakout momentum scan for ${SUPPORTED_PAIRS.length} pairs...`);
+  console.log(`[BREAKOUT-CRON] Starting breakout momentum scan for ${SUPPORTED_PAIRS.length} pairs...`);
 
   for (const pair of SUPPORTED_PAIRS) {
     try {
@@ -730,7 +730,7 @@ async function runBreakoutScan() {
       msg += `<i>📊 Breakout momentum — backtest PF 1.45/1.29, forward-test WR 71.4% dari 35 closed (per 9 Sep 2026). Tetap gunakan manajemen risiko sendiri.</i>`;
 
       await sendTelegram(msg);
-      console.log(`[BREAKOUT-CRON] ✅ Shadow breakout signal sent for ${pair}`);
+      console.log(`[BREAKOUT-CRON] ✅ Breakout signal sent for ${pair}`);
 
       await saveBreakoutSignalToLog(signal);
 
