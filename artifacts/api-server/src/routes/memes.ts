@@ -2195,6 +2195,8 @@ function chainLabel(network: string): string {
       return "Avalanche";
     case "optimism":
       return "Optimism";
+    case "robinhood":
+      return "Robinhood Chain";
     default:
       return network;
   }
@@ -2237,7 +2239,7 @@ async function refreshMemes(): Promise<any[]> {
     // SMART-MONEY SCREENER: discover EARLY-STAGE memecoins (next-DOGE candidates)
     // from GeckoTerminal trending pools across major chains, then verify on-chain
     // safety via GoPlus and surface smart-money holders.
-    const networks = ["solana", "eth", "bsc", "base", "arbitrum", "polygon_pos", "avax"];
+    const networks = ["solana", "eth", "bsc", "base", "arbitrum", "polygon_pos", "avax", "robinhood"];
     // Fetch BOTH trending (hot momentum) and new pools (early-stage hunting)
     // across each chain to surface "next-DOGE" candidates, not blue-chips.
     // Sequence chains with a small inter-chain delay so we don't blast

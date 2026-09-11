@@ -2012,7 +2012,7 @@ async function runDexRadarScan() {
       const lastSent = dexRadarCooldown.get(addr) ?? 0;
       if (now - lastSent < DEX_RADAR_COOLDOWN_MS) continue;
 
-      const supportedChains = ["solana", "ethereum", "bsc", "base", "arbitrum", "polygon"];
+      const supportedChains = ["solana", "ethereum", "bsc", "base", "arbitrum", "polygon", "robinhood"];
       if (!supportedChains.includes(token.chainId)) continue;
 
       const allLinks = [...(token.links ?? []), ...(profile.links ?? [])];
