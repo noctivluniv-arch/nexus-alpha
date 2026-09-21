@@ -2385,6 +2385,40 @@ async function checkAndLogConfluence(params: {
   }
 }
 
+// -- DEDUPE ALERT WHALE PER TRANSAKSI --------------------------------------------
+// GMGN mengembalikan 30 transaksi beli terbaru tiap scan. Cooldown 30 menit hanya
+// disimpan di memori (hilang saat restart/hibernate), jadi transaksi yang sama bisa
+// dialert lagi. Di sini kita cek ke database: pasangan (tx_hash + token) yang sudah
+// pernah dialert dilewati. Pasangan tx+token dipakai (bukan tx saja) karena satu
+// transaksi bisa memuat beberapa token berbeda.
+// Kalau query gagal, alert tetap jalan seperti biasa. Matikan dengan env WHALE_DEDUPE_TX=0.
+function getTxDedupeKey(trade: GmgnSmartMoneyTrade, token: string): string | null {
+  const tx = trade.tx_hash ?? trade.transaction_hash ?? null;
+  return tx ? `${tx}|${token}` : null;
+}
+
+async function getAlreadyAlertedTxHashes(trades: GmgnSmartMoneyTrade[]): Promise<Set<string>> {
+  if (process.env.WHALE_DEDUPE_TX === "0") return new Set<string>();
+  const hashes = Array.from(
+    new Set(
+      trades
+        .map((t) => t.tx_hash ?? t.transaction_hash ?? null)
+        .filter((h): h is string => typeof h === "string" && h.length > 0),
+    ),
+  );
+  if (hashes.length === 0) return new Set<string>();
+  try {
+    const { rows } = await pool.query(
+      `SELECT tx_hash, token_address FROM whale_alerts WHERE tx_hash = ANY($1::text[])`,
+      [hashes],
+    );
+    return new Set<string>(rows.map((r: any) => `${r.tx_hash}|${r.token_address}`));
+  } catch (err) {
+    console.error("[WHALE] Gagal cek duplikat tx_hash:", err);
+    return new Set<string>();
+  }
+}
+
 async function runWhaleScan() {
   console.log("[WHALE] Starting smart money scan...");
   if (!process.env.GMGN_API_KEY) {
@@ -2398,6 +2432,7 @@ async function runWhaleScan() {
   for (const chain of chains) {
     const trades = await fetchGmgnSmartMoney(chain);
     console.log(`[WHALE] ${chain}: ${trades.length} trade ditemukan dari smart money`);
+    const alreadyAlertedTx = await getAlreadyAlertedTxHashes(trades);
 
     const now = Date.now();
 
@@ -2409,6 +2444,8 @@ async function runWhaleScan() {
       const key = `${chain}:${wallet}:${token}`;
       const lastSent = whaleAlertCooldown.get(key) ?? 0;
       if (now - lastSent < WHALE_COOLDOWN_MS) continue;
+      const txDedupeKey = getTxDedupeKey(trade, token);
+      if (txDedupeKey && alreadyAlertedTx.has(txDedupeKey)) continue;
 
       const symbol = trade.token_symbol ?? trade.symbol ?? trade.base_token?.symbol ?? "?";
       const normalizedSymbol = normalizeSymbol(symbol);
@@ -2513,6 +2550,7 @@ async function runWhaleScan() {
       try {
         await sendWhaleTelegram(msg);
         whaleAlertCooldown.set(key, now);
+        if (txDedupeKey) alreadyAlertedTx.add(txDedupeKey);
         sent++;
 
         await (db as any).insert(whaleAlerts).values({
