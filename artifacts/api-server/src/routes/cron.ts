@@ -2495,7 +2495,7 @@ async function runWhaleScan() {
       let msg = `🐋 <b>WHALE ALERT — SMART MONEY BUY</b>\n`;
       msg += `━━━━━━━━━━━━━━━\n`;
       if (isTrustedWallet) {
-        msg += `⭐ <b>TRUSTED WALLET</b> — track record sendiri: win rate >70%, median PnL positif\n`;
+        msg += `⭐ <b>TRUSTED WALLET</b> — track record sendiri: ${process.env.WALLET_SCORE_V2 === "1" ? "naik >= +20% dalam 30 hari di >= 30% token unik (min. 10 token), median PnL positif" : "win rate >70%, median PnL positif"}\n`;
       }
       if (isSuspiciousSymbol) {
         msg += `⚠️ <b>WARNING:</b> nama token pakai karakter non-Latin — waspada lookalike/scam token.\n`;
@@ -2742,7 +2742,168 @@ const WALLET_SCORE_MIN_ALERTS = 8;
 const WALLET_SCORE_MIN_WIN_RATE_PCT = 70;
 const WALLET_SCORE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
+// -- WALLET SCORE V2 (aktif hanya kalau env WALLET_SCORE_V2=1) ---------------------
+// Perbaikan hasil analisis forward-test 21 Sep 2026 (83 ribu alert whale):
+//  1. Hitung per TOKEN UNIK: alert berulang untuk token yang sama dihitung 1x.
+//  2. "Menang" = harga 30 hari kemudian >= +20% (sama dengan TP), bukan sekadar > harga masuk.
+//  3. Stablecoin / wrapped / emas dikecualikan (harganya diam, bukan skill).
+//  4. Token DEAD (likuiditas habis) dianggap rugi -100% karena tidak bisa dijual.
+//  5. Hanya alert berumur >= 30 hari (horizon sama untuk semua alert).
+//  6. Trusted = min 10 token unik, median PnL > 0, dan batas bawah interval 95%
+//     dari win rate >= 30% (supaya 1-2 token yang kebetulan naik tidak cukup).
+const WALLET_V2_MIN_TOKENS = 10;
+const WALLET_V2_WIN_PNL = 0.2;
+const WALLET_V2_MIN_WILSON_LO = 0.3;
+const WALLET_V2_HORIZON_MS = 30 * 24 * 60 * 60 * 1000;
+const WALLET_V2_EXCLUDE_SYMBOLS = new Set([
+  "usdt", "usdc", "dai", "fdusd", "tusd", "busd", "usds", "usde", "susde",
+  "pyusd", "frax", "lusd", "gusd", "usdp", "dola", "usd1",
+  "weth", "wbtc", "wbnb", "wsol", "sol", "eth", "btc", "bnb", "matic",
+  "avax", "ada", "ltc", "xrp", "atom", "near", "ftm", "op", "arb",
+  "wbeth", "steth", "reth", "wsteth", "cbbtc", "cbeth", "weeth", "ezeth",
+  "lst", "lrt", "jitosol", "msol", "bsol", "lsteth",
+  "tbtc", "fwwbtc", "mbtc", "paxg", "xaut",
+]);
+
+interface WalletV2Score {
+  walletAddress: string;
+  chain: string;
+  tokens: number;
+  winRatePct: number;
+  medianPnlPct: number;
+  meanPnlPct: number;
+  countGe2x: number;
+  isTrusted: boolean;
+}
+
+function wilsonLowerBound(wins: number, n: number): number {
+  if (n <= 0) return 0;
+  const z = 1.96;
+  const p = wins / n;
+  const denom = 1 + (z * z) / n;
+  const centre = p + (z * z) / (2 * n);
+  const margin = z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n));
+  return (centre - margin) / denom;
+}
+
+function medianOfNumbers(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+// rows HARUS sudah diurutkan sent_at ASC (alert pertama per wallet+token yang dipakai).
+function scoreWalletsV2(rows: any[], nowMs: number): WalletV2Score[] {
+  const seen = new Set<string>();
+  const perWallet = new Map<string, { walletAddress: string; chain: string; pnls: number[]; ge2x: number }>();
+
+  for (const r of rows) {
+    const sentMs = r.sent_at ? new Date(r.sent_at).getTime() : NaN;
+    if (!Number.isFinite(sentMs) || nowMs - sentMs < WALLET_V2_HORIZON_MS) continue;
+
+    const entry = Number(r.price_at_alert);
+    if (!(entry > 0)) continue;
+
+    const symbol = String(r.token_symbol ?? "").trim().toLowerCase();
+    if (WALLET_V2_EXCLUDE_SYMBOLS.has(symbol)) continue;
+
+    const tokenKey = `${r.chain}:${r.wallet_address}:${r.token_address}`;
+    if (seen.has(tokenKey)) continue;
+    seen.add(tokenKey);
+
+    let pnl: number;
+    if (r.status === "DEAD") {
+      pnl = -1;
+    } else if (r.last_price === null || r.last_price === undefined) {
+      continue; // belum ada data harga, jangan dianggap menang/kalah
+    } else {
+      pnl = Number(r.last_price) / entry - 1;
+    }
+
+    const key = `${r.chain}:${r.wallet_address}`;
+    let w = perWallet.get(key);
+    if (!w) {
+      w = { walletAddress: r.wallet_address, chain: r.chain, pnls: [], ge2x: 0 };
+      perWallet.set(key, w);
+    }
+    w.pnls.push(pnl);
+    if (Number(r.ath_multiplier) >= 2) w.ge2x++;
+  }
+
+  const out: WalletV2Score[] = [];
+  for (const w of perWallet.values()) {
+    const n = w.pnls.length;
+    if (n < 2) continue;
+    const wins = w.pnls.filter((p) => p >= WALLET_V2_WIN_PNL).length;
+    const median = medianOfNumbers(w.pnls);
+    const mean = w.pnls.reduce((a, b) => a + b, 0) / n;
+    const isTrusted =
+      n >= WALLET_V2_MIN_TOKENS &&
+      median > 0 &&
+      wilsonLowerBound(wins, n) >= WALLET_V2_MIN_WILSON_LO;
+    out.push({
+      walletAddress: w.walletAddress,
+      chain: w.chain,
+      tokens: n,
+      winRatePct: Math.round((wins / n) * 10000) / 100,
+      medianPnlPct: Math.round(median * 10000) / 100,
+      meanPnlPct: Math.round(mean * 10000) / 100,
+      countGe2x: w.ge2x,
+      isTrusted,
+    });
+  }
+  return out;
+}
+
+async function computeWalletScoresV2() {
+  console.log("[WALLET-SCORE] v2: menghitung skor wallet (token unik, horizon 30 hari)...");
+  try {
+    const { rows } = await pool.query(`
+      SELECT wallet_address, chain, token_address, token_symbol,
+             price_at_alert, last_price, ath_multiplier, status, sent_at
+      FROM whale_alerts
+      WHERE price_at_alert IS NOT NULL AND price_at_alert > 0
+      ORDER BY sent_at ASC;
+    `);
+
+    const scores = scoreWalletsV2(rows, Date.now());
+
+    // reset dulu supaya wallet yang tidak lolos lagi tidak tetap berstatus trusted
+    await pool.query(`UPDATE whale_wallet_scores SET is_trusted = false WHERE is_trusted = true;`);
+
+    let trustedCount = 0;
+    for (const s of scores) {
+      if (s.isTrusted) trustedCount++;
+      await pool.query(
+        `
+        INSERT INTO whale_wallet_scores
+          (wallet_address, chain, total_alerts, win_rate_pct, median_pnl_pct, mean_pnl_pct, count_ge_2x, is_trusted, last_computed_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        ON CONFLICT (wallet_address, chain) DO UPDATE SET
+          total_alerts = EXCLUDED.total_alerts,
+          win_rate_pct = EXCLUDED.win_rate_pct,
+          median_pnl_pct = EXCLUDED.median_pnl_pct,
+          mean_pnl_pct = EXCLUDED.mean_pnl_pct,
+          count_ge_2x = EXCLUDED.count_ge_2x,
+          is_trusted = EXCLUDED.is_trusted,
+          last_computed_at = NOW();
+        `,
+        [s.walletAddress, s.chain, s.tokens, s.winRatePct, s.medianPnlPct, s.meanPnlPct, s.countGe2x, s.isTrusted],
+      );
+    }
+
+    console.log(`[WALLET-SCORE] v2 selesai. ${scores.length} wallet dinilai, ${trustedCount} lolos trusted.`);
+  } catch (err) {
+    console.error("[WALLET-SCORE] v2 Error:", err);
+  }
+}
+
 async function computeWalletScores() {
+  if (process.env.WALLET_SCORE_V2 === "1") {
+    await computeWalletScoresV2();
+    return;
+  }
   console.log("[WALLET-SCORE] Computing wallet scores...");
   try {
     const { rows } = await pool.query(`
