@@ -3303,6 +3303,26 @@ function scheduleMemesWarmup() {
 router.post("/ai/memes", async (req: Request, res: Response) => {
   scheduleMemesWarmup();
 
+  // -- STALE-WHILE-REVALIDATE (22 Sep 2026) --------------------------------
+  // Sebelumnya endpoint ini SELALU menunggu refreshMemes() selesai begitu
+  // cache lewat TTL (5 menit), walau cache lama masih ada. refreshMemes()
+  // bisa makan puluhan detik (rate-limit GoPlus), jadi permintaan yang
+  // datang tepat saat cache basi ikut menunggu penuh (lihat log 21 Sep
+  // 2026: responseTime 44095ms). Sekarang: kalau ada cache (walau basi),
+  // langsung kembalikan itu dan biarkan refresh jalan di latar belakang.
+  // Hanya benar-benar menunggu kalau cache MASIH KOSONG (server baru
+  // nyala). Matikan dengan env MEMES_STALE_WHILE_REVALIDATE=0 untuk
+  // kembali ke perilaku lama.
+  if (process.env.MEMES_STALE_WHILE_REVALIDATE !== "0" && cache.data.length > 0) {
+    if (Date.now() - cache.ts > TTL_MS && !memesInflight) {
+      memesInflight = refreshMemes();
+      memesInflight.catch((err: any) => {
+        req.log.error({ err: err?.message }, "memes background refresh failed");
+      });
+    }
+    return res.json(cache.data);
+  }
+
   if (cache.data.length > 0 && Date.now() - cache.ts < TTL_MS) {
     return res.json(cache.data);
   }
