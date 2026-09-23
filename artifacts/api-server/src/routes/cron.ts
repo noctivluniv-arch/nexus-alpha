@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, inArray, and, or } from "drizzle-orm";
+import { eq, inArray, and, or, gte } from "drizzle-orm";
 import { SUPPORTED_PAIRS } from "../../../nexusalpha/lib/types";
 import { computeRealtimeSignal } from "../lib/signal-engine-realtime";
 import { computeMlSignal } from "../lib/ml-signal-engine";
@@ -704,6 +704,32 @@ async function runBreakoutScan() {
         );
       if (stillOpen.length > 0) {
         console.log(`[BREAKOUT-CRON] ⏭️ Skip kirim Telegram ${signal.pair} — masih ada signal OPEN (id #${stillOpen[0].id})`);
+        await new Promise((r) => setTimeout(r, 500));
+        continue;
+      }
+
+      // -- ANTI-DUPLIKAT PER HARI (22 Sep 2026) --------------------------------
+      // Bug: startBreakoutSignalCron() memanggil runBreakoutScan() langsung tiap
+      // kali server restart (bukan cuma tiap 24 jam), karena Render (tier
+      // hibernate) sering tidur/bangun ulang. Harga referensi breakout dibekukan
+      // sepanjang hari (dari candle harian), jadi kalau sinyal pertama sudah
+      // closed (TP/SL) lalu server restart lagi di hari yang sama, pengecekan
+      // "masih OPEN?" di atas lolos dan sinyal IDENTIK (entry/SL/TP sama persis)
+      // terkirim ulang. Di sini kita tambah pengecekan: sudah pernah ada sinyal
+      // (status apa pun) untuk pair ini dalam 20 jam terakhir? Kalau ya, skip.
+      const RECENT_COOLDOWN_MS = 20 * 60 * 60 * 1000;
+      const recentCutoff = new Date(Date.now() - RECENT_COOLDOWN_MS);
+      const recentForPair = await (db as any)
+        .select()
+        .from(breakoutSignalLog)
+        .where(
+          and(
+            eq(breakoutSignalLog.pair, signal.pair),
+            gte(breakoutSignalLog.sentAt, recentCutoff),
+          ),
+        );
+      if (recentForPair.length > 0) {
+        console.log(`[BREAKOUT-CRON] ⏭️ Skip kirim Telegram ${signal.pair} — sudah ada sinyal dalam 20 jam terakhir (id #${recentForPair[0].id})`);
         await new Promise((r) => setTimeout(r, 500));
         continue;
       }
