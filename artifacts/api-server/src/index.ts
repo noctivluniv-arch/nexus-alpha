@@ -36,7 +36,10 @@ app.listen(port, (err) => {
     scheduleSignalPrewarm();
   }
   schedulePrewarmMemes();
-  startCron();
+  // startCron(); -- DIMATIKAN 23 Sep 2026: rule-based SELL-only, win rate
+  // 0% (0/20 closed). Diganti Shadow Breakout sebagai sinyal utama.
+  // startSignalCheckCron() di bawah TETAP jalan agar sinyal OPEN lama
+  // tetap bisa closed dengan benar.
   startMemeCron();
   startDailySaveCron();
   startSignalCheckCron();
@@ -48,7 +51,10 @@ app.listen(port, (err) => {
   startWalletScoreCron();
   startConfluenceCheckCron();
   startConfluenceTpslCheckCron();
-  startMlSignalCron();
+  // startMlSignalCron(); -- DIMATIKAN 23 Sep 2026: SELL 0% win rate, BUY
+  // menjanjikan tapi terkonsentrasi di 2 rally + ada bug sinyal duplikat
+  // yang belum diperbaiki. startMlSignalCheckCron() di bawah TETAP jalan
+  // agar sinyal OPEN lama tetap bisa closed dengan benar.
   startMlSignalCheckCron();
   startBreakoutSignalCron();
   startBreakoutSignalCheckCron();
