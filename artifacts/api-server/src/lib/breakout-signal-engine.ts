@@ -17,10 +17,10 @@
 
 import { atr } from "./indicators";
 
-const LOOKBACK = 10;
-const VOL_MULTIPLIER = 1.5;
-const SL_ATR_MULT = 1.5;
-const TP_RR_MULT = 1.5; // TP = entry + riskAmt * 1.5 (riskAmt = ATR14 * SL_ATR_MULT)
+export const LOOKBACK = 10;
+export const VOL_MULTIPLIER = 1.5;
+export const SL_ATR_MULT = 1.5;
+export const TP_RR_MULT = 1.5; // TP = entry + riskAmt * 1.5 (riskAmt = ATR14 * SL_ATR_MULT)
 
 interface Candles {
   opens: number[]; highs: number[]; lows: number[];

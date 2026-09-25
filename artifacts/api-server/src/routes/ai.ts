@@ -3,7 +3,12 @@ import { ai } from "@workspace/integrations-gemini-ai";
 import { type GenerateContentResponse, Type } from "@google/genai";
 import { aiLimiter, requireAppSecret } from "../middlewares/rateLimiter";
 import { getOHLC, SYMBOL_TO_ID } from "./binance";
-import { computeRealtimeSignal } from "../lib/signal-engine-realtime";
+import {
+  computeBreakoutSignal,
+  LOOKBACK as BREAKOUT_LOOKBACK,
+  VOL_MULTIPLIER as BREAKOUT_VOL_MULTIPLIER,
+  TP_RR_MULT as BREAKOUT_TP_RR_MULT,
+} from "../lib/breakout-signal-engine";
 import {
   ema,
   rsi,
@@ -803,64 +808,96 @@ router.post("/ai/signal", requireAppSecret, aiLimiter, async (req: Request, res:
   }
   const lang: "id" | "en" = rawLang === "en" ? "en" : "id";
 
-  // ─── RULE-BASED ENGINE (mengganti Gemini AI) ────────────────────────────
-  // Web app sekarang pakai otak yang SAMA PERSIS dengan cron Telegram
-  // (signal-engine-realtime.ts), supaya tidak ada lagi hasil yang
-  // berbeda/membingungkan antara web app dan notifikasi Telegram.
+  // ─── SHADOW BREAKOUT ENGINE (mengganti rule-based SELL-only) ───────────
+  // 23 Sep 2026: rule-based (signal-engine-realtime.ts) dimatikan -- win
+  // rate 0% (0/20 closed, live Jun-Agu 2026). Diganti Shadow Breakout
+  // (breakout-signal-engine.ts) -- performa terkini lihat dashboard live
+  // (/api/cron/dashboard), TIDAK di-hardcode di sini supaya tidak basi.
+  // Web app sekarang pakai mesin yang SAMA PERSIS dengan cron Telegram.
+  // Setiap field di bawah dihitung langsung dari breakoutSignal -- TIDAK
+  // ADA nilai yang dikarang. keySupport diberi teks eksplisit karena
+  // mesin ini memang tidak menghitung level support terpisah.
   try {
-    const rtSignal = await computeRealtimeSignal(String(pair));
+    const breakoutSignal = await computeBreakoutSignal(String(pair));
     const isId = lang === "id";
+    const { price, side, sl, tp, prevHigh, volRatio } = breakoutSignal;
 
-    const marketStructure: "BULLISH" | "BEARISH" | "RANGING" =
-      rtSignal.bias === "BULLISH" ? "BULLISH" : rtSignal.bias === "BEARISH" ? "BEARISH" : "RANGING";
+    const noTrade = side === "NO_TRADE";
 
-    const noTrade = rtSignal.side === "NO_TRADE";
+    // confidence = kekuatan volume relatif ke ambang minimum, BUKAN
+    // probabilitas menang. Dihitung ulang tiap sinyal dari volRatio real.
+    const confidence = volRatio !== null
+      ? Math.max(0, Math.min((volRatio / BREAKOUT_VOL_MULTIPLIER) * 50, 100))
+      : 0;
+
+    const priceStr = price ? `$${price.toFixed(4)}` : "N/A";
+    const prevHighStr = prevHigh ? `$${prevHigh.toFixed(4)}` : "N/A";
+    const volRatioStr = volRatio !== null ? `${volRatio.toFixed(2)}x` : "N/A";
+
     const noTradeReason = noTrade
       ? (isId
-          ? `Confidence ${rtSignal.confidence}/100 di luar sweet spot yang sudah divalidasi backtest (SELL 45-55), atau bias tidak cukup kuat. Tidak ada rekomendasi entry saat ini.`
-          : `Confidence ${rtSignal.confidence}/100 is outside the backtest-validated sweet spot (SELL 45-55), or bias isn't strong enough. No entry recommended right now.`)
+          ? `Harga ${priceStr} belum menembus ${prevHighStr} (tertinggi ${BREAKOUT_LOOKBACK} hari), atau volume cuma ${volRatioStr} (butuh >= ${BREAKOUT_VOL_MULTIPLIER}x rata-rata ${BREAKOUT_LOOKBACK} hari).`
+          : `Price ${priceStr} hasn't broken ${prevHighStr} (${BREAKOUT_LOOKBACK}-day high), or volume is only ${volRatioStr} (needs >= ${BREAKOUT_VOL_MULTIPLIER}x ${BREAKOUT_LOOKBACK}-day average).`)
       : undefined;
+
+    const confluences: string[] = noTrade
+      ? []
+      : [
+          isId
+            ? `Breakout: harga ${priceStr} menembus resistance ${BREAKOUT_LOOKBACK}-hari ${prevHighStr}`
+            : `Breakout: price ${priceStr} broke ${BREAKOUT_LOOKBACK}-day resistance ${prevHighStr}`,
+          isId
+            ? `Volume: ${volRatioStr} rata-rata ${BREAKOUT_LOOKBACK} hari (ambang minimum ${BREAKOUT_VOL_MULTIPLIER}x)`
+            : `Volume: ${volRatioStr} ${BREAKOUT_LOOKBACK}-day average (minimum threshold ${BREAKOUT_VOL_MULTIPLIER}x)`,
+        ];
 
     const reasoning = noTrade
       ? noTradeReason!
       : (isId
-          ? `Sinyal ${rtSignal.side} dengan confidence ${rtSignal.confidence}/100, bias pasar ${rtSignal.bias}. Berdasarkan ${rtSignal.confluences.length} confluence teknikal: ${rtSignal.confluences.slice(0, 3).join(", ")}.`
-          : `${rtSignal.side} signal with ${rtSignal.confidence}/100 confidence, market bias ${rtSignal.bias}. Based on ${rtSignal.confluences.length} technical confluences: ${rtSignal.confluences.slice(0, 3).join(", ")}.`);
+          ? `Sinyal BUY breakout momentum. ${confluences.join(". ")}.`
+          : `BUY breakout momentum signal. ${confluences.join(". ")}.`);
+
+    const stopLossRiskPct = sl && price ? `${(((price - sl) / price) * 100).toFixed(2)}%` : "N/A";
 
     const payload = {
       pair: String(pair),
-      side: rtSignal.side,
-      entryRange: rtSignal.price ? `$${rtSignal.price.toFixed(4)}` : "N/A",
-      entryPrice: rtSignal.price ? rtSignal.price.toFixed(4) : "N/A",
-      takeProfit: [rtSignal.tp1, rtSignal.tp2, rtSignal.tp3].map((v) => (v ? v.toFixed(4) : "N/A")),
-      takeProfitRR: ["1:1.5", "1:2.5", "1:4.0"],
-      stopLoss: rtSignal.sl ? rtSignal.sl.toFixed(4) : "N/A",
-      stopLossRiskPct: rtSignal.atr14 && rtSignal.price ? `${((rtSignal.atr14 * 1.5 / rtSignal.price) * 100).toFixed(2)}%` : "N/A",
-      confidence: rtSignal.confidence,
+      side,
+      entryRange: priceStr,
+      entryPrice: price ? price.toFixed(4) : "N/A",
+      takeProfit: tp ? [tp.toFixed(4)] : [],
+      takeProfitRR: [`1:${BREAKOUT_TP_RR_MULT}`],
+      stopLoss: sl ? sl.toFixed(4) : "N/A",
+      stopLossRiskPct,
+      confidence,
       timestamp: Date.now(),
       reasoning,
-      traderStyle: isId ? "Rule-based, deterministik (bukan AI generatif)" : "Rule-based, deterministic (not generative AI)",
+      traderStyle: isId ? "Breakout momentum, deterministik (bukan AI generatif)" : "Breakout momentum, deterministic (not generative AI)",
       leverage: isId ? "Sesuai manajemen risiko pribadi, max 3-5x disarankan" : "Per personal risk management, max 3-5x suggested",
       expertMindset: isId
-        ? "Sinyal ini murni hasil perhitungan matematis (EMA, RSI, MACD, dll), sedang dalam tahap forward-testing untuk validasi profitabilitas nyata."
-        : "This signal is purely from mathematical calculation (EMA, RSI, MACD, etc.), currently in forward-testing to validate real profitability.",
-      spotEntry: rtSignal.price ? `$${rtSignal.price.toFixed(4)}` : "N/A",
-      longTermTarget: "N/A — engine ini fokus jangka pendek/menengah (swing), bukan investasi jangka panjang",
-      marketStructure,
-      riskReward: "1:1.5 (TP1), 1:2.5 (TP2), 1:4.0 (TP3)",
-      invalidation: rtSignal.sl ? `Sinyal batal jika harga menembus $${rtSignal.sl.toFixed(4)}` : "N/A",
-      keySupport: rtSignal.sup1 ? `$${rtSignal.sup1.toFixed(4)}` : "N/A",
-      keyResistance: rtSignal.res1 ? `$${rtSignal.res1.toFixed(4)}` : "N/A",
-      confluences: rtSignal.confluences,
+        ? `Sinyal ini murni breakout momentum harian (harga tembus tertinggi ${BREAKOUT_LOOKBACK} hari + volume naik minimal ${BREAKOUT_VOL_MULTIPLIER}x rata-rata). Masih tahap forward-test -- cek performa terkini di dashboard sebelum dipakai uang sungguhan.`
+        : `This signal is purely daily breakout momentum (price breaks ${BREAKOUT_LOOKBACK}-day high + volume >= ${BREAKOUT_VOL_MULTIPLIER}x average). Still in forward-test -- check current performance on the dashboard before using real money.`,
+      spotEntry: priceStr,
+      longTermTarget: isId
+        ? `N/A — engine ini fokus breakout jangka pendek (max hold ${BREAKOUT_LOOKBACK} hari), bukan investasi jangka panjang`
+        : `N/A — this engine focuses on short-term breakout (max hold ${BREAKOUT_LOOKBACK} days), not long-term investment`,
+      marketStructure: (noTrade ? "RANGING" : "BULLISH") as "BULLISH" | "BEARISH" | "RANGING",
+      riskReward: `1:${BREAKOUT_TP_RR_MULT}`,
+      invalidation: sl
+        ? `Sinyal batal jika harga menembus $${sl.toFixed(4)}`
+        : "N/A",
+      keySupport: isId
+        ? "Tidak dihitung — mesin ini hanya pakai resistance breakout"
+        : "Not computed — this engine only uses breakout resistance",
+      keyResistance: prevHighStr,
+      confluences,
       noTrade,
       noTradeReason,
-      scoreBreakdown: rtSignal.scoreBreakdown,
       isFallback: false,
     };
 
     return res.json(payload);
   } catch (err: any) {
-    req.log.error({ err: err?.message, pair }, "Rule-based signal generation failed");
+    req.log.error({ err: err?.message, pair }, "Breakout signal generation failed");
     return res.status(500).json({ error: "Failed to generate signal. Check your connection." });
   }
   // ─── KODE DI BAWAH INI SUDAH TIDAK TERPAKAI (Gemini AI, lama) ───────────
