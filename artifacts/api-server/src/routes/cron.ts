@@ -1326,7 +1326,8 @@ router.get("/dashboard", (_req, res) => {
   <div class="paper-note">🎮 Simulasi Paper Trading — Modal virtual $100 per trade & $100 per coin. Uang tidak nyata, harga nyata.</div>
 
   <section>
-    <h2>🎯 Signal Trading (BUY/SELL)</h2>
+    <h2>🎯 Signal Trading (BUY/SELL) — ⛔ DIHENTIKAN 23 Sep 2026</h2>
+    <div class="note" style="margin-bottom:12px">⚠️ Rule-based SELL-only dimatikan karena win rate 0% (0/20 closed). Tidak ada sinyal baru dikirim. Sinyal OPEN lama tetap dipantau sampai closed. Sinyal utama sekarang: Shadow Breakout di bawah.</div>
     <div class="grid" id="signal-stats"><div class="loading">Memuat...</div></div>
     <table id="signal-table">
       <thead><tr><th>Pair</th><th>Side</th><th>Conf.</th><th>Entry ($)</th><th>Status</th><th>Close ($)</th><th>PnL (dari $100)</th><th>Sent</th></tr></thead>
@@ -1335,8 +1336,8 @@ router.get("/dashboard", (_req, res) => {
   </section>
 
   <section>
-    <h2>🧪 Shadow ML Signal (Logistic Regression — Eksperimen)</h2>
-    <div class="note" style="margin-bottom:12px">⚠️ Model machine learning paralel, BELUM menggantikan sinyal rule-based di atas. Murni forward-test untuk validasi sebelum dipertimbangkan production.</div>
+    <h2>🧪 Shadow ML Signal (Logistic Regression — ⛔ DIHENTIKAN 23 Sep 2026)</h2>
+    <div class="note" style="margin-bottom:12px">⚠️ Dimatikan: sisi SELL 0% win rate, sisi BUY menjanjikan (54.5%) tapi menumpuk di 2 periode rally, dan ada bug sinyal duplikat yang belum diperbaiki. Tidak ada sinyal baru dikirim. Sinyal OPEN lama tetap dipantau sampai closed.</div>
     <div class="grid" id="ml-stats"><div class="loading">Memuat...</div></div>
     <table id="ml-table">
       <thead><tr><th>Pair</th><th>Side</th><th>Prob Buy</th><th>Prob Sell</th><th>Entry ($)</th><th>Status</th><th>Close ($)</th><th>PnL (dari $100)</th><th>Sent</th></tr></thead>
@@ -1345,8 +1346,8 @@ router.get("/dashboard", (_req, res) => {
   </section>
 
   <section>
-    <h2>📊 Shadow Breakout Signal (Momentum — Eksperimen)</h2>
-    <div class="note" style="margin-bottom:12px">⚠️ Strategi breakout momentum paralel, BELUM menggantikan sinyal rule-based/ML di atas. Backtest walk-forward: PF 1.45 (2021-2024) / PF 1.29 (2024-2026), kedua periode profitable. Murni forward-test untuk validasi sebelum dipertimbangkan production.</div>
+    <h2>🎯 Signal Trading (Breakout Momentum) — ✅ AKTIF sejak 23 Sep 2026</h2>
+    <div class="note" style="margin-bottom:12px">⚠️ Menggantikan sinyal rule-based/ML di atas (keduanya dihentikan). Backtest walk-forward: PF 1.45 (2021-2024) / PF 1.29 (2024-2026). Lihat tabel & statistik di bawah untuk performa forward-test TERKINI (live, bukan angka tetap). Sebagian besar kemenangan historis menumpuk di rally 20-22 Agustus — sample perlu lebih besar sebelum divalidasi untuk uang sungguhan.</div>
     <div class="grid" id="breakout-stats"><div class="loading">Memuat...</div></div>
     <table id="breakout-table">
       <thead><tr><th>Pair</th><th>Entry ($)</th><th>SL ($)</th><th>TP ($)</th><th>Status</th><th>Close ($)</th><th>PnL (dari $100)</th><th>Sent</th></tr></thead>
