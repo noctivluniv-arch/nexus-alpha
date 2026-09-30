@@ -90,7 +90,7 @@ const ID: Dict = {
   "signals.noTradeFallback":
     "Setup tidak memenuhi syarat minimum. Tunggu konfirmasi lebih lanjut.",
   "signals.confValid": "✓ VALID",
-  "signals.confBelowThreshold": "✗ DI LUAR ZONA 45-55",
+  "signals.confBelowThreshold": "✗ NO_TRADE",
   "signals.spotEntryZone": "ZONA ENTRY SPOT",
   "signals.scalp.title": "SCALPING PLAN",
   "signals.scalp.entry": "ENTRY",
@@ -363,7 +363,7 @@ const EN: Dict = {
   "signals.noTradeFallback":
     "Setup does not meet minimum criteria. Wait for further confirmation.",
   "signals.confValid": "✓ VALID",
-  "signals.confBelowThreshold": "✗ OUTSIDE 45-55 ZONE",
+  "signals.confBelowThreshold": "✗ NO_TRADE",
   "signals.spotEntryZone": "SPOT ENTRY ZONE",
   "signals.scalp.title": "SCALPING PLAN",
   "signals.scalp.entry": "ENTRY",
