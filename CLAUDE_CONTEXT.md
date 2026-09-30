@@ -2182,3 +2182,58 @@ Pola konsisten di kedua sisi: makin dekat target profit → win rate makin tingg
 2. Pertimbangkan riset walk-forward untuk exit-strategy findings di atas (saat ini masih in-sample) sebelum dianggap 100% final
 3. Bandingkan performa REAL rule-based vs ML vs Breakout setelah semua punya sampel bersih (agenda lama, belum berubah)
 4. Evaluasi ulang keputusan promosi ML Shadow ke production setelah sampel forward-test cukup
+
+---
+
+## Sesi 21-30 September 2026 — Cutover Signal Trading: Rule-Based & ML Dimatikan, Shadow Breakout Jadi Sinyal Utama
+
+### Konteks Awal
+Dony minta cek apakah ada bagian sistem (whale tracker, meme scanner) yang bisa dijadikan produk. Dari situ ditemukan serangkaian bug operasional dan akhirnya berujung keputusan besar: mengganti sinyal trading utama.
+
+### Perbaikan Bug Operasional (semua sudah live)
+
+**1. Alert whale terkirim duplikat** — `runWhaleScan()` di cron.ts cuma pakai cooldown in-memory (hilang tiap restart). Server Render tier hibernate sering restart, jadi transaksi yang sama bisa dialert ulang. FIX: cek ke DB (`whale_alerts.tx_hash` + `token_address`) sebelum kirim, bukan cuma cooldown memori.
+
+**2. Sinyal Breakout terkirim duplikat identik** — Root cause sama persis (restart hibernate), tapi lewat jalur berbeda: `startBreakoutSignalCron()` memanggil `runBreakoutScan()` langsung tiap boot, bukan cuma tiap 24 jam. Karena harga referensi breakout dibekukan seharian, sinyal yang closed lalu server restart di hari yang sama akan mengulang sinyal identik. FIX: cek `breakoutSignalLog` untuk pair yang sama dalam 20 jam terakhir (bukan cuma status OPEN).
+
+**3. Endpoint `/api/ai/memes` lambat (~44 detik)** — Handler selalu menunggu `refreshMemes()` penuh begitu cache basi (TTL 5 menit), walau cache lama masih ada. FIX: pola *stale-while-revalidate* — cache basi tetap langsung dikembalikan sambil refresh jalan di background; cuma menunggu penuh kalau cache benar-benar kosong (server baru nyala). Toggle: `MEMES_STALE_WHILE_REVALIDATE=0` untuk kembali ke perilaku lama.
+
+**4. Cara hitung wallet "trusted" cacat** — Versi lama (`computeWalletScores`) hitung per alert mentah (bukan token unik), "menang" = harga naik sedikit pun (termasuk stablecoin/wrapped), tanpa syarat sample minimum. Analisis manual 83.109 alert (`Whales_Tracker.rtf`) menemukan 18 wallet trusted versi lama semua di Ethereum, isinya blue-chip (AAVE/UNI/PEPE), bukan micro-cap gem. **`wallet-score-v2` dibuat** (per token unik, exclude stable/wrapped, min 10 token, win = +20%/30 hari, trusted = Wilson-lower-bound ≥30% & median positif) — **default MATI** via `WALLET_SCORE_V2=1`. **Dony memutuskan menunda aktivasi** karena hanya 5 wallet lolos definisi baru (semua ETH), berisiko membuat sinyal Confluence nyaris tidak pernah nyala.
+
+**5. Halaman web 404 saat diakses langsung** — Project Vercel `nexus-alpha-api-server` (nama membingungkan, sebenarnya men-deploy frontend `nexusalpha`) tidak punya `vercel.json`/rewrite. Build command asli: `cd artifacts/nexusalpha && pnpm i... expo export -p web` (bukan `scripts/build.js` yang ternyata untuk publish Expo Go native, jalan buntu sempat ditelusuri ke situ). FIX: `vercel.json` di **root repo** (Root Directory project = `./`) dengan rewrite catch-all ke `/index.html`, digabung dengan `installCommand` yang sudah ada.
+
+**6. Badge "OUTSIDE 45-55 ZONE" menyesatkan** — Teks i18n (`signals.confBelowThreshold`) menyebut konsep confidence-zone khusus rule-based lama, padahal kondisi tampilnya generik (`side !== "NO_TRADE"`). FIX: teks netral "NO_TRADE" untuk kedua mesin.
+
+**7. Dependency mati `@workspace/api-client-react`** — Terdaftar di `tsconfig.json`/`package.json` nexusalpha tapi nol import di mana pun (dikonfirmasi lewat grep di `nexusalpha` dan `api-server`). Penyebab error `TS6306`. Dihapus referensinya (folder `lib/api-client-react` sendiri tidak disentuh). Setelah dihapus, `tsc` baru bisa lanjut dan menemukan **17 error lama yang sebelumnya ketutup**: `memes.tsx` (2x `Feather` type di anotasi), `WebIcon.tsx` (10x duplicate object key), `i18n.tsx` (2x duplicate key `tabs.altcoins`/`header.altcoins`), `types.ts` (3x `TradingPair` union belum termasuk XRPUSDT/DOGEUSDT/AVAXUSDT). **Dikonfirmasi tidak menghalangi build Vercel** (`expo export` lewat Metro/Babel cuma strip tipe, tidak validasi ketat) — jadi bukan blocker, tapi technical debt lama untuk dibereskan terpisah.
+
+**8. File sisa dihapus** — `artifacts/api-server/src/routes/memes.ts.bak` (duplikat lama `memes.ts`, tidak pernah di-import, tidak pernah masuk git).
+
+### Keputusan Besar: Cutover ke Shadow Breakout (23 Sep 2026)
+
+Forward-test per 22 Sep 2026 (sebelum bug dedupe di atas diperbaiki untuk item #1/#2):
+
+| Sistem | Win rate (bersih, setelah dedupe manual) | Catatan |
+|---|---|---|
+| Signal Trading (rule-based) | **0%** (0/20 closed) | SELL-only, gagal total sejak diluncurkan |
+| Shadow ML | 30,8% keseluruhan — BUY 54,5% (tapi menumpuk 2 rally + bug duplikat sinyal belum diperbaiki), SELL 0% | |
+| **Shadow Breakout** | **63,9%** (23/36 closed unik), **PF 3,67** | Sebagian besar menang menumpuk di rally 20-22 Agustus; sample masih di bawah ambang 50 |
+
+Keputusan Dony: matikan generator rule-based & ML, jadikan Breakout sinyal utama, sambil forward-test tetap jalan.
+
+**Implementasi (3 titik, semua live):**
+1. **Backend cron** (`index.ts`): `startCron()` dan `startMlSignalCron()` dikomentari (dimatikan). `startSignalCheckCron()`/`startMlSignalCheckCron()` **sengaja dibiarkan jalan** supaya sinyal OPEN lama tetap closed dengan benar, tidak macet.
+2. **Tombol "Generate Pro Signal"** (`POST /api/ai/signal`): diganti dari `computeRealtimeSignal` (rule-based) ke `computeBreakoutSignal`. Konstanta `LOOKBACK`/`VOL_MULTIPLIER`/`SL_ATR_MULT`/`TP_RR_MULT` di-export dari `breakout-signal-engine.ts` supaya tidak duplikat magic number. Setiap field payload dihitung nyata dari hasil `computeBreakoutSignal()` — **tidak ada nilai yang dikarang** (permintaan eksplisit Dony, karena rencana ke depan dipakai uang sungguhan):
+   - `confidence` = kekuatan volume relatif ke ambang minimum: `min(volRatio/VOL_MULTIPLIER×50, 100)` — **bukan** probabilitas menang.
+   - `keySupport` = teks eksplisit "Tidak dihitung — mesin ini hanya pakai resistance breakout" (bukan angka karangan), karena Breakout memang tidak hitung level support terpisah.
+   - `takeProfit`/`takeProfitRR` = array **1 elemen** (Breakout cuma 1 target TP, bukan 3 seperti rule-based) — frontend sudah defensif menangani ini via `.map()`, tidak perlu ubah kode frontend.
+   - Sengaja **tidak** menaruh angka win-rate statis (mis. "63,9%") di teks manapun karena akan basi — diarahkan cek dashboard live.
+3. **Dashboard** (`GET /api/cron/dashboard`): panel Signal Trading & Shadow ML diberi label "⛔ DIHENTIKAN 23 Sep 2026", panel Breakout judulnya jadi "🎯 Signal Trading (Breakout Momentum) — ✅ AKTIF". Hanya ubah judul/catatan, tabel dan sumber data tiap panel tetap independen (tidak dipaksa tukar bentuk data).
+
+### Belum Dikerjakan / Agenda Selanjutnya
+1. **Aktivasi `WALLET_SCORE_V2`** — ditunda, perlu didiskusikan lagi (lihat risiko di atas) sebelum di-flip.
+2. **Hapus `rule-based-engine.ts`** (`generateRuleBasedSignal`, `scoreSwing`, `scoreScalp`, `checkHardRejects`) — dikonfirmasi mati di produksi, satu-satunya pemanggil `scripts/backtest-scalp-engine.ts`. Belum dihapus, tunggu keputusan Dony apakah skrip backtest itu masih dipakai.
+3. **Field `scalpingPlan` dari Gemini** — endpoint lama masih minta Gemini generate data scalping lengkap tiap request, padahal fiturnya sudah permanent-disabled di UI. Pemborosan biaya API, belum diperbaiki.
+4. **17 error TypeScript lama** di `memes.tsx`, `WebIcon.tsx`, `i18n.tsx`, `types.ts` (baru kelihatan setelah `TS6306` dibereskan) — tidak menghalangi build Vercel, tapi perlu dibereskan.
+5. **`early_gem_score`** — dicatat sesi sebelumnya berbanding terbalik dengan performa asli, belum dipastikan apakah cuma kosmetik (ditampilkan) atau ikut menentukan token mana yang di-track.
+6. Terus pantau forward-test Breakout sampai sample ≥50 closed dan lihat apakah win rate bertahan di luar periode rally Agustus.
+7. Biaya transaksi nyata (fee, slippage) belum masuk hitungan mana pun — perlu sebelum pertimbangan serius pakai uang sungguhan.
