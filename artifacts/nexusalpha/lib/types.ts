@@ -7,7 +7,10 @@ export type TradingPair =
   | "HYPEUSDT"
   | "ASTERUSDT"
   | "ZECUSDT"
-  | "LINKUSDT";
+  | "LINKUSDT"
+  | "XRPUSDT"
+  | "DOGEUSDT"
+  | "AVAXUSDT";
 
 export const SUPPORTED_PAIRS: TradingPair[] = [
   "BTCUSDT",

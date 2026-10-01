@@ -23,10 +23,8 @@ const ID: Dict = {
   "tabs.memes": "MEMES",
   "tabs.news": "NEWS",
   "tabs.altcoins": "ALTCOIN",
-  "tabs.altcoins": "ALTCOIN",
 
   // Header subtitles (per screen)
-  "header.altcoins": "Watchlist Altcoin",
   "header.altcoins": "Watchlist Altcoin",
   "header.market": "Tinjauan Pasar",
   "header.signals": "Sinyal Futures AI",
