@@ -18,6 +18,7 @@ import Svg, {
   Rect,
   Text as SvgText,
 } from "react-native-svg";
+import { Feather } from "@expo/vector-icons";
 
 import { Header } from "@/components/Header";
 import { useColors } from "@/hooks/useColors";
