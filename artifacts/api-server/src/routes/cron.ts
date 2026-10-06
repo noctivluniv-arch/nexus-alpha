@@ -2356,8 +2356,8 @@ async function checkAndLogConfluence(params: {
 }): Promise<boolean> {
   try {
     const { rows: existingRows } = await pool.query(
-      `SELECT id FROM confluence_signal_log WHERE LOWER(token_address) = LOWER($1) AND wallet_address = $2 LIMIT 1`,
-      [params.tokenAddress, params.walletAddress],
+      `SELECT id FROM confluence_signal_log WHERE LOWER(token_address) = LOWER($1) LIMIT 1`,
+      [params.tokenAddress],
     );
     if (existingRows.length > 0) {
       return false; // sudah pernah dicatat, jangan spam alert berulang
