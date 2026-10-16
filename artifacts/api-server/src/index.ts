@@ -40,17 +40,21 @@ app.listen(port, (err) => {
   // 0% (0/20 closed). Diganti Shadow Breakout sebagai sinyal utama.
   // startSignalCheckCron() di bawah TETAP jalan agar sinyal OPEN lama
   // tetap bisa closed dengan benar.
-  startMemeCron();
-  startDailySaveCron();
+  // DIMATIKAN 12 Okt 2026: hasil forward-test meme/whale/confluence tidak
+  // menemukan keunggulan yang terbukti (lihat analisis forward-test 12 Okt).
+  // Hanya Breakout yang dipakai untuk uang sungguhan. Data lama tetap ada di
+  // database/backup; aktifkan lagi dengan membuka komentar baris di bawah.
+  // startMemeCron();
+  // startDailySaveCron();
   startSignalCheckCron();
-  startMemeSignalCheckCron();
-  startMemeTpslCheckCron();
-  startDexRadarCron();
-  startWhaleCron();
-  startWhaleCheckCron();
-  startWalletScoreCron();
-  startConfluenceCheckCron();
-  startConfluenceTpslCheckCron();
+  // startMemeSignalCheckCron();
+  // startMemeTpslCheckCron();
+  // startDexRadarCron();
+  // startWhaleCron();
+  // startWhaleCheckCron();
+  // startWalletScoreCron();
+  // startConfluenceCheckCron();
+  // startConfluenceTpslCheckCron();
   // startMlSignalCron(); -- DIMATIKAN 23 Sep 2026: SELL 0% win rate, BUY
   // menjanjikan tapi terkonsentrasi di 2 rally + ada bug sinyal duplikat
   // yang belum diperbaiki. startMlSignalCheckCron() di bawah TETAP jalan
